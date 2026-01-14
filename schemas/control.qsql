@@ -25,7 +25,7 @@ declare schema CadreControl {
     -- Cadre peers should participate in each of these strands
     table Strand (
         Id text primary key,    -- UUID
-        MemberPrivateKey text unique,   -- Our private key as a member of this strand
+        MemberPrivateKey text null unique,   -- Our private key as a member of this strand
         Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the app, but only Closed controls reads
         constraint Authorized check (
             -- Authorized by authority signature and transaction slot id (not repeatable)
@@ -33,7 +33,8 @@ declare schema CadreControl {
 
                 -- or authorized by a cadre peer who has received a valid formation invitation
                 or exists (select 1 from FormationUsage FU where FU.StrandId = new.Id)
-        )
+        ),
+        -- TODO: constraint to ensure member private key only if closed
     ) with context (AuthorityKey string, SlotId string, Signature string);
 
     -- A peer (node) that is part of the cadre
@@ -69,7 +70,7 @@ declare schema CadreControl {
     ) with context (AuthorityKey string, SlotId string, Signature string);
 
     table FormationUsage (
-        Token text primary key,
+        Token text,
         UseNumber int,
         Disclosure text,
         StrandId text,

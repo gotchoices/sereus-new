@@ -4,8 +4,10 @@ Sent from authority to drone provider to spawn new cadre member. Network ID is a
 
 ```ts
 createCadrePeer(): Promise<PeerId>;
-registerCadrePeer(bootstrapNodes: Multiaddr[], peerId: PeerId, authorityKey: string, signature: string);
+registerCadrePeer(peerId: PeerId, bootstrapNodes: Multiaddr[], authorityKey: string, signature: string);
 ```
+
+Between creating the peer and registering it, the caller adds the peer to the control network, so that at registration, the peer is already a member of the control network and is able to join.
 
 ## Member registration:
 
