@@ -20,6 +20,44 @@ export type StrandFilter =
 export type LatencyHint = 'realtime' | 'interactive' | 'background' | 'archive';
 
 /**
+ * Hibernation timeout configuration per latency hint (in milliseconds)
+ */
+export interface HibernationTimeouts {
+  /** Time before transitioning from active to idle */
+  idleTimeout: number;
+  /** Time before transitioning from idle to hibernating */
+  hibernateTimeout: number;
+  /** Interval for check-ins while hibernating */
+  checkInInterval: number;
+}
+
+/**
+ * Default hibernation timeouts per latency hint
+ */
+export const HIBERNATION_TIMEOUTS: Record<LatencyHint, HibernationTimeouts> = {
+  realtime: {
+    idleTimeout: Infinity,        // Never idle
+    hibernateTimeout: Infinity,   // Never hibernate
+    checkInInterval: Infinity     // N/A
+  },
+  interactive: {
+    idleTimeout: 5 * 60 * 1000,   // 5 minutes
+    hibernateTimeout: 15 * 60 * 1000, // 15 minutes after idle
+    checkInInterval: 30 * 1000    // 30 seconds
+  },
+  background: {
+    idleTimeout: 1 * 60 * 1000,   // 1 minute
+    hibernateTimeout: 5 * 60 * 1000,  // 5 minutes after idle
+    checkInInterval: 5 * 60 * 1000    // 5 minutes
+  },
+  archive: {
+    idleTimeout: 10 * 1000,       // 10 seconds
+    hibernateTimeout: 30 * 1000,  // 30 seconds after idle
+    checkInInterval: 60 * 60 * 1000   // 1 hour
+  }
+};
+
+/**
  * Storage configuration for storage profile nodes
  */
 export interface StorageConfig {
@@ -43,6 +81,8 @@ export interface NetworkConfig {
 export interface HibernationConfig {
   enabled: boolean;
   defaultLatencyHint?: LatencyHint;
+  /** Custom timeouts per latency hint (overrides defaults) */
+  customTimeouts?: Partial<Record<LatencyHint, Partial<HibernationTimeouts>>>;
 }
 
 /**
@@ -132,12 +172,39 @@ export interface StrandInstance {
 }
 
 /**
- * Strand row from control network
+ * Strand row from control network - basic membership info
  */
 export interface StrandRow {
   Id: string;
   MemberPrivateKey: string | null;
   Type: 'o' | 'c';
+}
+
+/**
+ * sApp configuration provided by the hosting application when creating a strand.
+ * This is what the app developer provides - NOT loaded from the network.
+ */
+export interface SAppConfig {
+  /** Public key of the sApp author */
+  id: string;
+  /** Version of the sApp */
+  version: string;
+  /** The declarative schema DDL */
+  schema: string;
+  /** Author's signature over the schema for verification */
+  signature: string;
+  /** Latency hint for hibernation behavior (optional, defaults to config) */
+  latencyHint?: LatencyHint;
+}
+
+/**
+ * Full strand configuration when adding a strand via the API
+ */
+export interface StrandConfig {
+  /** Strand row from control network */
+  strandRow: StrandRow;
+  /** sApp configuration provided by the hosting application */
+  sAppConfig: SAppConfig;
 }
 
 /**
@@ -159,12 +226,30 @@ export interface CreatePeerResult {
 }
 
 /**
+ * Arachnode ring participation stub - will be implemented when arachnode is built
+ */
+export interface ArachnodeConfig {
+  /** Enable Ring Zulu (transaction ring) - all nodes participate */
+  enableRingZulu: boolean;
+  /** Storage ring participation (storage profile only) */
+  storageRing?: {
+    /** Which ring to participate in based on capacity */
+    ring: number;
+    /** Partition within the ring */
+    partition?: number;
+  };
+}
+
+/**
  * Events emitted by CadreNode
  */
 export interface CadreNodeEvents {
   'strand:started': { strandId: string };
   'strand:stopped': { strandId: string };
   'strand:error': { strandId: string; error: Error };
+  'strand:idle': { strandId: string };
+  'strand:hibernating': { strandId: string };
+  'strand:waking': { strandId: string };
   'control:connected': void;
   'control:disconnected': void;
 }

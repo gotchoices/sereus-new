@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StrandWatcher, type StrandQueryable, type StrandWatcherCallbacks } from '../src/strand-watcher.js';
+import { StrandWatcher, type StrandQueryable, type StrandWatcherCallbacks, type SAppIdLookup } from '../src/strand-watcher.js';
 import type { StrandRow } from '../src/types.js';
 
 describe('StrandWatcher Filters', () => {
@@ -11,6 +11,13 @@ describe('StrandWatcher Filters', () => {
 
   function createStrand(id: string): StrandRow {
     return { Id: id, MemberPrivateKey: null, Type: 'o' };
+  }
+
+  // Mock sAppId lookup for testing
+  function createSAppIdLookup(mapping: Record<string, string>): SAppIdLookup {
+    return {
+      getSAppId: (strandId: string) => mapping[strandId]
+    };
   }
 
   describe('mode: all', () => {
@@ -117,9 +124,74 @@ describe('StrandWatcher Filters', () => {
   });
 
   describe('mode: sAppId', () => {
-    // Note: sAppId filtering requires strand header which isn't available in StrandRow
-    // Currently passes all strands through (to be filtered by StrandInstanceManager)
-    it('should pass strands through for later filtering', async () => {
+    it('should filter strands by sAppId when lookup is provided', async () => {
+      const strands = [
+        createStrand('strand-1'),
+        createStrand('strand-2'),
+        createStrand('strand-3')
+      ];
+      const queryable = createMockQueryable(() => strands);
+
+      // strand-1 and strand-3 belong to 'target-app', strand-2 belongs to 'other-app'
+      const sAppIdLookup = createSAppIdLookup({
+        'strand-1': 'target-app',
+        'strand-2': 'other-app',
+        'strand-3': 'target-app'
+      });
+
+      const addedStrands: StrandRow[] = [];
+      const callbacks: StrandWatcherCallbacks = {
+        onStrandAdded: async (strand) => { addedStrands.push(strand); },
+        onStrandRemoved: async () => {}
+      };
+
+      const watcher = new StrandWatcher(
+        queryable,
+        callbacks,
+        { mode: 'sAppId', sAppId: 'target-app' },
+        60000,
+        sAppIdLookup
+      );
+      await watcher.start();
+
+      // Should only pass strands matching 'target-app'
+      expect(addedStrands).toHaveLength(2);
+      expect(addedStrands.map(s => s.Id)).toContain('strand-1');
+      expect(addedStrands.map(s => s.Id)).toContain('strand-3');
+      expect(addedStrands.map(s => s.Id)).not.toContain('strand-2');
+
+      await watcher.stop();
+    });
+
+    it('should pass through strands with unknown sAppId', async () => {
+      const strands = [createStrand('unknown-strand')];
+      const queryable = createMockQueryable(() => strands);
+
+      // Empty lookup - strand sAppId is unknown
+      const sAppIdLookup = createSAppIdLookup({});
+
+      const addedStrands: StrandRow[] = [];
+      const callbacks: StrandWatcherCallbacks = {
+        onStrandAdded: async (strand) => { addedStrands.push(strand); },
+        onStrandRemoved: async () => {}
+      };
+
+      const watcher = new StrandWatcher(
+        queryable,
+        callbacks,
+        { mode: 'sAppId', sAppId: 'some-app' },
+        60000,
+        sAppIdLookup
+      );
+      await watcher.start();
+
+      // Unknown strands pass through (deferred filtering)
+      expect(addedStrands).toHaveLength(1);
+
+      await watcher.stop();
+    });
+
+    it('should pass through all strands when no lookup provided', async () => {
       const strands = [createStrand('strand-1'), createStrand('strand-2')];
       const queryable = createMockQueryable(() => strands);
 
@@ -134,11 +206,12 @@ describe('StrandWatcher Filters', () => {
         callbacks,
         { mode: 'sAppId', sAppId: 'some-app' },
         60000
+        // No sAppIdLookup provided
       );
       await watcher.start();
 
-      // Currently all strands pass through for sAppId mode
-      expect(addedStrands.length).toBeGreaterThan(0);
+      // All strands pass through when no lookup
+      expect(addedStrands).toHaveLength(2);
 
       await watcher.stop();
     });

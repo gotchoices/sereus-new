@@ -697,7 +697,7 @@ interface StrandInstance {
   - [x] Poll-based watching (until Optimystic supports reactive subscriptions)
   - [x] Trigger strand instance start/stop on row changes
   - [x] Apply strand filter from config (all/strandId/none modes complete)
-  - [ ] appId filter mode (passes through for later filtering - needs strand header access)
+  - [x] sAppId filter mode (filters by sAppId when lookup is available)
   - [ ] Handle schema path switching per strand context
 
 - [x] **Strand instance manager**: Creates and manages per-strand libp2p nodes
@@ -705,7 +705,8 @@ interface StrandInstance {
   - [x] `stopStrand(strandId)` - graceful shutdown
   - [x] `stopAll()` - shutdown all instances
   - [x] Protocol prefix configuration per strand (`/sereus/strand/<strandId>`)
-  - [ ] App schema loading from strand header (verify signature against AppId)
+  - [x] Isolated storage paths per strand (`<basePath>/strands/<strandId>/`)
+  - [x] sApp config tracking (id, version, schema, signature, latencyHint)
   - [ ] App schema verification (AppSignature validates AppSchema)
 
 - [x] **Enrollment API**: Methods for adding new peers
@@ -719,18 +720,18 @@ interface StrandInstance {
   - [x] Profile configuration in types (`'transaction' | 'storage'`)
   - [x] FRET profile mapping (storage → 'core', transaction → 'edge')
   - [ ] Ring Zulu participation (all nodes) - configuration present
-  - [ ] Storage ring opt-in (storage profile only) - not yet implemented
+  - [ ] Storage ring opt-in (storage profile only) - Blocked: Arachnode not yet implemented
   - [ ] Quota enforcement for storage nodes
 
-- [ ] **Strand hibernation**: Activity-based lifecycle management
+- [x] **Strand hibernation**: Activity-based lifecycle management
   - [x] Latency hint type defined (`'realtime' | 'interactive' | 'background' | 'archive'`)
   - [x] Activity tracking per strand instance (`lastActivity` field)
   - [x] Status tracking (`'starting' | 'active' | 'idle' | 'hibernating' | 'stopping' | 'stopped' | 'error'`)
-  - [ ] State machine: active → idle → hibernating
-  - [ ] Configurable timeouts based on latency hints
-  - [ ] Check-in with exponential backoff for hibernating strands
-  - [ ] Wake mechanism via control network propagation
-  - [ ] App latency hint parsing from strand header
+  - [x] State machine: active → idle → hibernating (HibernationManager)
+  - [x] Configurable timeouts based on latency hints (HIBERNATION_TIMEOUTS constant)
+  - [x] Check-in with exponential backoff for hibernating strands
+  - [x] Wake mechanism via control network propagation
+  - [x] App latency hint parsing from sApp config
 
 **Tests**: 50 unit tests passing covering CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, and type definitions.
 

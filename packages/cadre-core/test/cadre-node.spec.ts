@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CadreNode } from '../src/cadre-node.js';
-import type { CadreNodeConfig, StrandRow } from '../src/types.js';
+import type { CadreNodeConfig, StrandRow, StrandConfig, SAppConfig } from '../src/types.js';
 
 describe('CadreNode', () => {
   // Helper to create test config
@@ -16,8 +16,26 @@ describe('CadreNode', () => {
   }
 
   // Helper to create test strand rows
-  function createStrand(id: string): StrandRow {
+  function createStrandRow(id: string): StrandRow {
     return { Id: id, MemberPrivateKey: null, Type: 'o' };
+  }
+
+  // Helper to create test sApp config
+  function createSAppConfig(id: string = 'test-app'): SAppConfig {
+    return {
+      id,
+      version: '1.0.0',
+      schema: 'create table Test (id text primary key);',
+      signature: 'test-signature'
+    };
+  }
+
+  // Helper to create full strand config
+  function createStrandConfig(strandId: string, sAppId: string = 'test-app'): StrandConfig {
+    return {
+      strandRow: createStrandRow(strandId),
+      sAppConfig: createSAppConfig(sAppId)
+    };
   }
 
   describe('constructor', () => {
@@ -90,17 +108,24 @@ describe('CadreNode', () => {
 
       await node.start();
 
-      const strand = createStrand('manual-strand');
-      const instance = await node.addStrand(strand);
+      const strandConfig = createStrandConfig('manual-strand');
+      const instance = await node.addStrand(strandConfig);
 
       expect(instance.strandId).toBe('manual-strand');
+      expect(instance.sAppInfo).toBeDefined();
+      expect(instance.sAppInfo?.id).toBe('test-app');
       expect(node.getStrand('manual-strand')).toBeDefined();
       expect(node.getStrands().size).toBe(1);
+
+      // Should be able to get sApp config
+      expect(node.getSAppConfig('manual-strand')).toBeDefined();
+      expect(node.getSAppId('manual-strand')).toBe('test-app');
 
       await node.removeStrand('manual-strand');
 
       expect(node.getStrand('manual-strand')).toBeUndefined();
       expect(node.getStrands().size).toBe(0);
+      expect(node.getSAppConfig('manual-strand')).toBeUndefined();
 
       await node.stop();
     }, 60000);
@@ -109,7 +134,7 @@ describe('CadreNode', () => {
       const config = createConfig();
       const node = new CadreNode(config);
 
-      await expect(node.addStrand(createStrand('test'))).rejects.toThrow('not running');
+      await expect(node.addStrand(createStrandConfig('test'))).rejects.toThrow('not running');
     });
   });
 
@@ -149,9 +174,25 @@ describe('CadreNode', () => {
       node.on('strand:started', (data) => { startedId = data.strandId; });
 
       await node.start();
-      await node.addStrand(createStrand('event-strand'));
+      await node.addStrand(createStrandConfig('event-strand'));
 
       expect(startedId).toBe('event-strand');
+
+      await node.stop();
+    }, 60000);
+
+    it('should emit strand:stopped when strand removed', async () => {
+      const config = createConfig();
+      const node = new CadreNode(config);
+
+      let stoppedId: string | null = null;
+      node.on('strand:stopped', (data) => { stoppedId = data.strandId; });
+
+      await node.start();
+      await node.addStrand(createStrandConfig('strand-to-stop'));
+      await node.removeStrand('strand-to-stop');
+
+      expect(stoppedId).toBe('strand-to-stop');
 
       await node.stop();
     }, 60000);

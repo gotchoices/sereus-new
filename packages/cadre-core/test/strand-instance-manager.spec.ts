@@ -1,14 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { StrandInstanceManager } from '../src/strand-instance-manager.js';
-import type { StrandRow } from '../src/types.js';
+import { StrandInstanceManager, getStrandStoragePath } from '../src/strand-instance-manager.js';
+import type { StrandRow, SAppConfig } from '../src/types.js';
+import type { StartStrandConfig } from '../src/strand-instance-manager.js';
 
 describe('StrandInstanceManager', () => {
   // Helper to create test strand rows
-  function createStrand(id: string, type: 'o' | 'c' = 'o'): StrandRow {
+  function createStrandRow(id: string, type: 'o' | 'c' = 'o'): StrandRow {
     return {
       Id: id,
       MemberPrivateKey: type === 'c' ? 'test-key' : null,
       Type: type
+    };
+  }
+
+  // Helper to create test sApp config
+  function createSAppConfig(id: string = 'test-app'): SAppConfig {
+    return {
+      id,
+      version: '1.0.0',
+      schema: 'create table Test (id text primary key);',
+      signature: 'test-signature'
+    };
+  }
+
+  // Helper to create start config
+  function createStartConfig(strandId: string, overrides?: Partial<StartStrandConfig>): StartStrandConfig {
+    return {
+      strandRow: createStrandRow(strandId),
+      sAppConfig: createSAppConfig(),
+      profile: 'transaction',
+      defaultLatencyHint: 'interactive',
+      ...overrides
     };
   }
 
@@ -34,19 +56,17 @@ describe('StrandInstanceManager', () => {
   });
 
   describe('startStrand', () => {
-    it('should start a strand instance', async () => {
+    it('should start a strand instance with sApp info', async () => {
       const manager = new StrandInstanceManager();
-      const strand = createStrand('test-strand-1');
 
-      const instance = await manager.startStrand({
-        strandRow: strand,
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
+      const instance = await manager.startStrand(createStartConfig('test-strand-1'));
 
       expect(instance.strandId).toBe('test-strand-1');
       expect(instance.status).toBe('active');
       expect(instance.latencyHint).toBe('interactive');
+      expect(instance.sAppInfo).toBeDefined();
+      expect(instance.sAppInfo?.id).toBe('test-app');
+      expect(instance.sAppInfo?.version).toBe('1.0.0');
       expect(manager.hasStrand('test-strand-1')).toBe(true);
 
       // Cleanup
@@ -55,19 +75,10 @@ describe('StrandInstanceManager', () => {
 
     it('should return existing instance if already running', async () => {
       const manager = new StrandInstanceManager();
-      const strand = createStrand('test-strand-2');
+      const config = createStartConfig('test-strand-2');
 
-      const instance1 = await manager.startStrand({
-        strandRow: strand,
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
-
-      const instance2 = await manager.startStrand({
-        strandRow: strand,
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
+      const instance1 = await manager.startStrand(config);
+      const instance2 = await manager.startStrand(config);
 
       expect(instance1).toBe(instance2);
       expect(manager.getInstances().size).toBe(1);
@@ -77,15 +88,27 @@ describe('StrandInstanceManager', () => {
 
     it('should track member private key for closed strands', async () => {
       const manager = new StrandInstanceManager();
-      const strand = createStrand('closed-strand', 'c');
-
-      const instance = await manager.startStrand({
-        strandRow: strand,
-        profile: 'transaction',
+      const config = createStartConfig('closed-strand', {
+        strandRow: createStrandRow('closed-strand', 'c'),
         defaultLatencyHint: 'background'
       });
 
+      const instance = await manager.startStrand(config);
+
       expect(instance.memberPrivateKey).toBe('test-key');
+
+      await manager.stopAll();
+    }, 30000);
+
+    it('should use sApp latency hint if provided', async () => {
+      const manager = new StrandInstanceManager();
+      const config = createStartConfig('hint-strand', {
+        sAppConfig: { ...createSAppConfig(), latencyHint: 'archive' }
+      });
+
+      const instance = await manager.startStrand(config);
+
+      expect(instance.latencyHint).toBe('archive');
 
       await manager.stopAll();
     }, 30000);
@@ -94,13 +117,8 @@ describe('StrandInstanceManager', () => {
   describe('stopStrand', () => {
     it('should stop a running strand', async () => {
       const manager = new StrandInstanceManager();
-      const strand = createStrand('strand-to-stop');
 
-      await manager.startStrand({
-        strandRow: strand,
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
+      await manager.startStrand(createStartConfig('strand-to-stop'));
 
       expect(manager.hasStrand('strand-to-stop')).toBe(true);
 
@@ -121,17 +139,8 @@ describe('StrandInstanceManager', () => {
     it('should stop all running strands', async () => {
       const manager = new StrandInstanceManager();
 
-      await manager.startStrand({
-        strandRow: createStrand('strand-a'),
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
-
-      await manager.startStrand({
-        strandRow: createStrand('strand-b'),
-        profile: 'transaction',
-        defaultLatencyHint: 'interactive'
-      });
+      await manager.startStrand(createStartConfig('strand-a'));
+      await manager.startStrand(createStartConfig('strand-b'));
 
       expect(manager.getInstances().size).toBe(2);
 
@@ -147,6 +156,29 @@ describe('StrandInstanceManager', () => {
       await manager.stopAll();
 
       expect(manager.getInstances().size).toBe(0);
+    });
+  });
+
+  describe('getStrandStoragePath', () => {
+    it('should create isolated storage paths for strands', () => {
+      const basePath = '/data/sereus';
+
+      const path1 = getStrandStoragePath(basePath, 'strand-abc-123');
+      const path2 = getStrandStoragePath(basePath, 'strand-xyz-456');
+
+      expect(path1).toContain('strands');
+      expect(path1).toContain('strand-abc-123');
+      expect(path2).toContain('strand-xyz-456');
+      expect(path1).not.toBe(path2);
+    });
+
+    it('should sanitize unsafe characters in strandId', () => {
+      const basePath = '/data/sereus';
+
+      const path = getStrandStoragePath(basePath, 'strand/../unsafe');
+
+      // Should not contain the unsafe path traversal
+      expect(path).not.toContain('..');
     });
   });
 });

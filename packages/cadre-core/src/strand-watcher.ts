@@ -4,6 +4,15 @@ import type { StrandFilter, StrandRow } from './types.js';
 const log = debug('sereus:cadre:strand-watcher');
 
 /**
+ * Extended strand row that includes the sAppId for filtering purposes.
+ * The sAppId is provided by the hosting application, not from the control network.
+ */
+export interface StrandRowWithApp extends StrandRow {
+  /** sApp ID if known (for filtering) */
+  sAppId?: string;
+}
+
+/**
  * Callback for strand changes
  */
 export interface StrandWatcherCallbacks {
@@ -19,9 +28,17 @@ export interface StrandQueryable {
 }
 
 /**
+ * Interface for looking up sAppId for a strand (for filtering)
+ */
+export interface SAppIdLookup {
+  /** Get the sAppId for a strand, if known */
+  getSAppId(strandId: string): string | undefined;
+}
+
+/**
  * Watches the control network's Strand table for changes and triggers
  * strand instance start/stop via callbacks.
- * 
+ *
  * Uses polling until Optimystic supports reactive subscriptions.
  */
 export class StrandWatcher {
@@ -29,7 +46,8 @@ export class StrandWatcher {
   private readonly pollInterval: number;
   private readonly callbacks: StrandWatcherCallbacks;
   private readonly queryable: StrandQueryable;
-  
+  private readonly sAppIdLookup?: SAppIdLookup;
+
   private knownStrands: Map<string, StrandRow> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
@@ -38,12 +56,14 @@ export class StrandWatcher {
     queryable: StrandQueryable,
     callbacks: StrandWatcherCallbacks,
     filter: StrandFilter = { mode: 'all' },
-    pollInterval: number = 5000
+    pollInterval: number = 5000,
+    sAppIdLookup?: SAppIdLookup
   ) {
     this.queryable = queryable;
     this.callbacks = callbacks;
     this.filter = filter;
     this.pollInterval = pollInterval;
+    this.sAppIdLookup = sAppIdLookup;
     log('StrandWatcher created with filter: %o, interval: %dms', filter, pollInterval);
   }
 
@@ -58,12 +78,20 @@ export class StrandWatcher {
         return false;
       case 'strandId':
         return strand.Id === this.filter.strandId;
-      case 'appId':
-        // For appId filtering, we'd need the strand header which contains AppId
-        // For now, we pass all strands through - the StrandInstanceManager 
-        // will fetch the header and filter there if needed
-        log('appId filter not fully implemented - passing strand %s', strand.Id);
-        return true;
+      case 'sAppId': {
+        // Look up the sAppId for this strand
+        const sAppId = this.sAppIdLookup?.getSAppId(strand.Id);
+        if (sAppId === undefined) {
+          // If no sAppId lookup configured or unknown strand, pass through
+          // The strand will need to be re-evaluated when sApp info is available
+          log('sAppId unknown for strand %s - deferring filter decision', strand.Id);
+          return true;
+        }
+        const matches = sAppId === this.filter.sAppId;
+        log('sAppId filter: strand %s has sAppId %s, filter wants %s, match=%s',
+            strand.Id, sAppId, this.filter.sAppId, matches);
+        return matches;
+      }
       default:
         return true;
     }

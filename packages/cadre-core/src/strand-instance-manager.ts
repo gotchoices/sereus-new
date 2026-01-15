@@ -1,13 +1,16 @@
 import debug from 'debug';
+import path from 'path';
 import type { Libp2p } from '@libp2p/interface';
 import { createLibp2pNode } from '@optimystic/db-p2p';
-import type { 
-  StrandInstance, 
-  StrandRow, 
-  StorageConfig, 
+import type {
+  StrandInstance,
+  StrandRow,
+  StorageConfig,
   NetworkConfig,
   LatencyHint,
-  NodeProfile
+  NodeProfile,
+  SAppConfig,
+  SAppInfo
 } from './types.js';
 
 const log = debug('sereus:cadre:strand-manager');
@@ -17,10 +20,21 @@ const log = debug('sereus:cadre:strand-manager');
  */
 export interface StartStrandConfig {
   strandRow: StrandRow;
+  /** sApp configuration provided by the hosting application */
+  sAppConfig: SAppConfig;
   storage?: StorageConfig;
   network?: NetworkConfig;
   profile: NodeProfile;
   defaultLatencyHint: LatencyHint;
+}
+
+/**
+ * Get the isolated storage path for a specific strand
+ */
+export function getStrandStoragePath(basePath: string, strandId: string): string {
+  // Sanitize strandId for filesystem safety (UUIDs should be safe, but just in case)
+  const safeId = strandId.replace(/[^a-zA-Z0-9-]/g, '_');
+  return path.join(basePath, 'strands', safeId);
 }
 
 /**
@@ -60,7 +74,7 @@ export class StrandInstanceManager {
    * Start a new strand instance
    */
   async startStrand(config: StartStrandConfig): Promise<StrandInstance> {
-    const { strandRow } = config;
+    const { strandRow, sAppConfig } = config;
     const strandId = strandRow.Id;
 
     if (this.stopping) {
@@ -72,29 +86,50 @@ export class StrandInstanceManager {
       return this.instances.get(strandId)!;
     }
 
-    log('Starting strand instance: %s', strandId);
+    log('Starting strand instance: %s (sApp: %s v%s)', strandId, sAppConfig.id, sAppConfig.version);
+
+    // Convert SAppConfig to SAppInfo for the instance
+    const sAppInfo: SAppInfo = {
+      id: sAppConfig.id,
+      version: sAppConfig.version,
+      schema: sAppConfig.schema,
+      signature: sAppConfig.signature
+    };
+
+    // Determine latency hint: sApp config > default
+    const latencyHint = sAppConfig.latencyHint ?? config.defaultLatencyHint;
 
     const instance: StrandInstance = {
       strandId,
       status: 'starting',
+      sAppInfo,
       memberPrivateKey: strandRow.MemberPrivateKey ?? undefined,
       connectedPeers: 0,
       lastActivity: new Date(),
-      latencyHint: config.defaultLatencyHint
+      latencyHint
     };
 
     this.instances.set(strandId, instance);
 
     try {
+      // Calculate isolated storage path for this strand
+      let strandStoragePath: string | undefined;
+      if (config.storage?.path && config.storage.type === 'file') {
+        strandStoragePath = getStrandStoragePath(config.storage.path, strandId);
+        log('Strand %s storage path: %s', strandId, strandStoragePath);
+      }
+
       // Create isolated libp2p node for this strand
-      const protocolPrefix = `/sereus/strand/${strandId}`;
-      
+      // Note: protocolPrefix would be used by libp2p services, but createLibp2pNode
+      // may not support it yet - tracked for future implementation
+      const _protocolPrefix = `/sereus/strand/${strandId}`;
+
       const node = await createLibp2pNode({
         port: 0, // Random port
         bootstrapNodes: [], // Will be populated from strand cohort
         networkName: `strand-${strandId}`,
         storageType: config.storage?.type ?? 'memory',
-        storagePath: config.storage?.path,
+        storagePath: strandStoragePath,
         fretProfile: config.profile === 'storage' ? 'core' : 'edge',
         clusterSize: 3,
         clusterPolicy: {
@@ -103,6 +138,8 @@ export class StrandInstanceManager {
         },
         arachnode: {
           enableRingZulu: true
+          // Storage ring participation stub - will be added when arachnode is built
+          // storageRing: config.profile === 'storage' ? { ring: 0 } : undefined
         }
       });
 
@@ -110,7 +147,7 @@ export class StrandInstanceManager {
       instance.status = 'active';
       instance.lastActivity = new Date();
 
-      log('Strand %s started successfully', strandId);
+      log('Strand %s started successfully with sApp %s', strandId, sAppConfig.id);
       return instance;
 
     } catch (error) {
