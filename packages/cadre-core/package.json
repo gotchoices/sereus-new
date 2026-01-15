@@ -1,0 +1,49 @@
+{
+  "name": "@sereus/cadre-core",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Core library for Sereus cadre nodes - manages control networks and strand participation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "src",
+    "dist",
+    "!dist/test",
+    "!**/*.tsbuildinfo"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "dev:test": "vitest"
+  },
+  "devDependencies": {
+    "@chainsafe/libp2p-noise": "^16.1.4",
+    "@chainsafe/libp2p-yamux": "^7.0.1",
+    "@libp2p/tcp": "^10.1.18",
+    "@types/debug": "^4.1.12",
+    "@types/node": "^22.13.10",
+    "aegir": "^45.1.4",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "debug": "^4.4.1",
+    "@libp2p/crypto": "^5.0.14",
+    "@libp2p/interface": "^2.10.5",
+    "@libp2p/peer-id": "^5.1.8",
+    "@optimystic/db-core": "^0.0.1",
+    "@optimystic/db-p2p": "^0.0.1",
+    "@quereus/quereus": "^0.13.1",
+    "libp2p": "^2.9.0",
+    "uint8arrays": "^5.1.0"
+  }
+}
+

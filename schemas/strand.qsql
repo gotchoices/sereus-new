@@ -9,16 +9,16 @@ declare schema Strand {
         Type text check (Type in ('o', 'c')), 
 
         -- The app that this strand faciliates - public key from author to prevent tampering
-        AppId text,
+        sAppId text,
 
-        -- The version of the app that this strand faciliates
-        AppVersion text,
+        -- The version of the sApp that this strand faciliates
+        sAppVersion text,
 
-        -- The schema of the app that this strand faciliates
-        AppSchema text,
+        -- The schema of the sApp that this strand faciliates
+        sAppSchema text,
 
         -- The author's signature on the schema to guarantee authorship
-        AppSignature text,
+        sAppSignature text,
 
         -- The engine (rules logic system) that is assumed to manage this strand
         Engine text,

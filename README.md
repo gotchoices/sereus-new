@@ -34,7 +34,7 @@ Sereus is a Web3 programming fabric built on consent-based strands where users c
 2) Set up the stack locally (Quereus, Optimystic/Fret, libp2p).
 3) Define a strand schema and roles; initialize your first strand.
 4) Connect a second node via invitation; verify synchronized SQL state.
-5) Build your app by issuing SQL against the strand database.
+5) Build your sApp by issuing SQL against the strand database.
 
 ### Ops (running bootstrap/relay nodes)
 If you’re operating infrastructure (e.g., **libp2p relay** and/or **bootstrap** nodes), start here:

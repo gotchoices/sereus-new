@@ -1,4 +1,4 @@
-# Cadre Architecture
+# Sereus Cadre Architecture
 
 This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in distributed strand networks.
 
@@ -123,7 +123,7 @@ Mobile nodes typically run as part of a specific application and should not part
 | Filter Mode | Behavior |
 |-------------|----------|
 | `all` | Participate in all strands in the control network (default for servers) |
-| `appId:<id>` | Only participate in strands matching the specified AppId |
+| `sAppId:<id>` | Only participate in strands matching the specified sAppId |
 | `strandId:<id>` | Only participate in a single specific strand |
 | `none` | Control network only, no strand participation |
 
@@ -222,7 +222,7 @@ The `bootstrapNodes` list typically includes a relay-routed multiaddr pointing t
 Cadre nodes watch the control network's `Strand` table for changes. When a strand is added, each node:
 
 1. Creates a new libp2p node with protocol prefix `/sereus/strand/<strand-id>`
-2. Loads the strand's app schema via declarative schema
+2. Loads the strand's sApp schema via declarative schema
 3. Bootstraps into the strand's cohort
 4. Begins participating in transactions
 
@@ -246,7 +246,7 @@ Cadre nodes watch the control network's `Strand` table for changes. When a stran
 │                                    │       ▼       │               │
 │                                    │  libp2p node  │               │
 │                                    │  + Optimystic │               │
-│                                    │  + App Schema │               │
+│                                    │  + sApp Schema│               │
 │                                    └───────────────┘               │
 │                                                                     │
 │  ┌───────────────┐                 ┌───────────────┐               │
@@ -355,7 +355,7 @@ A party may participate in many strands (potentially hundreds), but most are ina
 2. **Check-in wake**: Periodic check-in discovers pending activity
 3. **Push wake**: Another cadre member (with incoming connectivity) receives wake request and propagates via control network
 
-**App Latency Hints:**
+**sApp Latency Hints:**
 
 Applications can provide latency hints in the strand header that influence hibernation behavior:
 
@@ -396,7 +396,7 @@ Each strand operates as a completely isolated libp2p network. This isolation is 
 │  │  Peers: Cohort A  │  │  Peers: Cohort B  │  │ Peers: Coh C  │   │
 │  │  (Party 1, 2, 3)  │  │  (Party 1, 4)     │  │ (Party 1, 5)  │   │
 │  │                   │  │                   │  │               │   │
-│  │  Data: App A +    │  │  Data: App B +    │  │ Data: App C + │   │
+│  │  Data: sApp A +   │  │  Data: sApp B +   │  │ Data: sApp C +│   │
 │  │        Strand     │  │        Strand     │  │       Strand  │   │
 │  │        schema     │  │        schema     │  │       schema  │   │
 │  └───────────────────┘  └───────────────────┘  └───────────────┘   │
@@ -600,7 +600,7 @@ interface CadreNodeConfig {
   // Strand filtering (which strands to participate in)
   strandFilter?:
     | { mode: 'all' }                           // All strands (default for servers)
-    | { mode: 'appId'; appId: string }          // Only strands for specific app
+    | { mode: 'sAppId'; sAppId: string }        // Only strands for specific app
     | { mode: 'strandId'; strandId: string }    // Single specific strand
     | { mode: 'none' };                         // Control network only
 
@@ -634,11 +634,11 @@ interface StrandInstance {
   status: 'starting' | 'active' | 'idle' | 'hibernating' | 'stopping' | 'stopped' | 'error';
 
   // App information (from strand header, verified by signature)
-  appInfo: {
-    appId: string;                // Public key of app author
-    appVersion: string;
-    appSchema: string;            // The declarative schema DDL
-    appSignature: string;         // Author's signature over schema
+  sAppInfo: {
+    Id: string;                // Public key of app author
+    Version: string;
+    Schema: string;            // The declarative schema DDL
+    Signature: string;         // Author's signature over schema
   };
 
   // Runtime components (only when active/idle)
@@ -686,42 +686,53 @@ interface StrandInstance {
 
 ### Phase 1: Core Library (`@sereus/cadre-core`)
 
-- [ ] **CadreNode class**: Main entry point that manages control network and strand instances
-  - [ ] Constructor accepts `CadreNodeConfig`
-  - [ ] `start()` / `stop()` lifecycle methods
-  - [ ] Internal control network libp2p node creation
-  - [ ] Schema loading for CadreControl
+- [x] **CadreNode class**: Main entry point that manages control network and strand instances
+  - [x] Constructor accepts `CadreNodeConfig`
+  - [x] `start()` / `stop()` lifecycle methods
+  - [x] Internal control network libp2p node creation
+  - [x] Event emission for lifecycle events (`control:connected`, `control:disconnected`, `strand:started`, `strand:stopped`, `strand:error`)
+  - [ ] Schema loading for CadreControl (stub - returns empty strand list)
 
-- [ ] **Strand watcher**: Reactive component that monitors control network
-  - [ ] Poll-based watching (until Optimystic supports reactive subscriptions)
-  - [ ] Trigger strand instance start/stop on row changes
-  - [ ] Apply strand filter from config (all/appId/strandId/none)
+- [x] **Strand watcher**: Reactive component that monitors control network
+  - [x] Poll-based watching (until Optimystic supports reactive subscriptions)
+  - [x] Trigger strand instance start/stop on row changes
+  - [x] Apply strand filter from config (all/strandId/none modes complete)
+  - [ ] appId filter mode (passes through for later filtering - needs strand header access)
   - [ ] Handle schema path switching per strand context
 
-- [ ] **Strand instance manager**: Creates and manages per-strand libp2p nodes
-  - [ ] `startStrand(strandId, config)` - spin up isolated libp2p instance
-  - [ ] `stopStrand(strandId)` - graceful shutdown
-  - [ ] Protocol prefix configuration per strand
+- [x] **Strand instance manager**: Creates and manages per-strand libp2p nodes
+  - [x] `startStrand(strandId, config)` - spin up isolated libp2p instance
+  - [x] `stopStrand(strandId)` - graceful shutdown
+  - [x] `stopAll()` - shutdown all instances
+  - [x] Protocol prefix configuration per strand (`/sereus/strand/<strandId>`)
   - [ ] App schema loading from strand header (verify signature against AppId)
   - [ ] App schema verification (AppSignature validates AppSchema)
 
-- [ ] **Enrollment API**: Methods for adding new peers
-  - [ ] `createCadrePeer()` - generate keypair, return PeerId
-  - [ ] `registerCadrePeer(peerId, bootstrapNodes, authorityKey, signature)` - verify and add to control network
-  - [ ] Signature verification against AuthorityKey table
+- [x] **Enrollment API**: Methods for adding new peers
+  - [x] `createCadrePeer()` - generate Ed25519 keypair, return PeerId and private key
+  - [x] `registerCadrePeer(peerId, bootstrapNodes, authorityKey, signature)` - verify and add to control network
+  - [x] `validateRegistration()` - pre-flight check for registration validity
+  - [x] Signature verification interface (`AuthorityVerifier`)
+  - [x] Peer registration interface (`PeerRegistry`)
 
-- [ ] **Profile configuration**: Transaction vs storage mode
-  - [ ] Ring Zulu participation (all nodes)
-  - [ ] Storage ring opt-in (storage profile only)
+- [x] **Profile configuration**: Transaction vs storage mode
+  - [x] Profile configuration in types (`'transaction' | 'storage'`)
+  - [x] FRET profile mapping (storage → 'core', transaction → 'edge')
+  - [ ] Ring Zulu participation (all nodes) - configuration present
+  - [ ] Storage ring opt-in (storage profile only) - not yet implemented
   - [ ] Quota enforcement for storage nodes
 
 - [ ] **Strand hibernation**: Activity-based lifecycle management
-  - [ ] Activity tracking per strand instance
+  - [x] Latency hint type defined (`'realtime' | 'interactive' | 'background' | 'archive'`)
+  - [x] Activity tracking per strand instance (`lastActivity` field)
+  - [x] Status tracking (`'starting' | 'active' | 'idle' | 'hibernating' | 'stopping' | 'stopped' | 'error'`)
   - [ ] State machine: active → idle → hibernating
   - [ ] Configurable timeouts based on latency hints
   - [ ] Check-in with exponential backoff for hibernating strands
   - [ ] Wake mechanism via control network propagation
   - [ ] App latency hint parsing from strand header
+
+**Tests**: 50 unit tests passing covering CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, and type definitions.
 
 ### Phase 2: CLI Wrapper (`@sereus/cadre-cli`)
 
@@ -802,7 +813,12 @@ interface StrandInstance {
 
 ### Testing
 
-- [ ] **Unit tests**: Individual component testing
+- [x] **Unit tests**: Individual component testing (50 tests passing)
+  - [x] CadreNode lifecycle and configuration tests
+  - [x] StrandWatcher polling and filter tests
+  - [x] StrandInstanceManager start/stop tests
+  - [x] EnrollmentService peer creation and registration tests
+  - [x] Type definition validation tests
 - [ ] **Integration tests**: Multi-node control network scenarios
 - [ ] **E2E tests**: Full enrollment and strand formation flows
 - [ ] **Load tests**: Many strands on single node, many nodes in cohort

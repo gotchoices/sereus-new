@@ -21,12 +21,12 @@ declare schema CadreControl {
         )
     ) with context (AuthorityKey string, SlotId string, Signature string);
 
-    -- A network of members sharing an app database, each contributing peer nodes (their cadre) to the overall cohort
+    -- A network of members sharing an sApp database, each contributing peer nodes (their cadre) to the overall cohort
     -- Cadre peers should participate in each of these strands
     table Strand (
         Id text primary key,    -- UUID
         MemberPrivateKey text null unique,   -- Our private key as a member of this strand
-        Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the app, but only Closed controls reads
+        Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the sApp, but only Closed controls reads
         constraint Authorized check (
             -- Authorized by authority signature and transaction slot id (not repeatable)
             exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
@@ -58,7 +58,7 @@ declare schema CadreControl {
     -- An open invitation to form a strand with this party
     table FormationInvite (
         Token text primary key, -- Just a random string
-        AppId text, -- The app for the strand that will be formed
+        sAppId text, -- The app for the strand that will be formed
         ExpiresAt datetime null,
         TotalUses int null check (TotalUses >= 0),
         ValidationUrl text null,   -- Web hook - send disclosure, IP address...

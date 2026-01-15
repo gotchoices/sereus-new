@@ -32,7 +32,7 @@ Open invitation:
 ```ts
 type OpenInvitation = {
     token: string;
-    appId: string;
+    sAppId: string;
     expiration: DateTime,
     bootstrap: Muliaddr[],
 }

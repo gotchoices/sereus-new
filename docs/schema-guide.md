@@ -385,7 +385,7 @@ select *
 
 ---
 
-### Putting It All Together: A Compact Sereus App Schema
+### Putting It All Together: A Compact sApp Schema
 
 This example demonstrates a realistic consent-based messaging app schema using all key features: FK, composite PK, checks (immediate + auto-deferred), generated columns, indexes, views, mutation context, assertions, and seeds.
 
