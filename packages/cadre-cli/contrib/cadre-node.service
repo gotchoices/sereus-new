@@ -1,0 +1,61 @@
+[Unit]
+Description=Sereus Cadre Node
+Documentation=https://github.com/sereus/cadre-cli
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cadre
+Group=cadre
+
+# Working directory - adjust to your installation
+WorkingDirectory=/opt/cadre
+
+# Configuration file location
+Environment="CADRE_CONFIG=/etc/cadre/cadre.yaml"
+
+# Node.js settings
+Environment="NODE_ENV=production"
+Environment="NODE_OPTIONS=--max-old-space-size=4096"
+
+# Enable debug logging (optional)
+# Environment="DEBUG=sereus:*"
+
+# Start command
+ExecStart=/usr/bin/node /opt/cadre/node_modules/@sereus/cadre-cli/dist/bin/cadre.js start -c ${CADRE_CONFIG}
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Allow read/write to data directory
+ReadWritePaths=/var/lib/cadre
+
+# Allow read access to config
+ReadOnlyPaths=/etc/cadre
+
+# Limit resources (adjust as needed)
+MemoryMax=8G
+TasksMax=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cadre-node
+
+[Install]
+WantedBy=multi-user.target
+

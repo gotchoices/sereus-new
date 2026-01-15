@@ -1,0 +1,47 @@
+{
+  "name": "@sereus/cadre-cli",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "CLI wrapper for Sereus cadre nodes - start, monitor, and manage cadre node instances",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "cadre": "dist/bin/cadre.js"
+  },
+  "files": [
+    "src",
+    "dist",
+    "!dist/test",
+    "!**/*.tsbuildinfo"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "dev:test": "vitest",
+    "start": "node dist/bin/cadre.js"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.13.10",
+    "aegir": "^45.1.4",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@sereus/cadre-core": "file:../cadre-core",
+    "commander": "^12.1.0",
+    "debug": "^4.4.1",
+    "js-yaml": "^4.1.0",
+    "uint8arrays": "^5.1.0"
+  }
+}
+

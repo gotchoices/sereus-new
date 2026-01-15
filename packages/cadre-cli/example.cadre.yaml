@@ -1,0 +1,53 @@
+# Example Cadre Node Configuration
+# Copy this file to cadre.yaml and customize for your deployment
+
+# Node identity (optional - generates new identity if not specified)
+identity:
+  # Path to private key file (generated via 'cadre enroll create')
+  keyFile: ./cadre-peer.key
+  # Or inline hex (not recommended for production)
+  # privateKeyHex: "..."
+
+# Control network connection
+controlNetwork:
+  # UUID of your party/control network
+  partyId: "your-party-uuid-here"
+  # Bootstrap nodes to connect to
+  bootstrapNodes:
+    - "/dns4/bootstrap.example.com/tcp/4001/p2p/12D3KooW..."
+    - "/ip4/192.168.1.100/tcp/4001/p2p/12D3KooW..."
+
+# Node profile: 'transaction' (mobile/edge) or 'storage' (server)
+profile: storage
+
+# Strand filtering (optional, defaults to 'all')
+# Options: 'all', 'none', { sAppId: "..." }, { strandId: "..." }
+strandFilter: all
+
+# Storage configuration (for storage profile)
+storage:
+  type: file
+  path: ./data
+  quotaBytes: 10737418240  # 10 GB
+
+# Network configuration (optional)
+network:
+  # Addresses to listen on
+  listenAddrs:
+    - "/ip4/0.0.0.0/tcp/4001"
+    - "/ip6/::/tcp/4001"
+  # Addresses to announce (if behind NAT/proxy)
+  # announceAddrs:
+  #   - "/dns4/mynode.example.com/tcp/4001"
+  # Relay servers for NAT traversal
+  # relayAddrs:
+  #   - "/dns4/relay.example.com/tcp/4001/p2p/12D3KooW..."
+
+# Hibernation settings
+hibernation:
+  enabled: true
+  defaultLatencyHint: interactive  # realtime, interactive, background, archive
+
+# Strand watcher polling interval (ms)
+strandWatchInterval: 5000
+

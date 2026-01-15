@@ -677,7 +677,7 @@ interface StrandInstance {
 
 - `@gotchoices/optimystic/packages/db-p2p` - libp2p node creation with Optimystic integration
 - `packages/strand-proto` - Bootstrap session management
-- `packages/test-peer` - Reference CLI implementation
+- `packages/reference-peer` - Reference CLI implementation
 - `ops/docker/libp2p-infra` - Container infrastructure for relay/bootstrap nodes
 
 ---
@@ -737,21 +737,21 @@ interface StrandInstance {
 
 ### Phase 2: CLI Wrapper (`@sereus/cadre-cli`)
 
-- [ ] **Command-line interface**
-  - [ ] `cadre start` - start node with config file
-  - [ ] `cadre status` - show control network and strand status
-  - [ ] `cadre enroll` - interactive enrollment flow
-  - [ ] `cadre strands` - list active strands
+- [x] **Command-line interface**
+  - [x] `cadre start` - start node with config file
+  - [x] `cadre status` - show control network and strand status
+  - [x] `cadre enroll` - enrollment subcommands (create, register)
+  - [x] `cadre strands` - list active strands
 
-- [ ] **Configuration file format**
-  - [ ] YAML/JSON config loading
-  - [ ] Environment variable overrides
-  - [ ] Secure key file handling
+- [x] **Configuration file format**
+  - [x] YAML/JSON config loading
+  - [x] Environment variable overrides
+  - [x] Secure key file handling
 
-- [ ] **Daemon mode**
-  - [ ] Systemd service file
-  - [ ] Graceful shutdown handling
-  - [ ] Log rotation integration
+- [x] **Daemon mode**
+  - [x] Systemd service file with security hardening
+  - [x] Graceful shutdown handling (SIGINT/SIGTERM)
+  - [x] Journal logging integration (systemd native)
 
 ### Phase 3: Container Runtime
 
@@ -771,7 +771,7 @@ interface StrandInstance {
   - [ ] Status reporting endpoint
   - [ ] Metrics exposure (Prometheus format)
 
-### Phase 4: Provider Service (Future)
+### Phase 4: Provider Service
 
 - [ ] **Provider API**
   - [ ] `POST /containers` - allocate new container
@@ -789,7 +789,7 @@ interface StrandInstance {
   - [ ] Auto-scaling based on demand
   - [ ] Multi-region deployment
 
-### Phase 5: Mobile Integration (Future)
+### Phase 5: Mobile Integration
 
 - [ ] **React Native bindings**
   - [ ] Native module for libp2p (or JS implementation)

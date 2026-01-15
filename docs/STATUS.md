@@ -87,7 +87,7 @@ Conventions:
     - All Optimystic protocols are prefixed like `/optimystic/{networkName}/...` (see `optimystic/PROTOCOL-ISOLATION.md` and `@optimystic/db-p2p` `createLibp2pNode`).
     - Implication: a “cadre” very likely maps 1:1 to an Optimystic `networkName` (or a deterministic derivation like `sereus-cadre-${cadreId}`).
   - [x] A headless libp2p+Optimystic runtime exists for development/testing:
-    - `optimystic/packages/test-peer` has a `service` command (no REPL) that starts a node via `@optimystic/db-p2p` `createLibp2pNode`.
+    - `optimystic/packages/reference-peer` has a `service` command (no REPL) that starts a node via `@optimystic/db-p2p` `createLibp2pNode`.
     - It supports: `--network`, `--bootstrap` / `--bootstrap-file`, `--storage file|memory`, `--storage-path`, `--fret-profile edge|core`.
   - [ ] **Identity persistence is not clearly implemented**
     - `@optimystic/db-p2p` currently accepts `id?: string` and uses `peerIdFromString(id)` (no explicit private key load/save).

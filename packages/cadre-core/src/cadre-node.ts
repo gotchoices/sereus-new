@@ -8,11 +8,11 @@ import type {
   StrandConfig,
   SAppConfig,
   CadreNodeEvents
-} from './types';
-import { StrandWatcher, type StrandQueryable, type SAppIdLookup } from './strand-watcher';
-import { StrandInstanceManager } from './strand-instance-manager';
-import { EnrollmentService } from './enrollment';
-import { HibernationManager, type HibernationCallbacks } from './hibernation-manager';
+} from './types.js';
+import { StrandWatcher, type StrandQueryable, type SAppIdLookup } from './strand-watcher.js';
+import { StrandInstanceManager } from './strand-instance-manager.js';
+import { EnrollmentService } from './enrollment.js';
+import { HibernationManager, type HibernationCallbacks } from './hibernation-manager.js';
 
 const log = debug('sereus:cadre:node');
 
