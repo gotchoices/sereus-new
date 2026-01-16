@@ -42,6 +42,9 @@ network:
   # Relay servers for NAT traversal
   # relayAddrs:
   #   - "/dns4/relay.example.com/tcp/4001/p2p/12D3KooW..."
+  # Enable circuit relay server - allows this node to relay connections for other peers.
+  # Defaults to true for storage profile nodes, false for transaction profile.
+  # enableRelay: true
 
 # Hibernation settings
 hibernation:

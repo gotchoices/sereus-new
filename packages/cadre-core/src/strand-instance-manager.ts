@@ -124,6 +124,10 @@ export class StrandInstanceManager {
       // may not support it yet - tracked for future implementation
       const _protocolPrefix = `/sereus/strand/${strandId}`;
 
+      // Determine relay mode: if explicitly set in config, use that;
+      // otherwise default to true for storage profile nodes
+      const enableRelay = config.network?.enableRelay ?? (config.profile === 'storage');
+
       const node = await createLibp2pNode({
         port: 0, // Random port
         bootstrapNodes: [], // Will be populated from strand cohort
@@ -131,6 +135,7 @@ export class StrandInstanceManager {
         storageType: config.storage?.type ?? 'memory',
         storagePath: strandStoragePath,
         fretProfile: config.profile === 'storage' ? 'core' : 'edge',
+        relay: enableRelay,
         clusterSize: 3,
         clusterPolicy: {
           allowDownsize: true,

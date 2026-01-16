@@ -42,6 +42,11 @@ export interface CliConfigFile {
     listenAddrs?: string[];
     announceAddrs?: string[];
     relayAddrs?: string[];
+    /**
+     * Enable circuit relay server - allows this node to relay connections for other peers.
+     * Defaults to true for storage profile nodes, false for transaction profile.
+     */
+    enableRelay?: boolean;
   };
 
   /** Hibernation settings */
@@ -67,6 +72,7 @@ export const ENV_MAPPINGS = {
   CADRE_LISTEN_ADDRS: 'network.listenAddrs',
   CADRE_ANNOUNCE_ADDRS: 'network.announceAddrs',
   CADRE_RELAY_ADDRS: 'network.relayAddrs',
+  CADRE_ENABLE_RELAY: 'network.enableRelay',
   CADRE_HIBERNATION_ENABLED: 'hibernation.enabled',
   CADRE_STRAND_FILTER: 'strandFilter',
 } as const;
@@ -91,6 +97,7 @@ export interface ResolvedConfig {
     listenAddrs?: string[];
     announceAddrs?: string[];
     relayAddrs?: string[];
+    enableRelay?: boolean;
   };
   hibernation?: {
     enabled: boolean;

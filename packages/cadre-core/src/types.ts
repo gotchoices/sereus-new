@@ -73,6 +73,12 @@ export interface NetworkConfig {
   listenAddrs?: string[];
   announceAddrs?: string[];
   relayAddrs?: string[];
+  /**
+   * Enable circuit relay server - allows this node to relay connections for other peers.
+   * When undefined, defaults to true for storage profile nodes (they typically have
+   * better connectivity and uptime), false for transaction profile nodes.
+   */
+  enableRelay?: boolean;
 }
 
 /**

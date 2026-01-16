@@ -616,6 +616,7 @@ interface CadreNodeConfig {
     listenAddrs?: string[];       // Addresses to listen on
     announceAddrs?: string[];     // Addresses to advertise
     relayAddrs?: string[];        // Relay servers to connect through
+    enableRelay?: boolean;        // Enable circuit relay server (default: true for storage profile)
   };
 
   // Hibernation configuration

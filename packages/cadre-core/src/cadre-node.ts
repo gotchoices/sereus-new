@@ -200,6 +200,10 @@ export class CadreNode implements SAppIdLookup {
     const { controlNetwork, network, storage, profile, privateKey } = this.config;
     const protocolPrefix = `/sereus/control/${controlNetwork.partyId}`;
 
+    // Determine relay mode: if explicitly set in config, use that;
+    // otherwise default to true for storage profile nodes (better connectivity/uptime)
+    const enableRelay = network?.enableRelay ?? (profile === 'storage');
+
     const nodeOptions: Parameters<typeof createLibp2pNode>[0] = {
       port: 0,
       bootstrapNodes: controlNetwork.bootstrapNodes,
@@ -207,6 +211,7 @@ export class CadreNode implements SAppIdLookup {
       storageType: storage?.type ?? 'memory',
       storagePath: storage?.path,
       fretProfile: profile === 'storage' ? 'core' : 'edge',
+      relay: enableRelay,
       clusterSize: 3,
       clusterPolicy: { allowDownsize: true, sizeTolerance: 0.5 },
       arachnode: { enableRingZulu: true }

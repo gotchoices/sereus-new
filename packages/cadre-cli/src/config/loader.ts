@@ -58,7 +58,7 @@ function parseEnvValue(envVar: string, value: string): unknown {
     return value.split(',').map(s => s.trim()).filter(Boolean);
   }
   // Handle boolean values
-  if (envVar.includes('_ENABLED')) {
+  if (envVar.includes('_ENABLED') || envVar.includes('_RELAY')) {
     return value.toLowerCase() === 'true' || value === '1';
   }
   return value;
