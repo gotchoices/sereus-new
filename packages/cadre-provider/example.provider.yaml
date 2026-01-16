@@ -1,0 +1,76 @@
+# Cadre Provider Configuration Example
+# Copy this file and customize for your deployment
+
+# API Server Configuration
+server:
+  host: 0.0.0.0
+  port: 3000
+  basePath: /api/v1
+  cors:
+    origin: true
+    credentials: true
+
+# Authentication Configuration
+auth:
+  # Options: none (dev only), api-key, oauth
+  mode: api-key
+  # For api-key mode: SHA-256 hashes of valid API keys
+  # Generate with: echo -n "your-api-key" | sha256sum
+  # apiKeyHashes:
+  #   - abc123...
+  
+  # For oauth mode:
+  # jwksUri: https://your-auth-provider.com/.well-known/jwks.json
+  # issuer: https://your-auth-provider.com
+  # audience: cadre-provider-api
+
+# Docker Orchestrator Configuration
+docker:
+  # Docker socket path
+  socketPath: /var/run/docker.sock
+  
+  # Network for cadre containers
+  network: sereus_provider
+  
+  # Image for cadre nodes
+  image: sereus-cadre-node:latest
+  
+  # Image pull policy: always, if-not-present, never
+  pullPolicy: if-not-present
+  
+  # Default resource limits for new containers
+  defaultResources:
+    memoryLimit: 512M
+    cpuLimit: "0.5"
+    storageQuotaBytes: 10737418240  # 10 GB
+  
+  # Port range for container allocation
+  portRange:
+    start: 10000
+    end: 20000
+
+# Billing Configuration
+billing:
+  enabled: false
+  
+  # Stripe integration (optional)
+  # stripeSecretKey: sk_test_...
+  # stripeWebhookSecret: whsec_...
+  
+  # Default plan for new customers
+  defaultPlanId: starter
+  
+  # Usage collection interval (seconds)
+  usageCollectionIntervalSec: 60
+
+# Storage Configuration
+storage:
+  # Options: memory (testing), file (production)
+  type: file
+  path: /data/provider
+
+# Logging Configuration
+logging:
+  # Options: debug, info, warn, error
+  level: info
+

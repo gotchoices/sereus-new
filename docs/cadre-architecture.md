@@ -678,6 +678,9 @@ interface StrandInstance {
 - `@gotchoices/optimystic/packages/db-p2p` - libp2p node creation with Optimystic integration
 - `packages/strand-proto` - Bootstrap session management
 - `packages/reference-peer` - Reference CLI implementation
+- `packages/cadre-core` - Core cadre node library
+- `packages/cadre-cli` - CLI wrapper for cadre nodes
+- `packages/cadre-provider` - Reference provider service for hosting cadre nodes
 - `ops/docker/libp2p-infra` - Container infrastructure for relay/bootstrap nodes
 
 ---
@@ -771,23 +774,36 @@ interface StrandInstance {
   - [x] Status reporting endpoint (`/status` JSON endpoint)
   - [x] Metrics exposure (Prometheus format at `/metrics` on port 9090)
 
-### Phase 4: Provider Service
+### Phase 4: Provider Service (`@sereus/cadre-provider`)
 
-- [ ] **Provider API**
-  - [ ] `POST /containers` - allocate new container
-  - [ ] `GET /containers/:id` - get container status
-  - [ ] `DELETE /containers/:id` - terminate container
-  - [ ] Authentication via API key or OAuth
+- [x] **Provider API**
+  - [x] `POST /containers` - allocate new container
+  - [x] `GET /containers/:id` - get container status
+  - [x] `GET /containers` - list customer containers
+  - [x] `DELETE /containers/:id` - terminate container
+  - [x] Authentication via API key or OAuth (pluggable hooks)
+  - [x] `GET /billing/plans` - list available billing plans
+  - [x] `GET /billing/status` - get customer billing status
 
-- [ ] **Billing integration**
-  - [ ] Usage metering (storage, bandwidth, uptime)
-  - [ ] Stripe/payment processor integration
-  - [ ] Quota enforcement
+- [x] **Billing integration**
+  - [x] Usage metering (storage, bandwidth, uptime via orchestrator stats)
+  - [x] Payment processor hooks (Stripe-ready with `BillingHooks` interface)
+  - [x] Quota enforcement (container limits per plan)
+  - [x] Default billing plans (starter, professional, enterprise)
 
-- [ ] **Orchestration**
-  - [ ] Kubernetes operator (optional)
+- [x] **Orchestration**
+  - [x] Docker orchestrator (`DockerOrchestrator` class)
+  - [x] Mock orchestrator for testing
+  - [x] Pluggable `Orchestrator` interface for custom backends
+  - [ ] Kubernetes operator (optional, not yet implemented)
   - [ ] Auto-scaling based on demand
   - [ ] Multi-region deployment
+
+- [x] **Configuration & CLI**
+  - [x] YAML/JSON config file support
+  - [x] Environment variable overrides
+  - [x] `cadre-provider start` CLI command
+  - [x] `cadre-provider check` config validation
 
 ### Phase 5: Mobile Integration
 

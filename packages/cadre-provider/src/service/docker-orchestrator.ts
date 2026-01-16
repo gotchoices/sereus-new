@@ -1,0 +1,200 @@
+/**
+ * Docker-based orchestrator implementation.
+ */
+
+import Docker from 'dockerode';
+import debug from 'debug';
+import type { DockerConfig } from '../config/types.js';
+import type {
+  Orchestrator,
+  OrchestratorCreateRequest,
+  OrchestratorCreateResult,
+  OrchestratorStats,
+} from './orchestrator.js';
+
+const log = debug('cadre:provider:docker');
+
+/** Port allocation tracker */
+class PortAllocator {
+  private usedPorts = new Set<number>();
+
+  constructor(
+    private readonly start: number,
+    private readonly end: number
+  ) {}
+
+  allocate(): number {
+    for (let port = this.start; port <= this.end; port++) {
+      if (!this.usedPorts.has(port)) {
+        this.usedPorts.add(port);
+        return port;
+      }
+    }
+    throw new Error('No available ports in range');
+  }
+
+  release(port: number): void {
+    this.usedPorts.delete(port);
+  }
+}
+
+/**
+ * Docker orchestrator using dockerode.
+ */
+export class DockerOrchestrator implements Orchestrator {
+  private readonly docker: Docker;
+  private readonly config: DockerConfig;
+  private readonly portAllocator: PortAllocator;
+  private readonly containerPorts = new Map<string, { health: number; metrics: number; p2p: number }>();
+
+  constructor(config: DockerConfig) {
+    this.config = config;
+    this.docker = new Docker({ socketPath: config.socketPath });
+    this.portAllocator = new PortAllocator(
+      config.portRange?.start ?? 10000,
+      config.portRange?.end ?? 20000
+    );
+    log('DockerOrchestrator initialized with socket: %s', config.socketPath);
+  }
+
+  async createContainer(request: OrchestratorCreateRequest): Promise<OrchestratorCreateResult> {
+    log('Creating container for %s', request.containerId);
+
+    // Pull image if needed
+    if (this.config.pullPolicy === 'always') {
+      await this.pullImage();
+    }
+
+    // Allocate ports
+    const healthPort = this.portAllocator.allocate();
+    const metricsPort = this.portAllocator.allocate();
+    const p2pPort = this.portAllocator.allocate();
+
+    const resources = request.resources ?? this.config.defaultResources ?? {};
+
+    // Create container
+    const container = await this.docker.createContainer({
+      name: `cadre-${request.containerId}`,
+      Image: this.config.image,
+      Env: [
+        `CADRE_PARTY_ID=${request.partyId}`,
+        `CADRE_BOOTSTRAP_NODES=${request.bootstrapNodes.join(',')}`,
+        `CADRE_PROFILE=${request.profile}`,
+        `CADRE_HEALTH_PORT=8080`,
+        `CADRE_METRICS_PORT=9090`,
+        `CADRE_LISTEN_ADDRS=/ip4/0.0.0.0/tcp/4001`,
+        request.strandFilter ? `CADRE_STRAND_FILTER=${request.strandFilter}` : '',
+        resources.storageQuotaBytes ? `CADRE_STORAGE_QUOTA=${resources.storageQuotaBytes}` : '',
+      ].filter(Boolean),
+      HostConfig: {
+        PortBindings: {
+          '8080/tcp': [{ HostPort: String(healthPort) }],
+          '9090/tcp': [{ HostPort: String(metricsPort) }],
+          '4001/tcp': [{ HostPort: String(p2pPort) }],
+        },
+        Memory: this.parseMemoryLimit(resources.memoryLimit),
+        NanoCpus: this.parseCpuLimit(resources.cpuLimit),
+        NetworkMode: this.config.network,
+        RestartPolicy: { Name: 'unless-stopped' },
+      },
+      Labels: {
+        'sereus.container-id': request.containerId,
+        'sereus.party-id': request.partyId,
+        'sereus.profile': request.profile,
+      },
+    });
+
+    // Start container
+    await container.start();
+
+    const dockerId = container.id;
+    this.containerPorts.set(dockerId, { health: healthPort, metrics: metricsPort, p2p: p2pPort });
+
+    log('Container %s started as %s', request.containerId, dockerId);
+
+    return {
+      dockerId,
+      healthEndpoint: `http://localhost:${healthPort}/health`,
+      metricsEndpoint: `http://localhost:${metricsPort}/metrics`,
+      p2pPort,
+    };
+  }
+
+  async stopContainer(dockerId: string): Promise<void> {
+    log('Stopping container %s', dockerId);
+    const container = this.docker.getContainer(dockerId);
+    await container.stop({ t: 10 });
+  }
+
+  async removeContainer(dockerId: string): Promise<void> {
+    log('Removing container %s', dockerId);
+    const container = this.docker.getContainer(dockerId);
+    await container.remove({ force: true });
+
+    // Release ports
+    const ports = this.containerPorts.get(dockerId);
+    if (ports) {
+      this.portAllocator.release(ports.health);
+      this.portAllocator.release(ports.metrics);
+      this.portAllocator.release(ports.p2p);
+      this.containerPorts.delete(dockerId);
+    }
+  }
+
+  async getStats(dockerId: string): Promise<OrchestratorStats> {
+    const container = this.docker.getContainer(dockerId);
+    const stats = await container.stats({ stream: false });
+
+    const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
+    const systemDelta = stats.cpu_stats.system_cpu_usage - (stats.precpu_stats?.system_cpu_usage ?? 0);
+    const cpuPercent = systemDelta > 0 ? (cpuDelta / systemDelta) * 100 : 0;
+
+    return {
+      cpuPercent,
+      memoryBytes: stats.memory_stats.usage ?? 0,
+      networkRxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.rx_bytes ?? 0), 0),
+      networkTxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.tx_bytes ?? 0), 0),
+    };
+  }
+
+  async isRunning(dockerId: string): Promise<boolean> {
+    try {
+      const container = this.docker.getContainer(dockerId);
+      const info = await container.inspect();
+      return info.State.Running;
+    } catch {
+      return false;
+    }
+  }
+
+  async getLogs(dockerId: string, tail = 100): Promise<string> {
+    const container = this.docker.getContainer(dockerId);
+    const logs = await container.logs({ stdout: true, stderr: true, tail });
+    return logs.toString();
+  }
+
+  private async pullImage(): Promise<void> {
+    log('Pulling image %s', this.config.image);
+    await new Promise<void>((resolve, reject) => {
+      this.docker.pull(this.config.image, {}, (err, stream) => {
+        if (err) return reject(err);
+        this.docker.modem.followProgress(stream, (err2) => err2 ? reject(err2) : resolve());
+      });
+    });
+  }
+
+  private parseMemoryLimit(limit?: string): number | undefined {
+    if (!limit) return undefined;
+    const match = limit.match(/^(\d+(?:\.\d+)?)\s*(B|K|M|G|T)?$/i);
+    if (!match) return undefined;
+    const [, num, unit] = match;
+    const multipliers: Record<string, number> = { B: 1, K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 };
+    return Math.floor(parseFloat(num!) * (multipliers[unit?.toUpperCase() ?? 'B'] ?? 1));
+  }
+
+  private parseCpuLimit(limit?: string): number | undefined {
+    if (!limit) return undefined;
+    return Math.floor(parseFloat(limit) * 1e9); // Convert to nanocpus
+  }
+}
+

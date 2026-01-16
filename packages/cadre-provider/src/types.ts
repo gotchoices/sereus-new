@@ -1,0 +1,175 @@
+/**
+ * Type definitions for the Sereus Cadre Provider service.
+ */
+
+// ============================================================================
+// Container Types
+// ============================================================================
+
+/** Container status lifecycle */
+export type ContainerStatus =
+  | 'pending'      // Container requested, not yet created
+  | 'creating'     // Container being provisioned
+  | 'enrolling'    // Container started, awaiting enrollment
+  | 'running'      // Container running and enrolled
+  | 'stopping'     // Container shutting down
+  | 'stopped'      // Container terminated
+  | 'error';       // Container in error state
+
+/** Container resource specifications */
+export interface ContainerResources {
+  /** Memory limit (e.g., "512M", "2G") */
+  memoryLimit?: string;
+  /** CPU limit (e.g., "0.5", "2") */
+  cpuLimit?: string;
+  /** Storage quota in bytes */
+  storageQuotaBytes?: number;
+}
+
+/** Container configuration for creation */
+export interface CreateContainerRequest {
+  /** Customer/user ID who owns this container */
+  customerId: string;
+  /** Party ID for the control network */
+  partyId: string;
+  /** Bootstrap nodes for the control network */
+  bootstrapNodes: string[];
+  /** Node profile: storage or transaction */
+  profile: 'storage' | 'transaction';
+  /** Resource specifications */
+  resources?: ContainerResources;
+  /** Optional strand filter */
+  strandFilter?: string;
+  /** Optional tags for the container */
+  tags?: Record<string, string>;
+}
+
+/** Container record in the provider database */
+export interface Container {
+  /** Unique container ID */
+  id: string;
+  /** Customer/user ID */
+  customerId: string;
+  /** Party ID for the control network */
+  partyId: string;
+  /** Node profile */
+  profile: 'storage' | 'transaction';
+  /** Current status */
+  status: ContainerStatus;
+  /** Peer ID once enrolled */
+  peerId?: string;
+  /** Docker container ID */
+  dockerId?: string;
+  /** Resource specifications */
+  resources: ContainerResources;
+  /** Container tags */
+  tags: Record<string, string>;
+  /** Creation timestamp */
+  createdAt: Date;
+  /** Last updated timestamp */
+  updatedAt: Date;
+  /** Error message if status is 'error' */
+  error?: string;
+  /** Health check endpoint URL */
+  healthEndpoint?: string;
+  /** Metrics endpoint URL */
+  metricsEndpoint?: string;
+}
+
+/** Container status response */
+export interface ContainerStatusResponse {
+  container: Container;
+  health?: {
+    status: 'healthy' | 'unhealthy' | 'starting';
+    uptime: number;
+    strands: {
+      total: number;
+      active: number;
+      idle: number;
+      hibernating: number;
+    };
+  };
+}
+
+// ============================================================================
+// Billing Types
+// ============================================================================
+
+/** Usage metrics for billing */
+export interface UsageMetrics {
+  /** Container ID */
+  containerId: string;
+  /** Measurement period start */
+  periodStart: Date;
+  /** Measurement period end */
+  periodEnd: Date;
+  /** Uptime in seconds */
+  uptimeSeconds: number;
+  /** Storage used in bytes */
+  storageBytes: number;
+  /** Bandwidth in bytes (egress) */
+  bandwidthBytes: number;
+  /** Number of active strands (peak) */
+  peakStrands: number;
+}
+
+/** Billing plan definition */
+export interface BillingPlan {
+  /** Plan ID */
+  id: string;
+  /** Plan name */
+  name: string;
+  /** Price per hour in cents */
+  pricePerHourCents: number;
+  /** Storage included in bytes */
+  storageIncludedBytes: number;
+  /** Price per GB-month for additional storage in cents */
+  storageOverageCentsPerGbMonth: number;
+  /** Bandwidth included in bytes */
+  bandwidthIncludedBytes: number;
+  /** Price per GB for additional bandwidth in cents */
+  bandwidthOverageCentsPerGb: number;
+  /** Maximum containers allowed */
+  maxContainers: number;
+}
+
+/** Customer billing status */
+export interface CustomerBilling {
+  /** Customer ID */
+  customerId: string;
+  /** Current billing plan */
+  planId: string;
+  /** Current balance in cents (negative = credit) */
+  balanceCents: number;
+  /** Payment method on file */
+  paymentMethodId?: string;
+  /** Billing email */
+  billingEmail?: string;
+  /** Current period start */
+  currentPeriodStart: Date;
+  /** Current period end */
+  currentPeriodEnd: Date;
+}
+
+// ============================================================================
+// API Types
+// ============================================================================
+
+/** API key record */
+export interface ApiKey {
+  /** Hashed key (for lookup) */
+  keyHash: string;
+  /** Customer ID */
+  customerId: string;
+  /** Key name/description */
+  name: string;
+  /** Key permissions */
+  permissions: string[];
+  /** Creation timestamp */
+  createdAt: Date;
+  /** Last used timestamp */
+  lastUsedAt?: Date;
+  /** Expiration timestamp (optional) */
+  expiresAt?: Date;
+}
+

@@ -1,0 +1,225 @@
+/**
+ * Container lifecycle management service.
+ */
+
+import debug from 'debug';
+import { nanoid } from 'nanoid';
+import type {
+  Container,
+  ContainerStatus,
+  CreateContainerRequest,
+  ContainerStatusResponse,
+} from '../types.js';
+import type { ProviderStore } from './store.js';
+import type { Orchestrator } from './orchestrator.js';
+
+const log = debug('cadre:provider:container');
+
+/** Container service options */
+export interface ContainerServiceOptions {
+  /** Store for persisting container state */
+  store: ProviderStore;
+  /** Container orchestrator (Docker, K8s, etc.) */
+  orchestrator: Orchestrator;
+}
+
+/**
+ * Service for managing container lifecycle.
+ * Handles creation, status monitoring, and termination.
+ */
+export class ContainerService {
+  private readonly store: ProviderStore;
+  private readonly orchestrator: Orchestrator;
+
+  constructor(options: ContainerServiceOptions) {
+    this.store = options.store;
+    this.orchestrator = options.orchestrator;
+    log('ContainerService initialized');
+  }
+
+  /** Generate a unique container ID */
+  private generateId(): string {
+    return `ctr_${nanoid(16)}`;
+  }
+
+  /** Create a new container */
+  async createContainer(request: CreateContainerRequest): Promise<Container> {
+    const id = this.generateId();
+    const now = new Date();
+
+    log('Creating container %s for customer %s', id, request.customerId);
+
+    const container: Container = {
+      id,
+      customerId: request.customerId,
+      partyId: request.partyId,
+      profile: request.profile,
+      status: 'pending',
+      resources: request.resources ?? {},
+      tags: request.tags ?? {},
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Save initial state
+    await this.store.saveContainer(container);
+
+    // Start provisioning asynchronously
+    this.provisionContainer(container, request).catch(err => {
+      log('Provisioning failed for %s: %O', id, err);
+    });
+
+    return container;
+  }
+
+  /** Provision the container via orchestrator */
+  private async provisionContainer(
+    container: Container,
+    request: CreateContainerRequest
+  ): Promise<void> {
+    try {
+      // Update status to creating
+      await this.updateStatus(container.id, 'creating');
+
+      // Create the container via orchestrator
+      const result = await this.orchestrator.createContainer({
+        containerId: container.id,
+        partyId: request.partyId,
+        bootstrapNodes: request.bootstrapNodes,
+        profile: request.profile,
+        resources: request.resources,
+        strandFilter: request.strandFilter,
+      });
+
+      // Update with orchestrator details
+      const updated = await this.store.getContainer(container.id);
+      if (!updated) return;
+
+      updated.dockerId = result.dockerId;
+      updated.healthEndpoint = result.healthEndpoint;
+      updated.metricsEndpoint = result.metricsEndpoint;
+      updated.status = 'enrolling';
+      updated.updatedAt = new Date();
+      await this.store.saveContainer(updated);
+
+      log('Container %s provisioned, waiting for enrollment', container.id);
+
+      // Wait for enrollment (health check shows healthy)
+      await this.waitForEnrollment(container.id, 60000);
+
+    } catch (error) {
+      log('Container %s provisioning error: %O', container.id, error);
+      const updated = await this.store.getContainer(container.id);
+      if (updated) {
+        updated.status = 'error';
+        updated.error = error instanceof Error ? error.message : String(error);
+        updated.updatedAt = new Date();
+        await this.store.saveContainer(updated);
+      }
+    }
+  }
+
+  /** Wait for container to become healthy */
+  private async waitForEnrollment(containerId: string, timeoutMs: number): Promise<void> {
+    const startTime = Date.now();
+    const pollInterval = 2000;
+
+    while (Date.now() - startTime < timeoutMs) {
+      const container = await this.store.getContainer(containerId);
+      if (!container || container.status === 'error') return;
+
+      if (container.healthEndpoint) {
+        try {
+          const response = await fetch(container.healthEndpoint);
+          if (response.ok) {
+            const health = await response.json() as { status: string };
+            if (health.status === 'healthy') {
+              await this.updateStatus(containerId, 'running');
+              log('Container %s is now running', containerId);
+              return;
+            }
+          }
+        } catch {
+          // Health check failed, keep waiting
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    log('Container %s enrollment timeout', containerId);
+  }
+
+  /** Update container status */
+  private async updateStatus(id: string, status: ContainerStatus): Promise<void> {
+    const container = await this.store.getContainer(id);
+    if (!container) return;
+    container.status = status;
+    container.updatedAt = new Date();
+    await this.store.saveContainer(container);
+  }
+
+  /** Get container by ID */
+  async getContainer(id: string): Promise<Container | undefined> {
+    return this.store.getContainer(id);
+  }
+
+  /** Get detailed container status including health */
+  async getContainerStatus(id: string): Promise<ContainerStatusResponse | undefined> {
+    const container = await this.store.getContainer(id);
+    if (!container) return undefined;
+
+    const response: ContainerStatusResponse = { container };
+
+    // Fetch live health if available
+    if (container.healthEndpoint && container.status === 'running') {
+      try {
+        const healthRes = await fetch(`${container.healthEndpoint.replace('/health', '/status')}`);
+        if (healthRes.ok) {
+          response.health = await healthRes.json();
+        }
+      } catch {
+        // Health fetch failed
+      }
+    }
+
+    return response;
+  }
+
+  /** List containers, optionally filtered by customer */
+  async listContainers(customerId?: string): Promise<Container[]> {
+    return this.store.listContainers(customerId);
+  }
+
+  /** Terminate a container */
+  async terminateContainer(id: string): Promise<boolean> {
+    const container = await this.store.getContainer(id);
+    if (!container) return false;
+
+    log('Terminating container %s', id);
+
+    try {
+      await this.updateStatus(id, 'stopping');
+
+      if (container.dockerId) {
+        await this.orchestrator.stopContainer(container.dockerId);
+        await this.orchestrator.removeContainer(container.dockerId);
+      }
+
+      await this.updateStatus(id, 'stopped');
+      log('Container %s terminated', id);
+      return true;
+    } catch (error) {
+      log('Container %s termination error: %O', id, error);
+      const updated = await this.store.getContainer(id);
+      if (updated) {
+        updated.status = 'error';
+        updated.error = error instanceof Error ? error.message : String(error);
+        updated.updatedAt = new Date();
+        await this.store.saveContainer(updated);
+      }
+      return false;
+    }
+  }
+}
+
