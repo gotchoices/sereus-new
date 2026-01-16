@@ -755,21 +755,21 @@ interface StrandInstance {
 
 ### Phase 3: Container Runtime
 
-- [ ] **Docker image**
-  - [ ] Dockerfile based on node:22-alpine
-  - [ ] Entrypoint script for enrollment
-  - [ ] Volume mounts for data persistence
-  - [ ] Health check endpoint
+- [x] **Docker image**
+  - [x] Dockerfile based on node:22-alpine (`packages/cadre-cli/docker/Dockerfile`)
+  - [x] Entrypoint script for enrollment (`packages/cadre-cli/docker/entrypoint.sh`)
+  - [x] Volume mounts for data persistence
+  - [x] Health check endpoint (`/health`, `/ready`, `/status`)
 
-- [ ] **Docker Compose template**
-  - [ ] Environment variable configuration
-  - [ ] Volume definitions
-  - [ ] Network configuration
+- [x] **Docker Compose template**
+  - [x] Environment variable configuration (`ops/docker/sereus-node/env.example`)
+  - [x] Volume definitions (`sereus_cadre_data`)
+  - [x] Network configuration (`sereus_network`)
 
-- [ ] **Provider integration hooks**
-  - [ ] Enrollment token consumption
-  - [ ] Status reporting endpoint
-  - [ ] Metrics exposure (Prometheus format)
+- [x] **Provider integration hooks**
+  - [x] Enrollment token consumption (via `CADRE_ENROLLMENT_TOKEN`)
+  - [x] Status reporting endpoint (`/status` JSON endpoint)
+  - [x] Metrics exposure (Prometheus format at `/metrics` on port 9090)
 
 ### Phase 4: Provider Service
 

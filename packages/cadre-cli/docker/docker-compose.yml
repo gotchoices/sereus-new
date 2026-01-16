@@ -1,5 +1,10 @@
-# Sereus Cadre Node Docker Compose
-# See README.md for usage instructions
+# Sereus Cadre Node Docker Compose Template
+# For single-node deployments or local testing
+#
+# Usage:
+#   1. Copy env.example to .env and configure
+#   2. docker compose up -d
+#   3. docker compose logs -f
 
 services:
   cadre-node:
@@ -9,50 +14,66 @@ services:
     image: sereus-cadre-node:local
     container_name: sereus_cadre_node
 
+    # Environment configuration
     env_file:
       - .env
 
     environment:
-      # Control network (required)
+      # Core identity (set via .env or override here)
       - CADRE_PARTY_ID=${CADRE_PARTY_ID:?CADRE_PARTY_ID is required}
       - CADRE_BOOTSTRAP_NODES=${CADRE_BOOTSTRAP_NODES:?CADRE_BOOTSTRAP_NODES is required}
-
+      
       # Node configuration
       - CADRE_PROFILE=${CADRE_PROFILE:-storage}
       - DATA_DIR=/data
       - CADRE_STORAGE_TYPE=file
       - CADRE_STORAGE_PATH=/data/storage
       - CADRE_STORAGE_QUOTA=${CADRE_STORAGE_QUOTA:-}
-
+      
       # Network
       - CADRE_LISTEN_ADDRS=${CADRE_LISTEN_ADDRS:-/ip4/0.0.0.0/tcp/4001}
       - CADRE_ANNOUNCE_ADDRS=${CADRE_ANNOUNCE_ADDRS:-}
       - CADRE_RELAY_ADDRS=${CADRE_RELAY_ADDRS:-}
-
+      
       # Hibernation
       - CADRE_HIBERNATION_ENABLED=${CADRE_HIBERNATION_ENABLED:-true}
       - CADRE_LATENCY_HINT=${CADRE_LATENCY_HINT:-interactive}
-
-      # Strand filter (optional)
+      
+      # Strand filtering (optional)
       - CADRE_STRAND_FILTER=${CADRE_STRAND_FILTER:-}
-
-      # Debug
+      
+      # Debug mode
       - CADRE_DEBUG=${CADRE_DEBUG:-}
-
-      # Health/metrics
+      
+      # Health & metrics ports
       - CADRE_HEALTH_PORT=8080
       - CADRE_METRICS_PORT=9090
 
     ports:
+      # libp2p network port
       - "${HOST_P2P_PORT:-4001}:4001/tcp"
+      # Health check endpoint
       - "${HOST_HEALTH_PORT:-8080}:8080/tcp"
+      # Prometheus metrics
       - "${HOST_METRICS_PORT:-9090}:9090/tcp"
 
     volumes:
+      # Persistent data (keys, storage, configuration)
       - cadre_data:/data
+      # Optional: mount external key file
+      # - ${HOST_KEY_FILE:-./cadre-peer.key}:/data/cadre-peer.key:ro
 
     restart: unless-stopped
 
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: ${CONTAINER_MEMORY_LIMIT:-4G}
+        reservations:
+          memory: 512M
+
+    # Health check (built into Dockerfile, can override here)
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -60,6 +81,7 @@ services:
       retries: 3
       start_period: 10s
 
+    # Logging
     logging:
       driver: json-file
       options:
@@ -70,8 +92,9 @@ volumes:
   cadre_data:
     name: sereus_cadre_data
 
+# Optional: Custom network for multi-node setups
 networks:
   default:
     name: sereus_network
-
+    driver: bridge
 

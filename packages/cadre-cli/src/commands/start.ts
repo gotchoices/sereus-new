@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import debug from 'debug';
 import { CadreNode, type CadreNodeConfig } from '@sereus/cadre-core';
 import { resolveConfig } from '../config/index.js';
+import { HealthServer } from '../server/health.js';
 
 const log = debug('cadre:cli:start');
 
@@ -9,6 +10,9 @@ export const startCommand = new Command('start')
   .description('Start the cadre node with the specified configuration')
   .option('-c, --config <path>', 'Path to config file (YAML or JSON)', 'cadre.yaml')
   .option('-d, --debug', 'Enable debug logging')
+  .option('--health-port <port>', 'Health check server port', '8080')
+  .option('--metrics-port <port>', 'Prometheus metrics server port', '9090')
+  .option('--no-health-server', 'Disable health check and metrics servers')
   .action(async (options) => {
     if (options.debug) {
       debug.enable('cadre:*,sereus:*');
@@ -64,9 +68,24 @@ export const startCommand = new Command('start')
         log('Strand hibernating: %s', strandId);
       });
 
+      // Start health/metrics servers if enabled
+      let healthServer: HealthServer | null = null;
+      if (options.healthServer !== false) {
+        const healthPort = parseInt(process.env.CADRE_HEALTH_PORT ?? options.healthPort, 10);
+        const metricsPort = parseInt(process.env.CADRE_METRICS_PORT ?? options.metricsPort, 10);
+
+        healthServer = new HealthServer({ healthPort, metricsPort });
+        healthServer.attach(node);
+        await healthServer.start();
+        console.log(`✓ Health server on port ${healthPort}, metrics on port ${metricsPort}`);
+      }
+
       // Handle graceful shutdown
       const shutdown = async () => {
         console.log('\nShutting down...');
+        if (healthServer) {
+          await healthServer.stop();
+        }
         await node.stop();
         console.log('Cadre node stopped.');
         process.exit(0);
