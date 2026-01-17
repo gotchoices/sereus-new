@@ -1,4 +1,5 @@
 import type { Libp2p, PeerId } from '@libp2p/interface';
+import type { StrandDatabase } from './strand-database.js';
 
 /**
  * Node profile determines storage participation
@@ -162,6 +163,9 @@ export interface StrandInstance {
 
   /** The libp2p node for this strand (only when active/idle) */
   libp2pNode?: Libp2p;
+
+  /** The Quereus database for this strand (only when active/idle) */
+  database?: StrandDatabase;
 
   /** Membership info for closed strands */
   memberKey?: string;

@@ -7,6 +7,9 @@ export { CadreNode } from './cadre-node.js';
 // Control database
 export { ControlDatabase, type ControlDatabaseConfig } from './control-database.js';
 
+// Strand database
+export { StrandDatabase, type StrandDatabaseConfig } from './strand-database.js';
+
 // Strand management
 export {
   StrandWatcher,

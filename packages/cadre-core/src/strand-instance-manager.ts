@@ -2,6 +2,7 @@ import debug from 'debug';
 import path from 'path';
 import type { Libp2p } from '@libp2p/interface';
 import { createLibp2pNode } from '@optimystic/db-p2p';
+import { StrandDatabase } from './strand-database.js';
 import type {
   StrandInstance,
   StrandRow,
@@ -149,6 +150,17 @@ export class StrandInstanceManager {
       });
 
       instance.libp2pNode = node;
+
+      // Create and initialize the StrandDatabase
+      const strandDb = new StrandDatabase({
+        strandId,
+        sAppConfig,
+        libp2pNode: node,
+        coordinatedRepo: node.services.fret.repo
+      });
+      await strandDb.initialize();
+      instance.database = strandDb;
+
       instance.status = 'active';
       instance.lastActivity = new Date();
 
@@ -177,6 +189,11 @@ export class StrandInstanceManager {
     instance.status = 'stopping';
 
     try {
+      // Close the database before stopping libp2p
+      if (instance.database) {
+        await instance.database.close();
+        instance.database = undefined;
+      }
       if (instance.libp2pNode) {
         await instance.libp2pNode.stop();
         instance.libp2pNode = undefined;
