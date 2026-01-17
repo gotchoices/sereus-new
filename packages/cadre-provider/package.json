@@ -5,9 +5,7 @@
   "description": "Reference provider service for hosting Sereus cadre nodes on behalf of users",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "cadre-provider": "dist/bin/provider.js"
-  },
+  "bin": "dist/bin/provider.js",
   "files": [
     "src",
     "dist",
@@ -45,11 +43,9 @@
     "js-yaml": "^4.1.0",
     "nanoid": "^5.0.7"
   },
-  "peerDependencies": {},
   "engines": {
     "node": ">=18"
   },
   "author": "",
   "license": "MIT"
 }
-

@@ -4,6 +4,9 @@ export * from './types.js';
 // Main CadreNode class
 export { CadreNode } from './cadre-node.js';
 
+// Control database
+export { ControlDatabase, type ControlDatabaseConfig } from './control-database.js';
+
 // Strand management
 export {
   StrandWatcher,
@@ -32,4 +35,20 @@ export {
 } from './arachnode-stub.js';
 
 // Enrollment
-export { EnrollmentService, type AuthorityVerifier, type PeerRegistry } from './enrollment.js';
+export {
+  EnrollmentService,
+  type AuthorityVerifier,
+  type PeerRegistry,
+  type MemberVerifier,
+  type MemberRegistry
+} from './enrollment.js';
+
+// Strand Solicitation
+export {
+  StrandSolicitationService,
+  type DisclosureValidator,
+  type FormationUsageRecorder,
+  type StrandProvisioner,
+  type FormationSigner,
+  type StrandSolicitationServiceOptions
+} from './strand-solicitation.js';

@@ -1,6 +1,7 @@
 import debug from 'debug';
 import type { Libp2p, PeerId } from '@libp2p/interface';
 import { createLibp2pNode } from '@optimystic/db-p2p';
+import type { IRepo } from '@optimystic/db-core';
 import type {
   CadreNodeConfig,
   StrandInstance,
@@ -13,6 +14,7 @@ import { StrandWatcher, type StrandQueryable, type SAppIdLookup } from './strand
 import { StrandInstanceManager } from './strand-instance-manager.js';
 import { EnrollmentService } from './enrollment.js';
 import { HibernationManager, type HibernationCallbacks } from './hibernation-manager.js';
+import { ControlDatabase } from './control-database.js';
 
 const log = debug('sereus:cadre:node');
 
@@ -30,6 +32,7 @@ type EventHandler<T> = (data: T) => void;
 export class CadreNode implements SAppIdLookup {
   private readonly config: CadreNodeConfig;
   private controlNode: Libp2p | null = null;
+  private controlDatabase: ControlDatabase | null = null;
   private strandWatcher: StrandWatcher | null = null;
   private strandManager: StrandInstanceManager;
   private hibernationManager: HibernationManager;
@@ -117,7 +120,23 @@ export class CadreNode implements SAppIdLookup {
       this.controlNode = await this.createControlNode();
       log('Control node started with ID: %s', this.controlNode.peerId.toString());
 
-      // Create strand queryable (mock for now - will use actual DB query)
+      // Extract coordinatedRepo from the node (attached by createLibp2pNode)
+      const coordinatedRepo = (this.controlNode as any).coordinatedRepo as IRepo;
+      if (!coordinatedRepo) {
+        throw new Error('coordinatedRepo not available on control node');
+      }
+
+      // Initialize the control database with the libp2p node
+      this.controlDatabase = new ControlDatabase({
+        partyId: this.config.controlNetwork.partyId,
+        libp2pNode: this.controlNode,
+        coordinatedRepo,
+        schemaPath: this.config.controlNetwork.schemaPath,
+      });
+      await this.controlDatabase.initialize();
+      log('Control database initialized');
+
+      // Create strand queryable using the control database
       const queryable = this.createStrandQueryable();
 
       // Create and start the strand watcher with sAppId lookup
@@ -140,6 +159,9 @@ export class CadreNode implements SAppIdLookup {
       this.running = true;
       this.emit('control:connected', undefined);
       log('CadreNode started successfully');
+
+      // Schedule self-registration in background
+      this.scheduleSelfRegistration();
 
     } catch (error) {
       log('Failed to start CadreNode: %o', error);
@@ -198,7 +220,6 @@ export class CadreNode implements SAppIdLookup {
 
   private async createControlNode(): Promise<Libp2p> {
     const { controlNetwork, network, storage, profile, privateKey } = this.config;
-    const protocolPrefix = `/sereus/control/${controlNetwork.partyId}`;
 
     // Determine relay mode: if explicitly set in config, use that;
     // otherwise default to true for storage profile nodes (better connectivity/uptime)
@@ -229,17 +250,68 @@ export class CadreNode implements SAppIdLookup {
   }
 
   private createStrandQueryable(): StrandQueryable {
-    // This is a placeholder implementation
-    // In a real implementation, this would query the CadreControl schema
-    // via the Quereus database on the control network
     return {
       queryStrands: async (): Promise<StrandRow[]> => {
-        // TODO: Implement actual query against control network database
-        // For now, return empty array - strands will be added via other means
-        log('Querying strands from control network (stub implementation)');
-        return [];
+        if (!this.controlDatabase) {
+          log('Control database not initialized, returning empty strands');
+          return [];
+        }
+        log('Querying strands from control database');
+        return await this.controlDatabase.queryStrands();
       }
     };
+  }
+
+  /**
+   * Schedule self-registration in the CadrePeer table.
+   * This runs as a background task after the node is started.
+   */
+  private scheduleSelfRegistration(): void {
+    // Run in background - don't block start()
+    setTimeout(async () => {
+      try {
+        await this.registerSelf();
+      } catch (error) {
+        log('Self-registration failed: %o', error);
+        // Don't emit error event - this is a background task
+        // The node can still function without self-registration
+      }
+    }, 1000); // Small delay to ensure node is fully started
+  }
+
+  /**
+   * Register this peer in the CadrePeer table.
+   * This allows other cadre members to discover this node.
+   */
+  private async registerSelf(): Promise<void> {
+    if (!this.controlNode || !this.controlDatabase) {
+      log('Cannot register self - node or database not initialized');
+      return;
+    }
+
+    const peerId = this.controlNode.peerId.toString();
+    const multiaddrs = this.controlNode.getMultiaddrs();
+
+    if (multiaddrs.length === 0) {
+      log('No multiaddrs available for self-registration');
+      return;
+    }
+
+    // Use the first available multiaddr (typically the one with the peer ID)
+    const multiaddr = multiaddrs[0]!.toString();
+
+    log('Registering self: peerId=%s, multiaddr=%s', peerId, multiaddr);
+
+    // TODO: This requires signing the update to satisfy the AuthorizedUpdate constraint
+    // For now, we log what would happen. Full implementation requires:
+    // 1. Either an authority key to authorize the insert
+    // 2. Or the peer's private key to sign the update
+    log('Self-registration requires authorization - skipping for now');
+    // const db = this.controlDatabase.getDatabase();
+    // await db.exec(
+    //   'insert or replace into CadrePeer (PeerId, Multiaddr) values (?, ?)',
+    //   [peerId, multiaddr]
+    // );
   }
 
   private async handleStrandAdded(strand: StrandRow): Promise<void> {
@@ -313,6 +385,12 @@ export class CadreNode implements SAppIdLookup {
 
     // Clear sApp configs
     this.sAppConfigs.clear();
+
+    // Close control database (this also shuts down the collection factory)
+    if (this.controlDatabase) {
+      await this.controlDatabase.close();
+      this.controlDatabase = null;
+    }
 
     // Stop control node
     if (this.controlNode) {
@@ -424,6 +502,13 @@ export class CadreNode implements SAppIdLookup {
    */
   getControlNode(): Libp2p | null {
     return this.controlNode;
+  }
+
+  /**
+   * Get the control database (for advanced queries)
+   */
+  getControlDatabase(): ControlDatabase | null {
+    return this.controlDatabase;
   }
 
   /**

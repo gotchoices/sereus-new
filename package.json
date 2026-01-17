@@ -1,0 +1,25 @@
+{
+  "name": "sereus-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "yarn@4.12.0",
+  "description": "Sereus monorepo",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "clean": "yarn workspaces foreach -A run clean",
+    "build": "yarn clean && ...",
+    "lint": "yarn workspaces foreach -A run lint",
+    "test": "yarn workspaces foreach -A run test",
+    "test:all": "yarn workspaces foreach -A run test:all",
+    "dep-check": "yarn workspaces foreach -A run dep-check",
+    "doc": "yarn workspaces foreach -A run doc",
+    "typecheck": "yarn workspaces foreach -A run typecheck"
+  },
+  "devDependencies": {
+    "bumpp": "^10.4.0",
+    "esbuild": "^0.27.2",
+    "typescript": "^5.9.3"
+  }
+}

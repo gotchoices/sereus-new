@@ -97,6 +97,8 @@ export interface HibernationConfig {
 export interface ControlNetworkConfig {
   partyId: string;
   bootstrapNodes: string[];
+  /** Optional path to the control schema file (defaults to bundled schema) */
+  schemaPath?: string;
 }
 
 /**
@@ -229,6 +231,87 @@ export interface PeerRegistration {
 export interface CreatePeerResult {
   peerId: PeerId;
   privateKey: Uint8Array;
+}
+
+// ============================================================================
+// Member Registration API Types (from api.md)
+// ============================================================================
+
+/**
+ * Registration data for joining a strand as a member.
+ * Sent from invited member to any cadre member to accept invitation.
+ */
+export interface MemberRegistration {
+  /** The strand being joined */
+  strandId: string;
+  /** The member's public key for this strand */
+  key: string;
+  /** Peer IDs of the member's cadre nodes that will participate */
+  peerIds: string[];
+}
+
+/**
+ * Result of member registration
+ */
+export interface MemberRegistrationResult {
+  success: boolean;
+  reason?: string;
+}
+
+// ============================================================================
+// Strand Solicitation API Types (from api.md)
+// ============================================================================
+
+/**
+ * Open invitation for strand formation.
+ * Shared out-of-band to allow strangers to form strands.
+ */
+export interface OpenInvitation {
+  /** Unique token identifying this invitation */
+  token: string;
+  /** The sApp that will be used for the strand */
+  sAppId: string;
+  /** When this invitation expires */
+  expiration: Date;
+  /** Bootstrap addresses to contact the inviter's cadre */
+  bootstrap: string[];
+}
+
+/**
+ * Result of forming a strand via open invitation
+ */
+export interface FormStrandResult {
+  /** The member key assigned to the initiator for this strand */
+  memberKey: string;
+  /** Private key for the invitation (for signing future messages) */
+  invitePrivateKey: string;
+  /** The strand that was created */
+  strandId: string;
+}
+
+/**
+ * Result of validating a strand formation request
+ */
+export interface ValidateFormationResult {
+  /** Public key for validating this formation */
+  validationKey: string;
+  /** Signature over the formation approval */
+  validationSignature: string;
+}
+
+/**
+ * Disclosure object provided during strand formation.
+ * Contains identity and context information from the initiator.
+ */
+export interface StrandFormationDisclosure {
+  /** Initiator's party identifier */
+  partyId?: string;
+  /** Additional identity bundle (app-specific) */
+  identityBundle?: unknown;
+  /** Human-readable purpose/reason for forming the strand */
+  purpose?: string;
+  /** Additional app-specific metadata */
+  metadata?: Record<string, unknown>;
 }
 
 /**

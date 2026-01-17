@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { EnrollmentService, type AuthorityVerifier, type PeerRegistry } from '../src/enrollment.js';
-import type { PeerRegistration } from '../src/types.js';
+import {
+  EnrollmentService,
+  type AuthorityVerifier,
+  type PeerRegistry,
+  type MemberVerifier,
+  type MemberRegistry
+} from '../src/enrollment.js';
+import type { PeerRegistration, MemberRegistration } from '../src/types.js';
 
 describe('EnrollmentService', () => {
   describe('createCadrePeer', () => {
@@ -146,6 +152,179 @@ describe('EnrollmentService', () => {
 
       const isValid = await enrollment.validateRegistration(registration);
       expect(isValid).toBe(true);
+    });
+  });
+
+  describe('registerMember', () => {
+    const createMemberRegistration = (): MemberRegistration => ({
+      strandId: 'strand-123',
+      key: 'member-key-abc',
+      peerIds: ['12D3KooWPeer1', '12D3KooWPeer2']
+    });
+
+    it('should fail without memberVerifier', async () => {
+      const enrollment = new EnrollmentService();
+      const result = await enrollment.registerMember(createMemberRegistration(), 'sig');
+
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('MemberVerifier not configured');
+    });
+
+    it('should fail without memberRegistry', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => true
+      };
+
+      const enrollment = new EnrollmentService({ memberVerifier: mockVerifier });
+      const result = await enrollment.registerMember(createMemberRegistration(), 'sig');
+
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('MemberRegistry not configured');
+    });
+
+    it('should fail with invalid signature', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => false,
+        isAuthorizedToJoin: async () => true
+      };
+      const mockRegistry: MemberRegistry = {
+        registerMember: async () => {},
+        isMemberRegistered: async () => false
+      };
+
+      const enrollment = new EnrollmentService({
+        memberVerifier: mockVerifier,
+        memberRegistry: mockRegistry
+      });
+
+      const result = await enrollment.registerMember(createMemberRegistration(), 'bad-sig');
+
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('Invalid signature');
+    });
+
+    it('should fail if not authorized to join', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => false
+      };
+      const mockRegistry: MemberRegistry = {
+        registerMember: async () => {},
+        isMemberRegistered: async () => false
+      };
+
+      const enrollment = new EnrollmentService({
+        memberVerifier: mockVerifier,
+        memberRegistry: mockRegistry
+      });
+
+      const result = await enrollment.registerMember(createMemberRegistration(), 'sig');
+
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('Not authorized to join strand');
+    });
+
+    it('should fail if already registered', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => true
+      };
+      const mockRegistry: MemberRegistry = {
+        registerMember: async () => {},
+        isMemberRegistered: async () => true
+      };
+
+      const enrollment = new EnrollmentService({
+        memberVerifier: mockVerifier,
+        memberRegistry: mockRegistry
+      });
+
+      const result = await enrollment.registerMember(createMemberRegistration(), 'sig');
+
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('Member already registered');
+    });
+
+    it('should successfully register member', async () => {
+      let registeredData: { strandId: string; key: string; peerIds: string[] } | null = null;
+
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => true
+      };
+      const mockRegistry: MemberRegistry = {
+        registerMember: async (strandId, key, peerIds) => {
+          registeredData = { strandId, key, peerIds };
+        },
+        isMemberRegistered: async () => false
+      };
+
+      const enrollment = new EnrollmentService({
+        memberVerifier: mockVerifier,
+        memberRegistry: mockRegistry
+      });
+
+      const registration = createMemberRegistration();
+      const result = await enrollment.registerMember(registration, 'valid-sig');
+
+      expect(result.success).toBe(true);
+      expect(result.reason).toBeUndefined();
+      expect(registeredData).toEqual({
+        strandId: 'strand-123',
+        key: 'member-key-abc',
+        peerIds: ['12D3KooWPeer1', '12D3KooWPeer2']
+      });
+    });
+  });
+
+  describe('validateMemberRegistration', () => {
+    const createMemberRegistration = (): MemberRegistration => ({
+      strandId: 'strand-123',
+      key: 'member-key-abc',
+      peerIds: ['12D3KooWPeer1']
+    });
+
+    it('should return invalid without memberVerifier', async () => {
+      const enrollment = new EnrollmentService();
+      const result = await enrollment.validateMemberRegistration(createMemberRegistration(), 'sig');
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBe('MemberVerifier not configured');
+    });
+
+    it('should return invalid without memberRegistry', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => true
+      };
+
+      const enrollment = new EnrollmentService({ memberVerifier: mockVerifier });
+      const result = await enrollment.validateMemberRegistration(createMemberRegistration(), 'sig');
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBe('MemberRegistry not configured');
+    });
+
+    it('should return valid for good registration', async () => {
+      const mockVerifier: MemberVerifier = {
+        verifyMember: async () => true,
+        isAuthorizedToJoin: async () => true
+      };
+      const mockRegistry: MemberRegistry = {
+        registerMember: async () => {},
+        isMemberRegistered: async () => false
+      };
+
+      const enrollment = new EnrollmentService({
+        memberVerifier: mockVerifier,
+        memberRegistry: mockRegistry
+      });
+
+      const result = await enrollment.validateMemberRegistration(createMemberRegistration(), 'sig');
+
+      expect(result.valid).toBe(true);
+      expect(result.reason).toBeUndefined();
     });
   });
 });

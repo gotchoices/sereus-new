@@ -39,16 +39,14 @@ declare schema CadreControl {
 
     -- A peer (node) that is part of the cadre
     table CadrePeer (
-        PeerId text,
+        PeerId text primary key,
         Multiaddr text,
-        primary key (MemberKey, PeerId),
-        constraint PeerIdImmutable check on update (old.PeerId = new.PeerId),
         constraint AuthorizedInsert check on insert, delete (
             -- Authorized by an authority key
             exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(coalesce(new.PeerId, old.PeerId)), context.Signature, A.Key))
         ),
         constraint AuthorizedUpdate check on update (
-            -- Peer can change it's own multiaddr
+            -- Peer can change its own multiaddr
             verify(digest(new.PeerId, new.Multiaddr), context.Signature, new.PeerId)
                 -- or authorized by an authority key
                 or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(new.PeerId), context.Signature, A.Key))
@@ -62,11 +60,10 @@ declare schema CadreControl {
         ExpiresAt datetime null,
         TotalUses int null check (TotalUses >= 0),
         ValidationUrl text null,   -- Web hook - send disclosure, IP address...
-        primary key (Token),
         constraint AuthorizedAddOrRemove check on insert, delete (
             -- Authorized by an authority key to add or remove this invite
             exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
-        ),
+        )
     ) with context (AuthorityKey string, SlotId string, Signature string);
 
     table FormationUsage (
@@ -78,14 +75,14 @@ declare schema CadreControl {
         constraint InsertOnly check on update, delete (false),
         constraint Monotonic check (
             new.UseNumber = coalesce((select max(UseNumber) from FormationUsage U where U.Token = new.Token), 0) + 1
-        )
+        ),
         constraint Authorized check on insert (
             -- Satisfies an invitation
             exists (
-                select 1 from FormationInvite FI 
-                    where FI.Token = new.Token 
+                select 1 from FormationInvite FI
+                    where FI.Token = new.Token
                         and (FI.TotalUses is null or FI.TotalUses >= new.UseNumber)
-                        and FI.ExpiresAt is null or FI.ExpiresAt > context.Now
+                        and (FI.ExpiresAt is null or FI.ExpiresAt > context.Now)
                         and (FI.ValidationUrl is null or verify(digest(new.Token, new.Disclosure), context.ValidationSignature, context.ValidationKey))
             )
         ),
