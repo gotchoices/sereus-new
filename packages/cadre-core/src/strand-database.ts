@@ -107,12 +107,21 @@ export class StrandDatabase {
   }
 
   private async executeSchema(): Promise<void> {
-    const schema = this.config.sAppConfig.schema;
-    // TODO: Add validation to ensure the schema doesn't use explicit module specifications
-    // (should use default optimystic module)
-    log('Executing sApp schema for strand %s', this.config.strandId);
-    await this.db!.exec(schema);
-    log('sApp schema executed');
+    const rawSchema = this.config.sAppConfig.schema;
+    log('Applying sApp schema for strand %s', this.config.strandId);
+
+    // Wrap the raw schema DDL in a declarative schema block and apply it.
+    // This ensures proper schema management with diff/apply semantics.
+    // The schema is applied to a named schema 'App' to keep it isolated.
+    const wrappedSchema = `
+      declare schema App {
+        ${rawSchema}
+      }
+      apply schema App;
+    `;
+
+    await this.db!.exec(wrappedSchema);
+    log('sApp schema applied to strand %s', this.config.strandId);
   }
 
   /**

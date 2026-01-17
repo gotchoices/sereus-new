@@ -89,3 +89,5 @@ declare schema CadreControl {
         constraint StrandExists check (exists (select 1 from Strand S where S.Id = new.StrandId)),
     ) with context (PeerId string, PeerSignature string, Now datetime, ValidationKey string null, ValidationSignature string null);
 }
+
+apply schema CadreControl;

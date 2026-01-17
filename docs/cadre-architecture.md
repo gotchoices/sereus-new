@@ -702,7 +702,7 @@ interface StrandInstance {
   - [x] Trigger strand instance start/stop on row changes
   - [x] Apply strand filter from config (all/strandId/none modes complete)
   - [x] sAppId filter mode (filters by sAppId when lookup is available)
-  - [ ] Handle schema path switching per strand context
+  - [x] Schema application per strand (wraps sApp DDL in `declare schema App { ... }; apply schema App;`)
 
 - [x] **Strand instance manager**: Creates and manages per-strand libp2p nodes
   - [x] `startStrand(strandId, config)` - spin up isolated libp2p instance
@@ -756,15 +756,7 @@ interface StrandInstance {
 
 #### Incomplete Phase I Items
 
-##### 2. **Handle schema path switching per strand context**
-Each strand needs to load its own sApp schema dynamically. Currently, strand instances start but don't switch schema contexts properly.
-
-**Implications:**
-- Strand instances can't execute application-specific queries
-- The declarative schema system isn't wired in per-strand
-- Blocks any real sApp functionality
-
-##### 3. **App schema verification** (AppSignature validates AppSchema)
+##### 1. **App schema verification** (AppSignature validates AppSchema)
 When joining a strand, the node should verify the sApp schema signature to ensure it hasn't been tampered with.
 
 **Implications:**
@@ -772,7 +764,7 @@ When joining a strand, the node should verify the sApp schema signature to ensur
 - Trust model incomplete—apps aren't cryptographically verified
 - Important for closed strands with sensitive data
 
-##### 4. **Ring Zulu participation** and **Storage ring opt-in** (Blocked: Arachnode not yet implemented)
+##### 2. **Ring Zulu participation** and **Storage ring opt-in** (Blocked: Arachnode not yet implemented)
 These are blocked on the Arachnode storage system not being built yet.
 
 **Implications:**
@@ -780,7 +772,7 @@ These are blocked on the Arachnode storage system not being built yet.
 - No actual distributed archival storage
 - Acceptable blocker—correctly marked as a dependency
 
-##### 5. **Quota enforcement for storage nodes**
+##### 3. **Quota enforcement for storage nodes**
 Storage nodes should enforce capacity limits.
 
 **Implications:**
@@ -788,7 +780,7 @@ Storage nodes should enforce capacity limits.
 - Provider billing can't tie to actual storage used
 - Lower priority until Arachnode exists
 
-##### 6. **Full integration with strand-proto SessionManager**
+##### 4. **Full integration with strand-proto SessionManager**
 The `StrandSolicitationService` has the types but isn't wired to the actual protocol handler.
 
 **Implications:**
@@ -802,13 +794,9 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
 
 | Item | Priority | Reason |
 |------|----------|--------|
-| Schema loading for CadreControl | **Critical** | Everything depends on this—it's the data layer |
 | strand-proto SessionManager integration | **High** | Needed for real strand formation |
-| Schema path switching per strand | **High** | Required for sApps to function |
 | App schema verification | **Medium** | Security hardening, can proceed without |
 | Ring/quota enforcement | **Low** | Blocked on Arachnode anyway |
-
-Would you like to discuss implementation approaches for any of these, or should we start tackling the schema loading as the highest-impact item?
 
 
 ### Phase 2: CLI Wrapper (`@sereus/cadre-cli`)
