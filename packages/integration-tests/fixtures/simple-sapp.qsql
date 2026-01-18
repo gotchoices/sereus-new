@@ -1,0 +1,25 @@
+-- Simple sApp for integration testing
+-- Minimal schema with a single table and basic constraints
+
+declare schema SimpleApp {
+    -- A simple key-value store
+    table Items (
+        Id text primary key,
+        Name text not null,
+        Value text,
+        CreatedAt datetime default current_timestamp,
+        CreatedBy text
+    );
+    
+    -- Track who made changes
+    table AuditLog (
+        Id integer primary key,
+        ItemId text not null,
+        Action text not null,
+        ChangedBy text,
+        ChangedAt datetime default current_timestamp
+    );
+}
+
+apply schema SimpleApp;
+
