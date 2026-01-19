@@ -2,6 +2,7 @@ import debug from 'debug';
 import path from 'path';
 import type { Libp2p } from '@libp2p/interface';
 import { createLibp2pNode } from '@optimystic/db-p2p';
+import type { IRepo } from '@optimystic/db-core';
 import { StrandDatabase } from './strand-database.js';
 import type {
   StrandInstance,
@@ -13,6 +14,14 @@ import type {
   SAppConfig,
   SAppInfo
 } from './types.js';
+
+/**
+ * Extended Libp2p node with coordinatedRepo attached by createLibp2pNode.
+ * The db-p2p createLibp2pNode function attaches these properties after node creation.
+ */
+interface Libp2pNodeWithRepo extends Libp2p {
+  coordinatedRepo: IRepo;
+}
 
 const log = debug('sereus:cadre:strand-manager');
 
@@ -147,7 +156,7 @@ export class StrandInstanceManager {
           // Storage ring participation stub - will be added when arachnode is built
           // storageRing: config.profile === 'storage' ? { ring: 0 } : undefined
         }
-      });
+      }) as Libp2pNodeWithRepo;
 
       instance.libp2pNode = node;
 
@@ -156,7 +165,7 @@ export class StrandInstanceManager {
         strandId,
         sAppConfig,
         libp2pNode: node,
-        coordinatedRepo: node.services.fret.repo
+        coordinatedRepo: node.coordinatedRepo
       });
       await strandDb.initialize();
       instance.database = strandDb;

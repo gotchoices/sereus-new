@@ -1,11 +1,14 @@
 /**
  * TestCadreNetwork - orchestrator for multi-party integration tests.
- * 
+ *
  * Manages multiple parties, their cadres, strand creation, invitations,
  * and provides utilities for waiting on convergence and executing queries.
  */
 
 import debug from 'debug';
+import { ed25519 } from '@noble/curves/ed25519';
+import { base64url } from 'multiformats/bases/base64';
+import { sha256 } from '@noble/hashes/sha256';
 import { createTestParty, shutdownTestParty } from './test-party.js';
 import { releaseAllPorts } from './port-allocator.js';
 import { waitUntil, waitForCount, sleep } from './wait-utils.js';
@@ -17,6 +20,20 @@ import type {
   CreateStrandOptions,
   QueryResult
 } from './types.js';
+
+/**
+ * Sign data with Ed25519 private key and return base64url signature
+ */
+function signData(data: string, privateKey: Uint8Array): string {
+  const dataBytes = new TextEncoder().encode(data);
+  const hash = sha256(dataBytes);
+  // Ed25519 private key from libp2p is in protobuf format, extract the raw 32-byte seed
+  // The protobuf format is: type (1 byte) + length (1 byte) + key data (32 bytes) + public key...
+  // For Ed25519, the raw seed is typically the first 32 bytes after the type/length prefix
+  const rawPrivateKey = privateKey.slice(4, 36); // Skip protobuf header
+  const signature = ed25519.sign(hash, rawPrivateKey);
+  return base64url.encode(signature);
+}
 
 const log = debug('sereus:integration:network');
 
@@ -78,22 +95,31 @@ export class TestCadreNetwork {
   async createStrand(party: TestParty, options: CreateStrandOptions): Promise<TestStrand> {
     const strandId = `strand-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sAppId = options.sAppId ?? party.authorityPublicKey;
-    
+    const strandType = options.type ?? 'o';
+
     log('Creating strand %s for party %s', strandId, party.name);
-    
-    // TODO: Actually insert into control network via ControlDatabase
-    // For now, create the strand record
+
+    // Insert strand into the party's control database
+    // The signStampId callback signs the transaction's stamp ID for authorization
+    await party.controlDatabase.insertStrand(
+      strandId,
+      strandType,
+      party.authorityPublicKey,
+      (stampId: string) => signData(stampId, party.authorityPrivateKey)
+    );
+
+    // Track locally for test assertions
     const strand: TestStrand = {
       strandId,
       sAppId,
       schema: options.schema,
-      type: options.type ?? 'o',
+      type: strandType,
       parties: [party.partyId]
     };
-    
+
     this.strands.set(strandId, strand);
     log('Strand created: %s', strandId);
-    
+
     return strand;
   }
 

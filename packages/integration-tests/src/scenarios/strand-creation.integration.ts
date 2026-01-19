@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestCadreNetwork, waitUntil, sleep } from '../harness/index.js';
-import { MINIMAL_SAPP_SCHEMA } from '../fixtures/index.js';
+import { MINIMAL_SAPP_LOGIC } from '../fixtures/index.js';
 
 describe('Strand Creation', () => {
   let network: TestCadreNetwork;
@@ -25,7 +25,7 @@ describe('Strand Creation', () => {
     
     // Create a strand using the test harness
     const strand = await network.createStrand(alice, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       type: 'o'
     });
     
@@ -39,12 +39,12 @@ describe('Strand Creation', () => {
     const bob = await network.createParty({ name: 'bob-strand' });
     
     const strand1 = await network.createStrand(bob, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       type: 'o'
     });
-    
+
     const strand2 = await network.createStrand(bob, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       type: 'c'
     });
     
@@ -57,7 +57,7 @@ describe('Strand Creation', () => {
     const carol = await network.createParty({ name: 'carol-strand' });
     
     const strand = await network.createStrand(carol, {
-      schema: MINIMAL_SAPP_SCHEMA
+      schema: MINIMAL_SAPP_LOGIC
     });
     
     const invitation = await network.createInvitation(carol, strand);
@@ -75,7 +75,7 @@ describe('Strand Creation', () => {
     
     // Dave creates a strand
     const strand = await network.createStrand(dave, {
-      schema: MINIMAL_SAPP_SCHEMA
+      schema: MINIMAL_SAPP_LOGIC
     });
     
     // Dave creates an invitation
@@ -94,7 +94,7 @@ describe('Strand Creation', () => {
     
     const customSAppId = 'custom-sapp-12345';
     const strand = await network.createStrand(frank, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       sAppId: customSAppId
     });
     

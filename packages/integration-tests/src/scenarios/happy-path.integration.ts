@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestCadreNetwork, waitForCount, sleep } from '../harness/index.js';
-import { SIMPLE_SAPP_SCHEMA } from '../fixtures/index.js';
+import { SIMPLE_SAPP_LOGIC } from '../fixtures/index.js';
 
 describe('Happy Path - Full Workflow', () => {
   let network: TestCadreNetwork;
@@ -59,7 +59,7 @@ describe('Happy Path - Full Workflow', () => {
     // ========================================
     
     const strand = await network.createStrand(alice, {
-      schema: SIMPLE_SAPP_SCHEMA,
+      schema: SIMPLE_SAPP_LOGIC,
       type: 'o' // Open strand
     });
     
@@ -127,12 +127,12 @@ describe('Happy Path - Full Workflow', () => {
     
     // Carol creates two different sApps
     const strand1 = await network.createStrand(carol, {
-      schema: SIMPLE_SAPP_SCHEMA,
+      schema: SIMPLE_SAPP_LOGIC,
       sAppId: 'inventory-app'
     });
-    
+
     const strand2 = await network.createStrand(carol, {
-      schema: SIMPLE_SAPP_SCHEMA,
+      schema: SIMPLE_SAPP_LOGIC,
       sAppId: 'orders-app'
     });
     

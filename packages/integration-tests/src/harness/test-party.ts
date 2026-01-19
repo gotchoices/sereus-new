@@ -1,19 +1,28 @@
 /**
  * TestParty factory for integration tests.
- * 
+ *
  * Creates parties with authority nodes and optional drone nodes,
- * all using real libp2p networking.
+ * all using real libp2p networking and real ControlDatabase.
  */
 
 import debug from 'debug';
 import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
 import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 import { createLibp2pNode } from '@optimystic/db-p2p';
+import { ControlDatabase } from '@sereus/cadre-core';
 import type { Libp2p } from '@libp2p/interface';
+import type { IRepo } from '@optimystic/db-core';
 import { allocatePort, releasePorts } from './port-allocator.js';
 import type { TestParty, TestCadreNode, CreatePartyOptions } from './types.js';
 
 const log = debug('sereus:integration:party');
+
+/**
+ * Extended Libp2p node with coordinatedRepo attached by createLibp2pNode.
+ */
+interface Libp2pNodeWithRepo extends Libp2p {
+  coordinatedRepo: IRepo;
+}
 
 /**
  * Create a test cadre node with real libp2p networking
@@ -24,9 +33,9 @@ async function createTestNode(
   profile: 'transaction' | 'storage'
 ): Promise<TestCadreNode> {
   const port = await allocatePort();
-  
+
   log('Creating node on port %d for network %s', port, networkName);
-  
+
   const node = await createLibp2pNode({
     port,
     bootstrapNodes,
@@ -40,23 +49,20 @@ async function createTestNode(
       superMajorityThreshold: 0.51
     },
     arachnode: { enableRingZulu: true }
-  });
-  
+  }) as Libp2pNodeWithRepo;
+
   const multiaddrs = node.getMultiaddrs().map(ma => ma.toString());
   const peerId = node.peerId.toString();
-  
-  // Get the coordinated repo from the node (attached by createLibp2pNode)
-  const coordinatedRepo = (node as any).coordinatedRepo;
-  
+
   log('Node created: %s listening on %j', peerId, multiaddrs);
-  
+
   return {
     libp2p: node,
     peerId,
     port,
     multiaddrs,
     profile,
-    coordinatedRepo
+    coordinatedRepo: node.coordinatedRepo
   };
 }
 
@@ -96,7 +102,20 @@ export async function createTestParty(options: CreatePartyOptions): Promise<Test
   }
   
   log('Party %s created with %d total nodes', name, 1 + droneNodes.length);
-  
+
+  // Create and initialize the ControlDatabase for this party
+  const controlDatabase = new ControlDatabase({
+    partyId,
+    libp2pNode: authorityNode.libp2p,
+    coordinatedRepo: authorityNode.coordinatedRepo
+  });
+  await controlDatabase.initialize();
+  log('ControlDatabase initialized for party %s', name);
+
+  // Bootstrap: insert the authority key
+  await controlDatabase.insertAuthorityKey(authorityPublicKey);
+  log('Authority key inserted for party %s', name);
+
   return {
     partyId,
     name,
@@ -104,7 +123,8 @@ export async function createTestParty(options: CreatePartyOptions): Promise<Test
     authorityPublicKey,
     authorityNode,
     droneNodes,
-    bootstrapAddrs
+    bootstrapAddrs,
+    controlDatabase
   };
 }
 
@@ -113,10 +133,18 @@ export async function createTestParty(options: CreatePartyOptions): Promise<Test
  */
 export async function shutdownTestParty(party: TestParty): Promise<void> {
   log('Shutting down party: %s', party.name);
-  
+
+  // Close the ControlDatabase first
+  try {
+    await party.controlDatabase.close();
+    log('ControlDatabase closed for party %s', party.name);
+  } catch (err) {
+    log('Error closing ControlDatabase for %s: %s', party.name, (err as Error).message);
+  }
+
   const allNodes = [party.authorityNode, ...party.droneNodes];
   const ports: number[] = [];
-  
+
   for (const node of allNodes) {
     try {
       await node.libp2p.stop();
@@ -125,7 +153,7 @@ export async function shutdownTestParty(party: TestParty): Promise<void> {
       log('Error stopping node %s: %s', node.peerId, (err as Error).message);
     }
   }
-  
+
   releasePorts(ports);
   log('Party %s shutdown complete', party.name);
 }

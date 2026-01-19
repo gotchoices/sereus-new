@@ -71,8 +71,8 @@ declare schema Strand {
             exists (select 1 from Strand S where S.Type = 'c')
         ),
         constraint Authorized check on insert (
-            -- There are no existing records - first member needs no authorization
-            not exists (select 1 from Member)
+            -- There are no other records - first member needs no authorization
+            (select count(1) from Member) <= 1
 
                 -- or added directly by authority
                 or exists (
@@ -86,6 +86,7 @@ declare schema Strand {
                     select 1 from ConsumedInvite CI where CI.MemberKey = new.Key
                 )
         ),
+        -- TODO: handle member revocation constraint
     ) with context (AuthorityKey string null, AuthoritySignature string null);
 
     -- A member-associated peer (node)
@@ -111,7 +112,7 @@ declare schema Strand {
         ),
         constraint Authorized check (
             -- There are no existing records - first authority needs no authorization
-            not exists (select 1 from Authority)
+            (select count(1) from Authority) <= 1
 
             -- Authorized by this former authority
             old.MemberKey is not null 

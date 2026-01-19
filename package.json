@@ -7,6 +7,9 @@
   "workspaces": [
     "packages/*"
   ],
+  "resolutions": {
+    "@optimystic/quereus-plugin-crypto": "portal:../optimystic/packages/quereus-plugin-crypto"
+  },
   "scripts": {
     "clean": "yarn workspaces foreach -A run clean",
     "build": "yarn clean && ...",

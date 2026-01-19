@@ -4,22 +4,25 @@ declare schema CadreControl {
     table AuthorityKey (
         Key text primary key,
         constraint Authorized check (
-            -- Old authority can authorize by signature and transaction slot id (not repeatable)
-            old.Key is not null and old.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, old.Key)
-            
-                -- or other authorities can authorize by signature and transaction slot id (not repeatable)
-                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
+            -- Bootstrap: first authority key needs no existing authorization
+            (select count(1) from AuthorityKey) <= 1
+
+                -- Old authority can authorize by signature and transaction stamp id (not repeatable)
+                or (old.Key is not null and old.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, old.Key))
+
+                -- or other authorities can authorize by signature and transaction stamp id (not repeatable)
+                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
         )
-    ) with context (AuthorityKey string, SlotId string, Signature string);
+    ) with context (AuthorityKey text null, Signature text null, StampId text);
     
     -- A key that can validate a strand formation disclosure
     table ValidationKey (
         Key text primary key,
         constraint Authorized check (
-            -- Authorities can authorize by signature and transaction slot id (not repeatable)
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
+            -- Authorities can authorize by signature and transaction stamp id (not repeatable)
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
         )
-    ) with context (AuthorityKey string, SlotId string, Signature string);
+    ) with context (AuthorityKey text, StampId text, Signature text);
 
     -- A network of members sharing an sApp database, each contributing peer nodes (their cadre) to the overall cohort
     -- Cadre peers should participate in each of these strands
@@ -28,14 +31,14 @@ declare schema CadreControl {
         MemberPrivateKey text null unique,   -- Our private key as a member of this strand
         Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the sApp, but only Closed controls reads
         constraint Authorized check (
-            -- Authorized by authority signature and transaction slot id (not repeatable)
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
+            -- Authorized by authority signature and transaction stamp id (not repeatable)
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
 
                 -- or authorized by a cadre peer who has received a valid formation invitation
                 or exists (select 1 from FormationUsage FU where FU.StrandId = new.Id)
         ),
         -- TODO: constraint to ensure member private key only if closed
-    ) with context (AuthorityKey string, SlotId string, Signature string);
+    ) with context (AuthorityKey text, StampId text, Signature text);
 
     -- A peer (node) that is part of the cadre
     table CadrePeer (
@@ -51,7 +54,7 @@ declare schema CadreControl {
                 -- or authorized by an authority key
                 or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(new.PeerId), context.Signature, A.Key))
         )
-    ) with context (AuthorityKey string null, Signature string);
+    ) with context (AuthorityKey text null, Signature text);
 
     -- An open invitation to form a strand with this party
     table FormationInvite (
@@ -62,9 +65,9 @@ declare schema CadreControl {
         ValidationUrl text null,   -- Web hook - send disclosure, IP address...
         constraint AuthorizedAddOrRemove check on insert, delete (
             -- Authorized by an authority key to add or remove this invite
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.SlotId), context.Signature, A.Key))
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
         )
-    ) with context (AuthorityKey string, SlotId string, Signature string);
+    ) with context (AuthorityKey text, StampId text, Signature text);
 
     table FormationUsage (
         Token text,
@@ -87,7 +90,7 @@ declare schema CadreControl {
             )
         ),
         constraint StrandExists check (exists (select 1 from Strand S where S.Id = new.StrandId)),
-    ) with context (PeerId string, PeerSignature string, Now datetime, ValidationKey string null, ValidationSignature string null);
+    ) with context (PeerId text, PeerSignature text, Now datetime, ValidationKey text null, ValidationSignature text null);
 }
 
 apply schema CadreControl;

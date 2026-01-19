@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestCadreNetwork, waitForCount, sleep } from '../harness/index.js';
-import { MINIMAL_SAPP_SCHEMA } from '../fixtures/index.js';
+import { MINIMAL_SAPP_LOGIC } from '../fixtures/index.js';
 
 describe('Multi-Party Sync', () => {
   let network: TestCadreNetwork;
@@ -36,7 +36,7 @@ describe('Multi-Party Sync', () => {
     
     // Alice creates a strand
     const strand = await network.createStrand(alice, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       type: 'o'
     });
     
@@ -64,7 +64,7 @@ describe('Multi-Party Sync', () => {
     
     // Create and join strand
     const strand = await network.createStrand(carol, {
-      schema: MINIMAL_SAPP_SCHEMA
+      schema: MINIMAL_SAPP_LOGIC
     });
     const invitation = await network.createInvitation(carol, strand);
     await network.joinStrand(dave, invitation);
@@ -101,7 +101,7 @@ describe('Multi-Party Sync', () => {
     
     // Eve creates a strand
     const strand = await network.createStrand(eve, {
-      schema: MINIMAL_SAPP_SCHEMA
+      schema: MINIMAL_SAPP_LOGIC
     });
     
     // Create invitation and have Frank and Grace join
@@ -122,12 +122,12 @@ describe('Multi-Party Sync', () => {
     
     // Create two different strands
     const strand1 = await network.createStrand(henry, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       sAppId: 'app-1'
     });
-    
+
     const strand2 = await network.createStrand(henry, {
-      schema: MINIMAL_SAPP_SCHEMA,
+      schema: MINIMAL_SAPP_LOGIC,
       sAppId: 'app-2'
     });
     

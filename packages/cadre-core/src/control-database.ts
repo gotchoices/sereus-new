@@ -5,11 +5,35 @@ import { dirname, resolve } from 'node:path';
 import { Database, registerPlugin } from '@quereus/quereus';
 import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
 import optimysticPlugin from '@optimystic/quereus-plugin-optimystic/plugin';
+import { digest, randomBytes } from '@optimystic/quereus-plugin-crypto';
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
 import type { StrandRow } from './types.js';
 
 const log = debug('sereus:cadre:control-db');
+
+/**
+ * Generate a unique stamp ID for transaction authorization.
+ * Format: 32 bytes base64url encoded
+ * - First 16 bytes: SHA-256 hash of peer ID (for distributed uniqueness)
+ * - Last 16 bytes: Random bytes (for collision resistance)
+ */
+function generateStampId(peerId: string): string {
+  // Hash the peer ID and get first 16 bytes (128 bits)
+  const peerIdHash = digest(peerId, 'sha256', 'utf8', 'bytes') as Uint8Array;
+  const peerIdHashPart = peerIdHash.slice(0, 16);
+
+  // Generate 16 random bytes
+  const randomPart = randomBytes(128, 'bytes') as Uint8Array;
+
+  // Combine peer ID hash and random bytes
+  const combined = new Uint8Array(32);
+  combined.set(peerIdHashPart, 0);
+  combined.set(randomPart, 16);
+
+  // Convert to base64url
+  return Buffer.from(combined).toString('base64url');
+}
 
 /**
  * Minimal interface for the CollectionFactory returned by the optimystic plugin.
@@ -127,7 +151,7 @@ export class ControlDatabase {
   async queryStrands(): Promise<StrandRow[]> {
     this.ensureInitialized();
     const results: StrandRow[] = [];
-    for await (const row of this.db!.eval('select Id, MemberPrivateKey, Type from Strand')) {
+    for await (const row of this.db!.eval('select Id, MemberPrivateKey, Type from CadreControl.Strand')) {
       results.push({
         Id: row.Id as string,
         MemberPrivateKey: row.MemberPrivateKey as string | null,
@@ -143,6 +167,63 @@ export class ControlDatabase {
   getDatabase(): Database {
     this.ensureInitialized();
     return this.db!;
+  }
+
+  /**
+   * Insert the initial authority key (bootstrap - no existing authorities required)
+   */
+  async insertAuthorityKey(key: string): Promise<void> {
+    this.ensureInitialized();
+    log('Inserting authority key: %s', key);
+
+    // For bootstrap, context values are not verified since no existing authorities
+    // Use fully qualified table name since schema is CadreControl
+    // StampId() provides the transaction's unique stamp from the optimystic transaction
+    await this.db!.exec(`
+      insert into CadreControl.AuthorityKey (Key)
+        with context AuthorityKey = null, Signature = null, StampId = StampId()
+        values ('${key}')
+    `);
+    log('Authority key inserted');
+  }
+
+  /**
+   * Insert a strand into the control database using authority signature.
+   * This starts a transaction, gets the StampId, signs it, and inserts the strand.
+   *
+   * @param strandId - Unique identifier for the strand
+   * @param type - Strand type: 'o' for open, 'c' for closed
+   * @param authorityKey - Public key of the authorizing authority
+   * @param signStampId - Function to sign the stamp ID with the authority's private key
+   * @param memberPrivateKey - Optional private key for membership in closed strands
+   */
+  async insertStrand(
+    strandId: string,
+    type: 'o' | 'c',
+    authorityKey: string,
+    signStampId: (stampId: string) => string,
+    memberPrivateKey?: string
+  ): Promise<void> {
+    this.ensureInitialized();
+    log('Inserting strand: %s (type: %s)', strandId, type);
+
+    const memberKeyValue = memberPrivateKey ? `'${memberPrivateKey}'` : 'null';
+
+    // Generate a unique stamp ID using the peer ID for distributed uniqueness
+    const peerId = this.config.libp2pNode.peerId.toString();
+    const stampId = generateStampId(peerId);
+
+    // Sign the stamp ID with the authority key
+    const signature = signStampId(stampId);
+
+    // Insert with the signed stamp ID
+    await this.db!.exec(`
+      insert into CadreControl.Strand (Id, Type, MemberPrivateKey)
+        with context AuthorityKey = '${authorityKey}', Signature = '${signature}', StampId = '${stampId}'
+        values ('${strandId}', '${type}', ${memberKeyValue})
+    `);
+
+    log('Strand inserted: %s', strandId);
   }
 
   /**

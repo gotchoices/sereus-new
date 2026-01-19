@@ -1,25 +1,23 @@
 -- Simple sApp for integration testing
--- Minimal schema with a single table and basic constraints
+-- A shared key-value store where members can add/update their own items
+-- NOTE: This is just the app logic - the runtime wraps it in declare/apply
 
-declare schema SimpleApp {
-    -- A simple key-value store
-    table Items (
-        Id text primary key,
-        Name text not null,
-        Value text,
-        CreatedAt datetime default current_timestamp,
-        CreatedBy text
-    );
-    
-    -- Track who made changes
-    table AuditLog (
-        Id integer primary key,
-        ItemId text not null,
-        Action text not null,
-        ChangedBy text,
-        ChangedAt datetime default current_timestamp
-    );
-}
-
-apply schema SimpleApp;
+table Items (
+    Id text primary key,
+    Name text not null,
+    Value text,
+    CreatedBy text not null,
+    constraint AuthorizedWrite check (
+        -- Insert: creator must be the context member
+        (old.Id is null and new.CreatedBy = context.MemberKey)
+        -- Update: only the creator can update
+        or (old.Id is not null and old.CreatedBy = context.MemberKey
+            and verify(digest(new.Id, new.Name, new.Value), context.Signature, context.MemberKey))
+    ),
+    constraint AuthorizedDelete check on delete (
+        -- Only the creator can delete
+        old.CreatedBy = context.MemberKey
+        and verify(digest(old.Id), context.Signature, context.MemberKey)
+    )
+) with context (MemberKey text, Signature text);
 

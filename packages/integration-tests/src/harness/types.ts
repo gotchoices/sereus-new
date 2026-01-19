@@ -3,6 +3,8 @@
  */
 
 import type { Libp2p } from '@libp2p/interface';
+import type { IRepo } from '@optimystic/db-core';
+import type { ControlDatabase } from '@sereus/cadre-core';
 
 /**
  * Represents a party (person/organization) in the Sereus network.
@@ -11,24 +13,27 @@ import type { Libp2p } from '@libp2p/interface';
 export interface TestParty {
   /** Unique identifier for this party */
   partyId: string;
-  
+
   /** Human-readable name for test output */
   name: string;
-  
+
   /** Ed25519 private key for signing authority operations */
   authorityPrivateKey: Uint8Array;
-  
+
   /** Ed25519 public key (base64 encoded) for verification */
   authorityPublicKey: string;
-  
+
   /** The authority node ("phone") - has the signing keys */
   authorityNode: TestCadreNode;
-  
+
   /** Additional drone nodes (provider-hosted) */
   droneNodes: TestCadreNode[];
-  
+
   /** Bootstrap addresses for this party's control network */
   bootstrapAddrs: string[];
+
+  /** The party's control database (real ControlDatabase instance) */
+  controlDatabase: ControlDatabase;
 }
 
 /**
@@ -51,7 +56,7 @@ export interface TestCadreNode {
   profile: 'transaction' | 'storage';
   
   /** Coordinated repo from db-p2p (for Optimystic) */
-  coordinatedRepo: unknown;
+  coordinatedRepo: IRepo;
 }
 
 /**
