@@ -164,56 +164,402 @@ This allows a mobile app to embed a cadre node that only participates in the app
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Enrollment Flow
+## Enrollment and Bootstrap
 
-New cadre nodes are enrolled through a two-phase process that ensures cryptographic authorization without requiring the enrolling device to have prior network access.
+Adding a new node to a cadre involves a "cold start" problem: the new node needs control network data to validate connections, but can't get that data without first connecting. The **control network seed** solves this by pre-populating the new node's cache with enough authorization data to establish the first connection.
 
-### Phase 1: Peer Creation
+### The Cold Start Problem
 
-The new node generates its libp2p identity locally:
+When a new node joins a cadre:
 
-```
-┌──────────────┐                           ┌──────────────┐
-│  New Node    │                           │  Authority   │
-│  (Provider)  │                           │  (Phone)     │
-└──────┬───────┘                           └──────┬───────┘
-       │                                          │
-       │  createCadrePeer()                       │
-       │  ─────────────────▶                      │
-       │                                          │
-       │  Generate keypair locally                │
-       │                                          │
-       │  ◀───────────────────────────────────────│
-       │  Return PeerId                           │
-       │                                          │
-```
+1. **New node has empty control DB** — no `CadrePeer` entries, can't validate anyone
+2. **Existing nodes validate via CadrePeer** — they'll reject unknown peers
+3. **NAT complicates dialing** — phones behind NAT can't receive incoming connections
 
-### Phase 2: Registration
+The seed provides the minimal state needed to break this chicken-and-egg cycle.
 
-The authority (e.g., user's phone) signs the new peer into the control network:
+### Control Network Seed
 
-```
-┌──────────────┐                           ┌──────────────┐
-│  New Node    │                           │  Authority   │
-│  (Provider)  │                           │  (Phone)     │
-└──────┬───────┘                           └──────┬───────┘
-       │                                          │
-       │                     registerCadrePeer(   │
-       │                       peerId,            │
-       │                       bootstrapNodes,    │
-       │                       authorityKey,      │
-       │                       signature          │
-       │                     )                    │
-       │  ◀───────────────────────────────────────│
-       │                                          │
-       │  Verify signature against AuthorityKey   │
-       │  Insert into CadrePeer table             │
-       │  Connect to control network              │
-       │  Begin watching Strand table             │
-       │                                          │
+A seed contains everything a new node needs to join the control network:
+
+```typescript
+interface ControlNetworkSeed {
+  // Identity - which control network to join
+  partyId: string;
+
+  // Authorization cache entries for peer validation
+  peers: SeedPeer[];
+
+  // Optional: signed Optimystic transactions for log consistency
+  // (allows verification rather than blind trust)
+  transactions?: SignedTransaction[];
+}
+
+interface SeedPeer {
+  peerId: string;           // libp2p peer ID
+  multiaddrs: string[];     // Dial hints (may be empty if NAT'd)
+  isAuthority: boolean;     // Can this peer sign control changes?
+}
 ```
 
-The `bootstrapNodes` list typically includes a relay-routed multiaddr pointing to an existing cadre node (like the user's phone via a relay).
+The seed is **cache pre-population**, not a separate database. After applying the seed, the node's normal query mechanisms (`select * from CadrePeer`) fetch authoritative state from peers, naturally merging with the seed data.
+
+### Unified Node Behavior
+
+After applying a seed, a node follows a simple unified algorithm regardless of network topology:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  Node Behavior After applySeed()                 │
+│                                                                  │
+│  1. Populate cache with all peers from seed                     │
+│                                                                  │
+│  2. Start listening for connections                             │
+│     → Accept if remote PeerId is in cache                       │
+│                                                                  │
+│  3. For each peer with multiaddrs, attempt dial (parallel)      │
+│     → First successful connection wins                          │
+│     → Failed dials are fine (peer might be offline/NAT'd)       │
+│                                                                  │
+│  4. Once ANY connection established:                            │
+│     → Begin control network sync                                │
+│     → select * from CadrePeer to refresh authoritative cache    │
+│                                                                  │
+│  5. Periodic refresh (until reactivity):                        │
+│     → Re-query CadrePeer, update local cache                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+The node doesn't need to know who will dial whom — it tries everything and accepts whatever works first.
+
+### Enrollment Flow: Phone Adds Provider Drone
+
+The most common case: a user on a NAT'd phone adds a provider-hosted node.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Phone (NAT'd) → Add Drone (Public IP)                    │
+│                                                                              │
+│  Phone (Authority)          Provider API             Drone (New Node)        │
+│  ┌────────────────┐         ┌──────────┐            ┌────────────────┐       │
+│  │ Control DB:    │         │          │            │ Empty          │       │
+│  │  AuthorityKey  │         │          │            │                │       │
+│  │  CadrePeer:    │         │          │            │                │       │
+│  │   - phone      │         │          │            │                │       │
+│  └───────┬────────┘         └────┬─────┘            └───────┬────────┘       │
+│          │                       │                          │                │
+│          │ 1. createContainer    │                          │                │
+│          │    (plan, payment)    │                          │                │
+│          ├──────────────────────▶│                          │                │
+│          │                       │  2. Spawn container      │                │
+│          │                       ├─────────────────────────▶│                │
+│          │                       │     createCadrePeer()    │                │
+│          │                       │◀─────────────────────────┤                │
+│          │ 3. Return PeerId +    │     PeerId + multiaddr   │                │
+│          │    multiaddr          │                          │                │
+│          │◀──────────────────────┤                          │                │
+│          │                       │                          │                │
+│  ┌───────┴────────┐              │                          │                │
+│  │ 4. authorizePeer(drone)       │                          │                │
+│  │    Signs CadrePeer entry      │                          │                │
+│  │    Inserts into control DB    │                          │                │
+│  └───────┬────────┘              │                          │                │
+│          │                       │                          │                │
+│  ┌───────┴────────┐              │                          │                │
+│  │ 5. createSeed()               │                          │                │
+│  │    { partyId,                 │                          │                │
+│  │      peers: [                 │                          │                │
+│  │        { phone, addrs: [] }   │  ← Phone NAT'd, no addrs │                │
+│  │      ]                        │                          │                │
+│  │    }                          │                          │                │
+│  └───────┬────────┘              │                          │                │
+│          │                       │                          │                │
+│          │ 6. initializeNode     │                          │                │
+│          │    (containerId, seed)│                          │                │
+│          ├──────────────────────▶│  7. Forward seed         │                │
+│          │                       ├─────────────────────────▶│                │
+│          │                       │                          │                │
+│          │                       │              ┌───────────┴────────┐       │
+│          │                       │              │ 8. applySeed()     │       │
+│          │                       │              │    Cache: phone ✓  │       │
+│          │                       │              │    No dial hints   │       │
+│          │                       │              │    → wait for conn │       │
+│          │                       │              └───────────┬────────┘       │
+│          │                       │                          │                │
+│          │ 9. Dial drone (outbound - NAT safe)              │                │
+│          ├─────────────────────────────────────────────────▶│                │
+│          │                       │              ┌───────────┴────────┐       │
+│          │                       │              │ 10. Validate:      │       │
+│          │                       │              │   phone in cache? ✓│       │
+│          │                       │              │   Accept connection│       │
+│          │                       │              └───────────┬────────┘       │
+│          │                       │                          │                │
+│          │◀═══════════════ Control Network Sync ═══════════▶│                │
+│          │                       │                          │                │
+│          │                       │              ┌───────────┴────────┐       │
+│          │                       │              │ 11. select * from  │       │
+│          │                       │              │     CadrePeer      │       │
+│          │                       │              │   → authoritative  │       │
+│          │                       │              │     cache refresh  │       │
+│          │                       │              └────────────────────┘       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+Key points:
+- Phone is NAT'd → seed has no multiaddrs for phone → drone waits
+- Phone dials drone (outbound from phone's perspective) → NAT-safe
+- Drone validates phone against seed cache → connection accepted
+- Normal sync populates authoritative state
+
+### Enrollment Flow: Server Adds Phone
+
+When a server (public IP) adds a phone to its cadre:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Server (Public IP) → Add Phone (NAT'd)                   │
+│                                                                              │
+│  Server (Authority)                              Phone (New Node)            │
+│  ┌────────────────┐                             ┌────────────────┐           │
+│  │ Control DB:    │                             │ Empty          │           │
+│  │  AuthorityKey  │                             │                │           │
+│  │  CadrePeer:    │                             │                │           │
+│  │   - server     │                             │                │           │
+│  └───────┬────────┘                             └───────┬────────┘           │
+│          │                                              │                    │
+│          │  1. Share invite out-of-band (QR, link)      │                    │
+│          ├─────────────────────────────────────────────▶│                    │
+│          │     Contains: partyId, serverMultiaddr       │                    │
+│          │                                              │                    │
+│          │                              ┌───────────────┴────────┐           │
+│          │                              │ 2. createCadrePeer()   │           │
+│          │                              │    Generate keypair    │           │
+│          │                              └───────────────┬────────┘           │
+│          │                                              │                    │
+│          │  3. Phone dials server (using invite addr)   │                    │
+│          │     Sends: { peerId, inviteToken }           │                    │
+│          │◀─────────────────────────────────────────────┤                    │
+│          │                                              │                    │
+│  ┌───────┴────────┐                                     │                    │
+│  │ 4. Validate token                                    │                    │
+│  │ 5. authorizePeer(phone)                              │                    │
+│  │    Insert CadrePeer                                  │                    │
+│  └───────┬────────┘                                     │                    │
+│          │                                              │                    │
+│          │◀═══════════════ Control Network Sync ═══════▶│                    │
+│          │                                              │                    │
+│          │                              ┌───────────────┴────────┐           │
+│          │                              │ 6. Phone syncs full    │           │
+│          │                              │    control DB          │           │
+│          │                              └────────────────────────┘           │
+│                                                                              │
+│  No seed needed! Server is dialable, so phone just connects and syncs.      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Enrollment Flow: Server Adds Drone
+
+When a server adds another provider-hosted node:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Server (Public IP) → Add Drone (Public IP)               │
+│                                                                              │
+│  Server (Authority)         Provider API             Drone (New Node)        │
+│  ┌────────────────┐         ┌──────────┐            ┌────────────────┐       │
+│  │ Control DB:    │         │          │            │ Empty          │       │
+│  └───────┬────────┘         └────┬─────┘            └───────┬────────┘       │
+│          │                       │                          │                │
+│          │ 1. createContainer    │  2. Spawn, return PeerId │                │
+│          ├──────────────────────▶│◀─────────────────────────┤                │
+│          │◀──────────────────────┤                          │                │
+│          │                       │                          │                │
+│  ┌───────┴────────┐              │                          │                │
+│  │ 3. authorizePeer(drone)       │                          │                │
+│  │ 4. createSeed()               │                          │                │
+│  │    { partyId,                 │                          │                │
+│  │      peers: [                 │                          │                │
+│  │        { server,              │                          │                │
+│  │          addrs: [serverAddr] }│  ← Server is dialable    │                │
+│  │      ]                        │                          │                │
+│  │    }                          │                          │                │
+│  └───────┬────────┘              │                          │                │
+│          │                       │                          │                │
+│          │ 5. initializeNode     │  6. Forward              │                │
+│          ├──────────────────────▶├─────────────────────────▶│                │
+│          │                       │              ┌───────────┴────────┐       │
+│          │                       │              │ 7. applySeed()     │       │
+│          │                       │              │    Cache: server ✓ │       │
+│          │                       │              │    Has dial hints  │       │
+│          │                       │              │    → dial server   │       │
+│          │                       │              └───────────┬────────┘       │
+│          │                                                  │                │
+│          │◀══════════ 8. Drone dials server ═══════════════┤                │
+│          │                                                  │                │
+│  ┌───────┴────────┐                                         │                │
+│  │ 9. Validate:   │                                         │                │
+│  │   drone in DB? ✓ (added in step 3)                       │                │
+│  │   Accept       │                                         │                │
+│  └───────┬────────┘                                         │                │
+│          │                                                  │                │
+│          │◀═══════════════ Control Network Sync ═══════════▶│                │
+│                                                                              │
+│  Seed includes bootstrapAddrs because server IS dialable.                   │
+│  Drone initiates connection to server.                                      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### When Is a Seed Needed?
+
+| Instigator | Adding | Seed Needed? | Who Dials Whom? |
+|------------|--------|--------------|-----------------|
+| Phone (NAT) | Drone (public) | **Yes** — drone needs phone's CadrePeer in cache | Phone → Drone |
+| Phone (NAT) | Phone (NAT) | **Yes** — both need each other; use relay addrs | Both → Relay |
+| Server (public) | Phone (NAT) | **No** — phone can dial server directly | Phone → Server |
+| Server (public) | Drone (public) | **Yes** — includes `multiaddrs` so drone can dial | Drone → Server |
+
+The key asymmetry:
+- **Instigator has public IP**: Seed includes `multiaddrs`, new node dials in
+- **Instigator is NAT'd**: Seed has no `multiaddrs`, instigator dials out after seed is applied
+
+### Seed Delivery Protocol
+
+Seeds can be delivered through multiple mechanisms. For direct delivery when the new node is dialable, we define a libp2p protocol:
+
+**Protocol ID**: `/sereus/seed/1.0.0`
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Seed Delivery Protocol                               │
+│                                                                              │
+│  Instigator (Authority)                      New Node (Seeded)               │
+│  ┌────────────────────┐                     ┌────────────────────┐           │
+│  │                    │                     │                    │           │
+│  │ 1. Dial new node   │                     │ Listening on       │           │
+│  │    /sereus/seed/   │                     │ /sereus/seed/1.0.0 │           │
+│  │    1.0.0           │                     │                    │           │
+│  │                    │────────────────────▶│                    │           │
+│  │                    │                     │                    │           │
+│  │ 2. Send SeedMessage│                     │                    │           │
+│  │    {               │                     │                    │           │
+│  │      partyId,      │                     │                    │           │
+│  │      peers: [...], │                     │                    │           │
+│  │      signature     │ ─────────────────▶  │                    │           │
+│  │    }               │                     │                    │           │
+│  │                    │                     │ 3. Validate:       │           │
+│  │                    │                     │    - sig from peer │           │
+│  │                    │                     │      in peers[]?   │           │
+│  │                    │                     │                    │           │
+│  │                    │                     │ 4. Apply seed:     │           │
+│  │                    │                     │    - Set partyId   │           │
+│  │                    │                     │    - Populate cache│           │
+│  │                    │                     │                    │           │
+│  │                    │  ◀───────────────── │ 5. Send SeedAck    │           │
+│  │                    │     { accepted }    │    { accepted: T } │           │
+│  │                    │                     │                    │           │
+│  │                    │◀════ Control Network Sync begins ═══════▶│           │
+│  │                    │                     │                    │           │
+│  └────────────────────┘                     └────────────────────┘           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Message Types**:
+
+```typescript
+// Instigator → New Node
+interface SeedMessage {
+  partyId: string;                    // Control network to join
+  peers: SeedPeer[];                  // Authorization cache entries
+  transactions?: SignedTransaction[]; // Optional: verifiable log entries
+  signature: string;                  // Signed by an authority key
+}
+
+// New Node → Instigator
+interface SeedAckMessage {
+  accepted: boolean;
+  reason?: string;                    // Present if accepted=false
+}
+```
+
+**Validation**:
+- New node verifies `signature` is from a peer listed in `peers[]` with `isAuthority: true`
+- This creates a trust chain: seed is signed by an authority, and that authority is in the seed
+- For additional security, seeds can include `transactions[]` with signed Optimystic entries
+
+**Alternative Delivery Mechanisms**:
+
+| Mechanism | When Used | Notes |
+|-----------|-----------|-------|
+| Direct protocol | New node is dialable | Instigator dials, sends seed directly |
+| Provider API | Provider-hosted node | `POST /containers/:id/seed` via HTTPS |
+| QR code / deep link | Mobile onboarding | Seed encoded in URL, opened by app |
+| Environment variable | Container startup | `CADRE_SEED` contains base64-encoded seed |
+
+All mechanisms deliver the same `SeedMessage` payload; only the transport differs.
+
+### Simple API
+
+From the **instigator's** perspective:
+
+```typescript
+// 1. Authorize the new peer
+await cadreNode.authorizePeer({
+  peerId: newNodePeerId,
+  multiaddrs: newNodeMultiaddrs  // may be empty if NAT'd
+});
+
+// 2. Generate seed for the new peer
+const seed = await cadreNode.createSeed();
+// Includes: partyId, all authorized peers, our multiaddrs if dialable
+
+// 3. Deliver seed (choose based on context)
+
+// Option A: Direct protocol (if new node is dialable)
+await cadreNode.deliverSeed(newNodeMultiaddr, seed);
+
+// Option B: Via provider API
+await provider.initializeNode(containerId, seed);
+
+// Option C: Encode for out-of-band delivery
+const encodedSeed = cadreNode.encodeSeed(seed);  // base64
+// Share via QR, link, etc.
+
+// 4. If we're NAT'd and new node can't dial us, we dial them
+if (!weHavePublicIp) {
+  await cadreNode.connectToPeer(newNodeMultiaddr);
+}
+```
+
+From the **new node's** perspective:
+
+```typescript
+// 1. Receive seed (one of these, depending on delivery mechanism)
+
+// Option A: Listen for direct delivery
+cadreNode.on('seed', async (seed) => {
+  await cadreNode.applySeed(seed);
+});
+
+// Option B: From environment (container startup)
+const seed = process.env.CADRE_SEED
+  ? decodeSeed(process.env.CADRE_SEED)
+  : null;
+if (seed) {
+  await cadreNode.applySeed(seed);
+}
+
+// 2. Start node - automatic connection handling
+await cadreNode.start();
+// Node now:
+// - Accepts connections from peers in cache
+// - Dials any peers with known multiaddrs
+// - Syncs once connected
+```
 
 ## Strand Lifecycle
 
@@ -432,42 +778,78 @@ Cloud providers can host cadre nodes on behalf of users. The provider never has 
 │  │         │            │         │            │ (generates key) │ │
 │  │         │            │         │◀───────────│                 │ │
 │  │         │◀───────────│         │ 3. Return  │                 │ │
-│  │         │ PeerId     │         │    PeerId  │                 │ │
+│  │         │ PeerId +   │         │    PeerId  │                 │ │
+│  │         │ multiaddr  │         │            │                 │ │
 │  │         │            │         │            │                 │ │
-│  │ Sign    │            │         │            │                 │ │
-│  │ with    │            │         │            │                 │ │
-│  │ authority            │         │            │                 │ │
-│  │ key     │            │         │            │                 │ │
+│  │ 4. authorizePeer     │         │            │                 │ │
+│  │    (add to local     │         │            │                 │ │
+│  │    control DB)       │         │            │                 │ │
+│  │                      │         │            │                 │ │
+│  │ 5. createSeed()      │         │            │                 │ │
+│  │                      │         │            │                 │ │
+│  │         │ 6. POST /containers/:id/seed      │                 │ │
+│  │         │────────────▶         │────────────▶│                 │ │
+│  │         │            │         │            │ applySeed()     │ │
+│  │         │            │         │            │ (populate cache)│ │
 │  │         │            │         │            │                 │ │
-│  │         │ 4. registerCadrePeer(peerId, bootstrap, sig)        │ │
+│  │         │ 7. Dial container (outbound - NAT safe)             │ │
 │  │         │────────────────────────────────────────────────────▶│ │
 │  │         │            │         │            │                 │ │
-│  │         │            │         │            │ Join control    │ │
-│  │         │            │         │            │ network         │ │
+│  │         │◀═══════════ Control Network Sync ═══════════════════│ │
 │  │         │            │         │            │                 │ │
 │  │         │            │         │            │ Watch Strand    │ │
 │  │         │            │         │            │ table           │ │
 │  │         │            │         │            │                 │ │
 │  └─────────┘            └─────────┘            └─────────────────┘ │
 │                                                                     │
-│  Provider only sees: container ID, network traffic                 │
+│  Provider only sees: container ID, network traffic, opaque seed   │
 │  Provider never has: authority keys, strand data (encrypted)       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Relay Bootstrap
+### Relay Integration
 
-When a user's phone is the only existing cadre node, it must be reachable for new nodes to join. This is achieved via circuit relay:
+For NAT'd nodes to be reachable, they include circuit relay addresses in seeds:
 
-1. Phone connects to a public relay (provider-operated or community)
-2. Phone's relay-routed multiaddr is included in `bootstrapNodes` during registration
-3. New node dials phone via relay to join control network
-4. Once multiple nodes exist, the control network becomes more resilient
+```typescript
+// Phone gets its relay-routed address
+const relayAddr = await cadreNode.getRelayAddress();
+// e.g., /dns4/relay.provider.com/tcp/4001/p2p/<relay>/p2p-circuit/p2p/<phone>
+
+// Include in seed when adding another NAT'd node
+const seed = await cadreNode.createSeed();
+// seed.peers[0].multiaddrs = [relayAddr]
+```
+
+When both nodes are NAT'd (e.g., phone adding another phone), the seed includes relay addresses so the new node can dial through the relay:
 
 ```
-Phone multiaddr via relay:
-/dns4/relay.provider.com/tcp/4001/p2p/<relay-peer-id>/p2p-circuit/p2p/<phone-peer-id>
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Phone (NAT) → Add Phone (NAT)                            │
+│                                                                              │
+│  Phone 1 (Authority)          Relay               Phone 2 (New Node)         │
+│  ┌────────────────┐         ┌──────┐            ┌────────────────┐           │
+│  │                │◀───────▶│      │            │                │           │
+│  │ Connected to   │         │      │            │ Receives seed  │           │
+│  │ relay          │         │      │            │ with relay addr│           │
+│  └───────┬────────┘         └──┬───┘            └───────┬────────┘           │
+│          │                     │                        │                    │
+│  Seed: { peers: [{             │                        │                    │
+│    phone1,                     │                        │                    │
+│    addrs: ["/dns4/.../        │                        │                    │
+│             p2p-circuit/       │                        │                    │
+│             p2p/<phone1>"]     │                        │                    │
+│  }]}                           │                        │                    │
+│          │                     │                        │                    │
+│          │                     │◀───── dial relay ──────┤                    │
+│          │◀── circuit relay ───┼────────────────────────┤                    │
+│          │                     │                        │                    │
+│          │◀═════════════ Control Network Sync ═════════▶│                    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Once multiple nodes with public IPs exist in the cadre, the control network becomes more resilient and less dependent on relays.
 
 ## Deployment Configurations
 
@@ -553,7 +935,7 @@ The cadre system is implemented across several packages:
 │  │  • CadreNode class (main entry point)                       │   │
 │  │  • Control network management                                │   │
 │  │  • Strand instance lifecycle                                 │   │
-│  │  • Enrollment API (createCadrePeer, registerCadrePeer)      │   │
+│  │  • Enrollment API (createCadrePeer, seed bootstrap)         │   │
 │  │  • Profile configuration (transaction vs storage)           │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                              │                                      │
@@ -715,10 +1097,24 @@ interface StrandInstance {
 
 - [x] **Enrollment API**: Methods for adding new peers
   - [x] `createCadrePeer()` - generate Ed25519 keypair, return PeerId and private key
-  - [x] `registerCadrePeer(peerId, bootstrapNodes, authorityKey, signature)` - verify and add to control network
+  - [~] `registerCadrePeer(peerId, bootstrapNodes, authorityKey, signature)` - **DEPRECATED**: superseded by seed bootstrap
   - [x] `validateRegistration()` - pre-flight check for registration validity
   - [x] Signature verification interface (`AuthorityVerifier`)
   - [x] Peer registration interface (`PeerRegistry`)
+  - [ ] Remove `registerCadrePeer` once seed bootstrap is validated
+
+- [ ] **Seed Bootstrap API**: Control network seed generation and delivery (replaces `registerCadrePeer`)
+  - [ ] `ControlNetworkSeed` type - partyId, peers[], optional transactions[]
+  - [ ] `SeedPeer` type - peerId, multiaddrs[], isAuthority flag
+  - [ ] `authorizePeer(peerId, multiaddrs?)` - sign and insert CadrePeer entry
+  - [ ] `createSeed()` - generate seed from current control network state
+  - [ ] `applySeed(seed)` - apply seed to populate cache, enable connections
+  - [ ] `deliverSeed(multiaddr, seed)` - direct delivery via `/sereus/seed/1.0.0` protocol
+  - [ ] `encodeSeed(seed)` / `decodeSeed(encoded)` - base64 encoding for out-of-band delivery
+  - [ ] `getRelayAddress()` - get this node's circuit relay address for inclusion in seeds
+  - [ ] Seed validation (signature from authority in peers[])
+  - [ ] Automatic connection behavior after seed application (dial hints, accept validated peers)
+  - [ ] Helper functions for common scenarios (e.g. "add phone to server", "add drone to server")
 
 - [x] **Member Registration API**: Accept invitations to join strands
   - [x] `registerMember(registration, signature)` - accept strand invitation and join as member
@@ -845,6 +1241,7 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
   - [x] Authentication via API key or OAuth (pluggable hooks)
   - [x] `GET /billing/plans` - list available billing plans
   - [x] `GET /billing/status` - get customer billing status
+  - [ ] `POST /containers/:id/seed` - deliver control network seed to container
 
 - [x] **Billing integration**
   - [x] Usage metering (storage, bandwidth, uptime via orchestrator stats)
