@@ -8,13 +8,22 @@ import type {
   StrandRow,
   StrandConfig,
   SAppConfig,
-  CadreNodeEvents
+  CadreNodeEvents,
+  ControlNetworkSeed,
+  AuthorizePeerOptions,
+  ApplySeedResult,
+  AddDroneOptions,
+  AddPhoneOptions,
+  DroneInitResult,
+  InviteResult,
+  CadreInvite
 } from './types.js';
 import { StrandWatcher, type StrandQueryable, type SAppIdLookup } from './strand-watcher.js';
 import { StrandInstanceManager } from './strand-instance-manager.js';
 import { EnrollmentService } from './enrollment.js';
 import { HibernationManager, type HibernationCallbacks } from './hibernation-manager.js';
 import { ControlDatabase } from './control-database.js';
+import { SeedBootstrapService, type SeedBootstrapConfig } from './seed-bootstrap.js';
 
 const log = debug('sereus:cadre:node');
 
@@ -37,6 +46,7 @@ export class CadreNode implements SAppIdLookup {
   private strandManager: StrandInstanceManager;
   private hibernationManager: HibernationManager;
   private enrollmentService: EnrollmentService;
+  private seedBootstrapService: SeedBootstrapService | null = null;
   private running = false;
   private eventHandlers: Map<keyof CadreNodeEvents, Set<EventHandler<any>>> = new Map();
 
@@ -74,6 +84,14 @@ export class CadreNode implements SAppIdLookup {
    */
   get peerId(): PeerId | undefined {
     return this.controlNode?.peerId;
+  }
+
+  /**
+   * Get the multiaddrs of this node (available after start)
+   */
+  getMultiaddrs(): string[] {
+    if (!this.controlNode) return [];
+    return this.controlNode.getMultiaddrs().map(ma => ma.toString());
   }
 
   /**
@@ -374,6 +392,12 @@ export class CadreNode implements SAppIdLookup {
     // Stop hibernation manager
     this.hibernationManager.stop();
 
+    // Stop seed bootstrap service
+    if (this.seedBootstrapService) {
+      await this.seedBootstrapService.shutdown();
+      this.seedBootstrapService = null;
+    }
+
     // Stop strand watcher
     if (this.strandWatcher) {
       await this.strandWatcher.stop();
@@ -523,6 +547,247 @@ export class CadreNode implements SAppIdLookup {
    */
   getSAppConfig(strandId: string): SAppConfig | undefined {
     return this.sAppConfigs.get(strandId);
+  }
+
+  // ============================================================================
+  // Seed Bootstrap API
+  // ============================================================================
+
+  /**
+   * Initialize the seed bootstrap service with an authority key.
+   * Must be called before using seed-related methods that require signing.
+   *
+   * @param authorityPrivateKey - The authority's private key (base64url encoded)
+   */
+  initializeSeedBootstrap(authorityPrivateKey: string): void {
+    if (!this.controlNode || !this.controlDatabase) {
+      throw new Error('CadreNode must be started before initializing seed bootstrap');
+    }
+
+    this.seedBootstrapService = new SeedBootstrapService({
+      partyId: this.config.controlNetwork.partyId,
+      authorityPrivateKey,
+    });
+
+    this.seedBootstrapService.setEventCallbacks({
+      onSeedReceived: (partyId, peerId) => this.emit('seed:received', { partyId, peerId }),
+      onSeedApplied: (partyId, peersAdded) => this.emit('seed:applied', { partyId, peersAdded }),
+      onSeedError: (partyId, error) => this.emit('seed:error', { partyId, error }),
+    });
+
+    this.seedBootstrapService.initialize(this.controlNode, this.controlDatabase);
+    log('Seed bootstrap service initialized');
+  }
+
+  /**
+   * Enable the seed listener for receiving seeds via the /sereus/seed/1.0.0 protocol.
+   * This is for drone nodes that need to receive seeds without being an authority.
+   * Does not require an authority key.
+   */
+  enableSeedListener(): void {
+    if (!this.controlNode || !this.controlDatabase) {
+      throw new Error('CadreNode must be started before enabling seed listener');
+    }
+
+    // Don't re-initialize if already has a service
+    if (this.seedBootstrapService) {
+      log('Seed bootstrap service already initialized');
+      return;
+    }
+
+    this.seedBootstrapService = new SeedBootstrapService({
+      partyId: this.config.controlNetwork.partyId,
+      // No authority key - this node only receives seeds
+    });
+
+    this.seedBootstrapService.setEventCallbacks({
+      onSeedReceived: (partyId, peerId) => this.emit('seed:received', { partyId, peerId }),
+      onSeedApplied: (partyId, peersAdded) => this.emit('seed:applied', { partyId, peersAdded }),
+      onSeedError: (partyId, error) => this.emit('seed:error', { partyId, error }),
+    });
+
+    this.seedBootstrapService.initialize(this.controlNode, this.controlDatabase);
+    log('Seed listener enabled');
+  }
+
+  /**
+   * Get the seed bootstrap service (for advanced use)
+   */
+  getSeedBootstrapService(): SeedBootstrapService | null {
+    return this.seedBootstrapService;
+  }
+
+  /**
+   * Authorize a new peer to join the cadre.
+   * Signs the peer ID with the authority key and inserts into CadrePeer table.
+   *
+   * @param peerId - The peer ID to authorize
+   * @param multiaddrs - Optional multiaddrs for the peer
+   */
+  async authorizePeer(peerId: string, multiaddrs?: string[]): Promise<void> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    await this.seedBootstrapService.authorizePeer({ peerId, multiaddrs });
+  }
+
+  /**
+   * Create a seed from the current control network state.
+   * The seed contains peer information and is signed by an authority.
+   */
+  async createSeed(): Promise<ControlNetworkSeed> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    return await this.seedBootstrapService.createSeed();
+  }
+
+  /**
+   * Apply a seed to populate the peer cache and enable connections.
+   * Validates the seed signature before applying.
+   */
+  async applySeed(seed: ControlNetworkSeed): Promise<ApplySeedResult> {
+    if (!this.seedBootstrapService) {
+      // Create a temporary service for applying seeds (doesn't need authority key)
+      const tempService = new SeedBootstrapService({
+        partyId: seed.partyId,
+      });
+      if (this.controlNode && this.controlDatabase) {
+        tempService.initialize(this.controlNode, this.controlDatabase);
+      }
+      return await tempService.applySeed(seed);
+    }
+    return await this.seedBootstrapService.applySeed(seed);
+  }
+
+  /**
+   * Deliver a seed directly to a peer via the /sereus/seed/1.0.0 protocol.
+   */
+  async deliverSeed(targetMultiaddr: string, seed: ControlNetworkSeed): Promise<{ accepted: boolean; reason?: string }> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    return await this.seedBootstrapService.deliverSeed(targetMultiaddr, seed);
+  }
+
+  /**
+   * Encode a seed for out-of-band delivery (e.g., QR code, copy/paste).
+   */
+  encodeSeed(seed: ControlNetworkSeed): string {
+    // Static method - doesn't need service initialization
+    const json = JSON.stringify(seed);
+    const { toString } = require('uint8arrays');
+    return toString(new TextEncoder().encode(json), 'base64url');
+  }
+
+  /**
+   * Decode a seed from base64url encoding.
+   */
+  decodeSeed(encoded: string): ControlNetworkSeed {
+    // Static method - doesn't need service initialization
+    const { fromString } = require('uint8arrays');
+    const bytes = fromString(encoded, 'base64url');
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json) as ControlNetworkSeed;
+  }
+
+  /**
+   * Get this node's circuit relay address for inclusion in seeds.
+   * Returns null if no relay address is available.
+   */
+  async getRelayAddress(): Promise<string | null> {
+    if (!this.controlNode) {
+      return null;
+    }
+
+    const addrs = this.controlNode.getMultiaddrs();
+    const relayAddr = addrs.find(addr => addr.toString().includes('/p2p-circuit/'));
+    return relayAddr?.toString() ?? null;
+  }
+
+  // ============================================================================
+  // Seed Bootstrap Helper Methods
+  // ============================================================================
+
+  /**
+   * Add a drone to the cadre (for phone/server adding provider-hosted node).
+   * Creates authorization and seed for drone initialization.
+   */
+  async addDrone(options: AddDroneOptions): Promise<DroneInitResult> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    return await this.seedBootstrapService.addDrone(options);
+  }
+
+  /**
+   * Create an invite for a phone to join the cadre.
+   * Use when a server wants to invite a NAT'd phone.
+   */
+  async createInvite(token?: string, expiresIn?: number): Promise<InviteResult> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    return await this.seedBootstrapService.createInvite(token, expiresIn);
+  }
+
+  /**
+   * Accept a phone connection using an invite.
+   * Call this when a phone dials in with an invite token.
+   */
+  async acceptPhone(options: AddPhoneOptions, issuedInvite?: CadreInvite): Promise<void> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    await this.seedBootstrapService.acceptPhone(options, issuedInvite);
+  }
+
+  /**
+   * Add a phone to the cadre with relay support.
+   * Use when both nodes are NAT'd (phone-to-phone).
+   */
+  async addPhoneWithRelay(phonePeerId: string): Promise<DroneInitResult> {
+    if (!this.seedBootstrapService) {
+      throw new Error('Seed bootstrap service not initialized. Call initializeSeedBootstrap() first.');
+    }
+    return await this.seedBootstrapService.addPhoneWithRelay(phonePeerId);
+  }
+
+  /**
+   * Encode an invite for out-of-band delivery (QR, link, etc.).
+   */
+  encodeInvite(invite: CadreInvite): string {
+    const json = JSON.stringify(invite);
+    const { toString } = require('uint8arrays');
+    return toString(new TextEncoder().encode(json), 'base64url');
+  }
+
+  /**
+   * Decode an invite from base64url encoding.
+   */
+  decodeInvite(encoded: string): CadreInvite {
+    const { fromString } = require('uint8arrays');
+    const bytes = fromString(encoded, 'base64url');
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json) as CadreInvite;
+  }
+
+  /**
+   * Dial an authority from an invite (for phone joining via invite).
+   */
+  async dialInvite(invite: CadreInvite): Promise<void> {
+    if (!this.seedBootstrapService) {
+      // Create a temporary service for dialing
+      const tempService = new SeedBootstrapService({
+        partyId: invite.partyId,
+      });
+      if (this.controlNode && this.controlDatabase) {
+        tempService.initialize(this.controlNode, this.controlDatabase);
+      }
+      await tempService.dialInvite(invite);
+      return;
+    }
+    await this.seedBootstrapService.dialInvite(invite);
   }
 }
 

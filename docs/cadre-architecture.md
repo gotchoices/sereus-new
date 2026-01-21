@@ -561,6 +561,56 @@ await cadreNode.start();
 // - Syncs once connected
 ```
 
+### Helper Functions for Common Scenarios
+
+The Seed Bootstrap API includes helper functions for common enrollment patterns:
+
+**Server/Phone adds Drone (via provider API)**:
+```typescript
+// Authority receives drone info from provider API
+const droneInfo = await provider.createContainer(plan);
+
+// One call: authorize + create seed
+const { seed, encodedSeed } = await cadreNode.addDrone({
+  dronePeerId: droneInfo.peerId,
+  droneMultiaddrs: droneInfo.multiaddrs
+});
+
+// Send seed to provider for drone initialization
+await provider.initializeNode(droneInfo.containerId, encodedSeed);
+```
+
+**Server invites Phone (QR/link flow)**:
+```typescript
+// Server creates invite
+const { invite, encodedInvite } = await serverNode.createInvite(
+  'secret-token',  // Optional token
+  3600000          // Expires in 1 hour
+);
+// Share encodedInvite via QR code or link
+
+// Phone receives invite and dials
+const invite = phoneNode.decodeInvite(encodedInvite);
+await phoneNode.dialInvite(invite);
+// Phone is now connected, sends join request with token
+
+// Server accepts phone
+await serverNode.acceptPhone(
+  { phonePeerId: phonePeerId, token: 'secret-token' },
+  invite
+);
+```
+
+**Phone adds Phone (NAT-to-NAT via relay)**:
+```typescript
+// Authority phone adds new phone with relay support
+const { seed, encodedSeed } = await authorityPhone.addPhoneWithRelay(newPhonePeerId);
+// Seed includes relay addresses for the new phone to dial through
+
+// Share encodedSeed out-of-band
+// New phone applies seed and connects via relay
+```
+
 ## Strand Lifecycle
 
 ### Reactive Strand Management
@@ -1095,26 +1145,30 @@ interface StrandInstance {
   - [x] sApp config tracking (id, version, schema, signature, latencyHint)
   - [ ] App schema verification (AppSignature validates AppSchema)
 
-- [x] **Enrollment API**: Methods for adding new peers
+- [x] **Enrollment API**: Methods for creating peer identities
   - [x] `createCadrePeer()` - generate Ed25519 keypair, return PeerId and private key
-  - [~] `registerCadrePeer(peerId, bootstrapNodes, authorityKey, signature)` - **DEPRECATED**: superseded by seed bootstrap
-  - [x] `validateRegistration()` - pre-flight check for registration validity
-  - [x] Signature verification interface (`AuthorityVerifier`)
-  - [x] Peer registration interface (`PeerRegistry`)
-  - [ ] Remove `registerCadrePeer` once seed bootstrap is validated
+  - [x] Removed deprecated `registerCadrePeer` (superseded by Seed Bootstrap API)
 
-- [ ] **Seed Bootstrap API**: Control network seed generation and delivery (replaces `registerCadrePeer`)
-  - [ ] `ControlNetworkSeed` type - partyId, peers[], optional transactions[]
-  - [ ] `SeedPeer` type - peerId, multiaddrs[], isAuthority flag
-  - [ ] `authorizePeer(peerId, multiaddrs?)` - sign and insert CadrePeer entry
-  - [ ] `createSeed()` - generate seed from current control network state
-  - [ ] `applySeed(seed)` - apply seed to populate cache, enable connections
-  - [ ] `deliverSeed(multiaddr, seed)` - direct delivery via `/sereus/seed/1.0.0` protocol
-  - [ ] `encodeSeed(seed)` / `decodeSeed(encoded)` - base64 encoding for out-of-band delivery
-  - [ ] `getRelayAddress()` - get this node's circuit relay address for inclusion in seeds
-  - [ ] Seed validation (signature from authority in peers[])
-  - [ ] Automatic connection behavior after seed application (dial hints, accept validated peers)
-  - [ ] Helper functions for common scenarios (e.g. "add phone to server", "add drone to server")
+- [x] **Seed Bootstrap API**: Control network seed generation and delivery (replaces `registerCadrePeer`)
+  - [x] `ControlNetworkSeed` type - partyId, peers[], optional transactions[]
+  - [x] `SeedPeer` type - peerId, multiaddrs[], isAuthority flag
+  - [x] `authorizePeer(peerId, multiaddrs?)` - sign and insert CadrePeer entry
+  - [x] `createSeed()` - generate seed from current control network state
+  - [x] `applySeed(seed)` - apply seed to populate cache, enable connections
+  - [x] `deliverSeed(multiaddr, seed)` - direct delivery via `/sereus/seed/1.0.0` protocol
+  - [x] `encodeSeed(seed)` / `decodeSeed(encoded)` - base64 encoding for out-of-band delivery
+  - [x] `getRelayAddress()` - get this node's circuit relay address for inclusion in seeds
+  - [x] `enableSeedListener()` - enable protocol handler for receiving seeds (drones, no authority key)
+  - [x] `getMultiaddrs()` - get this node's multiaddrs for provider API reporting
+  - [x] Seed validation (signature from authority in peers[])
+  - [x] Automatic connection behavior after seed application (dial hints, accept validated peers)
+  - [x] Helper functions for common scenarios:
+    - [x] `addDrone(options)` - authorize drone and create seed for provider API initialization
+    - [x] `createInvite(token?, expiresIn?)` - create invite for phone to join (QR/link flow)
+    - [x] `acceptPhone(options, invite?)` - validate token and authorize phone after dial-in
+    - [x] `addPhoneWithRelay(phonePeerId)` - add phone with relay addresses (NAT-to-NAT)
+    - [x] `encodeInvite(invite)` / `decodeInvite(encoded)` - base64url for out-of-band sharing
+    - [x] `dialInvite(invite)` - phone dials authority addresses from invite
 
 - [x] **Member Registration API**: Accept invitations to join strands
   - [x] `registerMember(registration, signature)` - accept strand invitation and join as member
@@ -1228,8 +1282,11 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
 
 - [x] **Provider integration hooks**
   - [x] Enrollment token consumption (via `CADRE_ENROLLMENT_TOKEN`)
-  - [x] Status reporting endpoint (`/status` JSON endpoint)
+  - [x] Status reporting endpoint (`/status` JSON endpoint with `peerId` and `multiaddrs`)
   - [x] Metrics exposure (Prometheus format at `/metrics` on port 9090)
+  - [x] Seed delivery endpoint (`POST /seed` on health port for provider API)
+  - [x] `--seed <encoded>` flag for out-of-band seed delivery at startup
+  - [x] `--listen-for-seeds` flag for protocol-based seed delivery
 
 ### Phase 4: Provider Service (`@sereus/cadre-provider`)
 
@@ -1241,7 +1298,8 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
   - [x] Authentication via API key or OAuth (pluggable hooks)
   - [x] `GET /billing/plans` - list available billing plans
   - [x] `GET /billing/status` - get customer billing status
-  - [ ] `POST /containers/:id/seed` - deliver control network seed to container
+  - [x] `PUT /containers/:id/seed` - deliver control network seed to container
+  - [x] `GET /containers/:id/peer` - get container peer info (peerId, multiaddrs)
 
 - [x] **Billing integration**
   - [x] Usage metering (storage, bandwidth, uptime via orchestrator stats)
@@ -1294,6 +1352,6 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
   - [x] StrandInstanceManager start/stop tests
   - [x] EnrollmentService peer creation and registration tests
   - [x] Type definition validation tests
-- [ ] **Integration tests**: Multi-node control network scenarios
+- [x] **Integration tests**: Multi-node control network scenarios (seed-bootstrap.integration.ts)
 - [ ] **E2E tests**: Full enrollment and strand formation flows
 - [ ] **Load tests**: Many strands on single node, many nodes in cohort

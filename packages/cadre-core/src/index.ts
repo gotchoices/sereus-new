@@ -40,8 +40,6 @@ export {
 // Enrollment
 export {
   EnrollmentService,
-  type AuthorityVerifier,
-  type PeerRegistry,
   type MemberVerifier,
   type MemberRegistry
 } from './enrollment.js';
@@ -55,3 +53,11 @@ export {
   type FormationSigner,
   type StrandSolicitationServiceOptions
 } from './strand-solicitation.js';
+
+// Seed Bootstrap
+export {
+  SeedBootstrapService,
+  SEED_PROTOCOL,
+  type SeedBootstrapConfig,
+  type SeedEventCallbacks
+} from './seed-bootstrap.js';

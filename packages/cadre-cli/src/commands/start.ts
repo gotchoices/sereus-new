@@ -1,10 +1,20 @@
 import { Command } from 'commander';
 import debug from 'debug';
-import { CadreNode, type CadreNodeConfig } from '@sereus/cadre-core';
+import { CadreNode, type CadreNodeConfig, type ControlNetworkSeed } from '@sereus/cadre-core';
 import { resolveConfig } from '../config/index.js';
 import { HealthServer } from '../server/health.js';
 
 const log = debug('cadre:cli:start');
+
+/**
+ * Decode a base64url-encoded seed
+ */
+function decodeSeed(encoded: string): ControlNetworkSeed {
+  const { fromString } = require('uint8arrays');
+  const bytes = fromString(encoded, 'base64url');
+  const json = new TextDecoder().decode(bytes);
+  return JSON.parse(json) as ControlNetworkSeed;
+}
 
 export const startCommand = new Command('start')
   .description('Start the cadre node with the specified configuration')
@@ -13,6 +23,8 @@ export const startCommand = new Command('start')
   .option('--health-port <port>', 'Health check server port', '8080')
   .option('--metrics-port <port>', 'Prometheus metrics server port', '9090')
   .option('--no-health-server', 'Disable health check and metrics servers')
+  .option('--seed <encoded>', 'Apply a base64url-encoded seed on startup')
+  .option('--listen-for-seeds', 'Enable the seed protocol listener for receiving seeds')
   .action(async (options) => {
     if (options.debug) {
       debug.enable('cadre:*,sereus:*');
@@ -68,6 +80,19 @@ export const startCommand = new Command('start')
         log('Strand hibernating: %s', strandId);
       });
 
+      // Set up seed event handlers
+      node.on('seed:received', ({ partyId, peerId }) => {
+        console.log(`✓ Seed received from ${peerId} for party ${partyId}`);
+      });
+
+      node.on('seed:applied', ({ partyId, peersAdded }) => {
+        console.log(`✓ Seed applied: ${peersAdded} peers added for party ${partyId}`);
+      });
+
+      node.on('seed:error', ({ partyId, error }) => {
+        console.error(`✗ Seed error (${partyId}): ${error}`);
+      });
+
       // Start health/metrics servers if enabled
       let healthServer: HealthServer | null = null;
       if (options.healthServer !== false) {
@@ -96,6 +121,28 @@ export const startCommand = new Command('start')
 
       // Start the node
       await node.start();
+
+      // Enable seed listener if requested
+      if (options.listenForSeeds) {
+        node.enableSeedListener();
+        console.log('✓ Seed protocol listener enabled');
+      }
+
+      // Apply seed if provided
+      if (options.seed) {
+        try {
+          const seed = decodeSeed(options.seed);
+          log('Applying seed for party: %s', seed.partyId);
+          const result = await node.applySeed(seed);
+          if (result.success) {
+            console.log(`✓ Seed applied: ${result.peersAdded} peers added`);
+          } else {
+            console.error(`✗ Failed to apply seed: ${result.error}`);
+          }
+        } catch (err) {
+          console.error('✗ Failed to decode/apply seed:', err instanceof Error ? err.message : err);
+        }
+      }
 
       console.log('Cadre node running. Press Ctrl+C to stop.');
 

@@ -1,13 +1,26 @@
-## Cadre peer authorization:
+## Cadre peer authorization (Seed Bootstrap API):
 
-Sent from authority to drone provider to spawn new cadre member. Network ID is assumed for all control strands
+Authority nodes authorize new peers via signed seeds containing peer info and control network state.
 
 ```ts
-createCadrePeer(): Promise<PeerId>;
-registerCadrePeer(peerId: PeerId, bootstrapNodes: Multiaddr[], authorityKey: string, signature: string);
-```
+// Create peer identity (on new node)
+createCadrePeer(): Promise<{ peerId: PeerId; privateKey: Uint8Array }>;
 
-Between creating the peer and registering it, the caller adds the peer to the control network, so that at registration, the peer is already a member of the control network and is able to join.
+// Authorize and create seed (on authority node)
+authorizePeer(peerId: string, multiaddrs?: string[]): Promise<void>;
+createSeed(): Promise<ControlNetworkSeed>;
+
+// Deliver seed to new node
+deliverSeed(targetMultiaddr: string, seed: ControlNetworkSeed): Promise<SeedAckMessage>;
+// Or encode for out-of-band delivery (QR, link, API)
+encodeSeed(seed: ControlNetworkSeed): string;
+
+// Apply seed (on new node)
+applySeed(seed: ControlNetworkSeed): Promise<ApplySeedResult>;
+
+// Helper for provider-hosted drones
+addDrone(options: AddDroneOptions): Promise<DroneInitResult>;
+```
 
 ## Member registration:
 

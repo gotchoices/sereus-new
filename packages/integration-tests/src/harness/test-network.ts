@@ -7,8 +7,8 @@
 
 import debug from 'debug';
 import { ed25519 } from '@noble/curves/ed25519';
-import { base64url } from 'multiformats/bases/base64';
 import { sha256 } from '@noble/hashes/sha256';
+import { toString as uint8ArrayToString } from 'uint8arrays';
 import { createTestParty, shutdownTestParty } from './test-party.js';
 import { releaseAllPorts } from './port-allocator.js';
 import { waitUntil, waitForCount, sleep } from './wait-utils.js';
@@ -32,7 +32,8 @@ function signData(data: string, privateKey: Uint8Array): string {
   // For Ed25519, the raw seed is typically the first 32 bytes after the type/length prefix
   const rawPrivateKey = privateKey.slice(4, 36); // Skip protobuf header
   const signature = ed25519.sign(hash, rawPrivateKey);
-  return base64url.encode(signature);
+  // Use uint8ArrayToString to get raw base64url without multiformat prefix
+  return uint8ArrayToString(signature, 'base64url');
 }
 
 const log = debug('sereus:integration:network');

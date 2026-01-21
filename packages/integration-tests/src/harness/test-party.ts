@@ -8,6 +8,7 @@
 import debug from 'debug';
 import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
 import { peerIdFromPrivateKey } from '@libp2p/peer-id';
+import { toString as uint8ArrayToString } from 'uint8arrays';
 import { createLibp2pNode } from '@optimystic/db-p2p';
 import { ControlDatabase } from '@sereus/cadre-core';
 import type { Libp2p } from '@libp2p/interface';
@@ -82,10 +83,12 @@ export async function createTestParty(options: CreatePartyOptions): Promise<Test
   const authorityKey = await generateKeyPair('Ed25519');
   const authorityPrivateKey = privateKeyToProtobuf(authorityKey);
   const authorityPeerId = peerIdFromPrivateKey(authorityKey);
-  // Use the peer ID string as the public key identifier (base58btc encoded)
-  const authorityPublicKey = authorityPeerId.toString();
+  // Extract raw Ed25519 public key (32 bytes after 4-byte header and 32-byte seed)
+  // and encode as base64url for use with crypto functions
+  const rawPublicKey = authorityPrivateKey.slice(36, 68);
+  const authorityPublicKey = uint8ArrayToString(rawPublicKey, 'base64url');
 
-  log('Generated authority key: %s', authorityPublicKey);
+  log('Generated authority key: %s (peerId: %s)', authorityPublicKey, authorityPeerId.toString());
   
   // Create authority node first (no bootstrap - it IS the bootstrap)
   const authorityNode = await createTestNode(networkName, [], 'transaction');

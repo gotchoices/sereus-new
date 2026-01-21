@@ -220,16 +220,6 @@ export interface StrandConfig {
 }
 
 /**
- * Registration data for enrolling a new peer
- */
-export interface PeerRegistration {
-  peerId: string;
-  bootstrapNodes: string[];
-  authorityKey: string;
-  signature: string;
-}
-
-/**
  * Result of creating a new cadre peer
  */
 export interface CreatePeerResult {
@@ -345,5 +335,175 @@ export interface CadreNodeEvents {
   'strand:waking': { strandId: string };
   'control:connected': void;
   'control:disconnected': void;
+  /** Emitted when a seed is received via the seed protocol */
+  'seed:received': { partyId: string; peerId: string };
+  /** Emitted when a seed is successfully applied */
+  'seed:applied': { partyId: string; peersAdded: number };
+  /** Emitted when seed application fails */
+  'seed:error': { partyId: string; error: string };
+}
+
+// ============================================================================
+// Seed Bootstrap API Types (from cadre-architecture.md)
+// ============================================================================
+
+/**
+ * A peer entry in a control network seed.
+ * Contains connection information for a cadre peer.
+ */
+export interface SeedPeer {
+  /** Peer ID (libp2p identity) */
+  peerId: string;
+  /** Multiaddrs for connecting to this peer */
+  multiaddrs: string[];
+  /** Whether this peer holds an authority key */
+  isAuthority: boolean;
+}
+
+/**
+ * Control network seed for bootstrapping new nodes.
+ * Pre-populates a new node's cache to solve the cold-start problem:
+ * new nodes need control data to validate connections, but can't get
+ * data without connecting first.
+ */
+export interface ControlNetworkSeed {
+  /** Party ID this seed belongs to */
+  partyId: string;
+  /** Known peers in the cadre */
+  peers: SeedPeer[];
+  /** Optional signed transactions to pre-populate the cache */
+  transactions?: SignedTransaction[];
+  /** Signature over the seed by an authority key */
+  signature: string;
+  /** The authority key that signed this seed */
+  signerKey: string;
+}
+
+/**
+ * A signed transaction for inclusion in seeds.
+ * Allows pre-populating the control network cache.
+ */
+export interface SignedTransaction {
+  /** Transaction ID */
+  id: string;
+  /** Serialized transaction data */
+  data: string;
+  /** Signature over the transaction */
+  signature: string;
+}
+
+/**
+ * Message sent from instigator to new node during seed delivery.
+ * Delivered via /sereus/seed/1.0.0 libp2p protocol.
+ */
+export interface SeedMessage {
+  /** Party ID for the cadre */
+  partyId: string;
+  /** Known peers in the cadre */
+  peers: SeedPeer[];
+  /** Optional transactions to pre-populate cache */
+  transactions?: SignedTransaction[];
+  /** Signature by an authority key */
+  signature: string;
+  /** The authority key that signed this message */
+  signerKey: string;
+}
+
+/**
+ * Acknowledgment message from new node to instigator.
+ */
+export interface SeedAckMessage {
+  /** Whether the seed was accepted */
+  accepted: boolean;
+  /** Reason for rejection (if not accepted) */
+  reason?: string;
+}
+
+/**
+ * Options for authorizing a new peer in the cadre.
+ */
+export interface AuthorizePeerOptions {
+  /** Peer ID to authorize */
+  peerId: string;
+  /** Optional multiaddrs for the peer */
+  multiaddrs?: string[];
+}
+
+/**
+ * Result of applying a seed to a node.
+ */
+export interface ApplySeedResult {
+  /** Whether the seed was successfully applied */
+  success: boolean;
+  /** Number of peers added to the peer store */
+  peersAdded: number;
+  /** Error message if not successful */
+  error?: string;
+}
+
+// ============================================================================
+// Seed Helper Types
+// ============================================================================
+
+/**
+ * Node network topology type for seed helper scenarios.
+ */
+export type NodeTopology = 'public' | 'nat';
+
+/**
+ * Invite code for phone-to-server enrollment.
+ * Used when a server invites a phone to join the cadre.
+ */
+export interface CadreInvite {
+  /** Party ID of the cadre */
+  partyId: string;
+  /** Multiaddrs to dial the authority */
+  authorityAddrs: string[];
+  /** Optional invite token for validation */
+  token?: string;
+  /** Timestamp when invite was created */
+  createdAt: number;
+  /** Optional expiration timestamp */
+  expiresAt?: number;
+}
+
+/**
+ * Options for adding a drone via provider API.
+ */
+export interface AddDroneOptions {
+  /** Peer ID of the new drone (returned from provider) */
+  dronePeerId: string;
+  /** Multiaddrs of the drone (returned from provider) */
+  droneMultiaddrs: string[];
+}
+
+/**
+ * Options for adding a phone via invite flow.
+ */
+export interface AddPhoneOptions {
+  /** Peer ID of the phone (sent by phone when it connects) */
+  phonePeerId: string;
+  /** Invite token for validation (must match issued invite) */
+  token?: string;
+}
+
+/**
+ * Result of preparing a seed for drone initialization.
+ */
+export interface DroneInitResult {
+  /** The seed to send to the provider API */
+  seed: ControlNetworkSeed;
+  /** Base64url encoded seed for transport */
+  encodedSeed: string;
+}
+
+/**
+ * Result of creating an invite for a phone.
+ */
+export interface InviteResult {
+  /** The invite to share out-of-band */
+  invite: CadreInvite;
+  /** Base64url encoded invite for QR/link */
+  encodedInvite: string;
 }
 

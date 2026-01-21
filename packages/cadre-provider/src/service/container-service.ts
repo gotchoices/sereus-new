@@ -221,5 +221,90 @@ export class ContainerService {
       return false;
     }
   }
+
+  /**
+   * Apply a seed to a container.
+   * The seed is forwarded to the container's seed endpoint.
+   *
+   * @param id - Container ID
+   * @param encodedSeed - Base64url-encoded seed
+   * @returns Result of seed application
+   */
+  async applySeed(id: string, encodedSeed: string): Promise<{ success: boolean; peersAdded?: number; error?: string }> {
+    const container = await this.store.getContainer(id);
+    if (!container) {
+      return { success: false, error: 'Container not found' };
+    }
+
+    if (container.status !== 'running' && container.status !== 'enrolling') {
+      return { success: false, error: `Container is not running (status: ${container.status})` };
+    }
+
+    if (!container.seedEndpoint) {
+      return { success: false, error: 'Container does not have a seed endpoint' };
+    }
+
+    log('Applying seed to container %s', id);
+
+    try {
+      const response = await fetch(container.seedEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed: encodedSeed }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { success: false, error: `Seed endpoint returned ${response.status}: ${errorText}` };
+      }
+
+      const result = await response.json() as { success: boolean; peersAdded?: number; error?: string };
+      log('Seed applied to container %s: %O', id, result);
+      return result;
+    } catch (error) {
+      log('Failed to apply seed to container %s: %O', id, error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Get the peer info for a container (peerId and multiaddrs).
+   * Fetches from the container's health endpoint.
+   *
+   * @param id - Container ID
+   * @returns Peer info or undefined if not available
+   */
+  async getPeerInfo(id: string): Promise<{ peerId: string; multiaddrs: string[] } | undefined> {
+    const container = await this.store.getContainer(id);
+    if (!container) return undefined;
+
+    // Return cached values if available
+    if (container.peerId && container.multiaddrs?.length) {
+      return { peerId: container.peerId, multiaddrs: container.multiaddrs };
+    }
+
+    // Fetch from health endpoint
+    if (!container.healthEndpoint) return undefined;
+
+    try {
+      const response = await fetch(container.healthEndpoint);
+      if (!response.ok) return undefined;
+
+      const health = await response.json() as { peerId?: string; multiaddrs?: string[] };
+      if (health.peerId && health.multiaddrs) {
+        // Cache the values
+        container.peerId = health.peerId;
+        container.multiaddrs = health.multiaddrs;
+        container.updatedAt = new Date();
+        await this.store.saveContainer(container);
+
+        return { peerId: health.peerId, multiaddrs: health.multiaddrs };
+      }
+    } catch {
+      // Health fetch failed
+    }
+
+    return undefined;
+  }
 }
 

@@ -155,6 +155,74 @@ export function registerRoutes(app: FastifyInstance, ctx: RouteContext): void {
     });
   });
 
+  // GET /containers/:id/peer - Get container peer info
+  app.get(`${basePath}/containers/:id/peer`, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    log('GET %s/containers/%s/peer', basePath, id);
+
+    const customer = (request as any).customer as CustomerIdentity | undefined;
+    if (!customer) {
+      return errorResponse(reply, 'UNAUTHORIZED', 'Authentication required', 401);
+    }
+
+    const container = await containerService.getContainer(id);
+    if (!container) {
+      return errorResponse(reply, 'NOT_FOUND', 'Container not found', 404);
+    }
+
+    // Verify ownership
+    if (container.customerId !== customer.customerId) {
+      return errorResponse(reply, 'FORBIDDEN', 'Access denied', 403);
+    }
+
+    const peerInfo = await containerService.getPeerInfo(id);
+    if (!peerInfo) {
+      return errorResponse(reply, 'NOT_AVAILABLE', 'Peer info not yet available', 503);
+    }
+
+    return reply.send({
+      ok: true,
+      data: peerInfo,
+    });
+  });
+
+  // PUT /containers/:id/seed - Apply a seed to a container
+  app.put(`${basePath}/containers/:id/seed`, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    log('PUT %s/containers/%s/seed', basePath, id);
+
+    const customer = (request as any).customer as CustomerIdentity | undefined;
+    if (!customer) {
+      return errorResponse(reply, 'UNAUTHORIZED', 'Authentication required', 401);
+    }
+
+    const container = await containerService.getContainer(id);
+    if (!container) {
+      return errorResponse(reply, 'NOT_FOUND', 'Container not found', 404);
+    }
+
+    // Verify ownership
+    if (container.customerId !== customer.customerId) {
+      return errorResponse(reply, 'FORBIDDEN', 'Access denied', 403);
+    }
+
+    const body = request.body as { seed?: string };
+    if (!body.seed) {
+      return errorResponse(reply, 'INVALID_REQUEST', 'seed is required');
+    }
+
+    const result = await containerService.applySeed(id, body.seed);
+
+    if (result.success) {
+      return reply.send({
+        ok: true,
+        data: { peersAdded: result.peersAdded },
+      });
+    } else {
+      return errorResponse(reply, 'SEED_FAILED', result.error ?? 'Failed to apply seed');
+    }
+  });
+
   // GET /billing/plans - List available plans
   app.get(`${basePath}/billing/plans`, async (_request, reply) => {
     log('GET %s/billing/plans', basePath);

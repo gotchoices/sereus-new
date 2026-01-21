@@ -117,22 +117,40 @@ strandFilter: { mode: 'all' }
 
 ## Enrolling New Devices
 
-Adding a new device to your cadre requires cryptographic authorization:
+Adding a new device to your cadre uses the Seed Bootstrap API:
 
 ```typescript
-const enrollment = node.getEnrollmentService();
-
 // On the new device: generate identity
+const enrollment = new EnrollmentService();
 const { peerId, privateKey } = await enrollment.createCadrePeer();
-// Store privateKey securely, send peerId to authority device
+// Store privateKey securely, send peerId + multiaddrs to authority
 
-// On authority device (e.g., your phone): authorize the new peer
-await enrollment.registerCadrePeer({
-  peerId: newDevicePeerId,
-  bootstrapNodes: currentBootstrapNodes,
-  authorityKey: yourAuthorityKey,
-  signature: signPeerRegistration(newDevicePeerId, yourPrivateKey)
+// On authority device: authorize the new peer and create seed
+await node.authorizePeer(newDevicePeerId, newDeviceMultiaddrs);
+const seed = await node.createSeed();
+
+// Deliver seed to new device (via protocol, API, or out-of-band)
+await node.deliverSeed(newDeviceMultiaddr, seed);
+// Or encode for QR/link: const encoded = node.encodeSeed(seed);
+
+// On new device: apply seed to join cadre
+const result = await newNode.applySeed(seed);
+```
+
+For provider-hosted drones, use the helper:
+
+```typescript
+// Get drone info from provider API
+const droneInfo = await provider.createContainer(plan);
+
+// One call: authorize + create seed
+const { seed, encodedSeed } = await node.addDrone({
+  dronePeerId: droneInfo.peerId,
+  droneMultiaddrs: droneInfo.multiaddrs
 });
+
+// Send to provider for drone initialization
+await provider.applySeed(droneInfo.containerId, encodedSeed);
 ```
 
 ## API Reference

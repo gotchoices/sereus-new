@@ -15,6 +15,8 @@ export interface HealthStatus {
   status: 'healthy' | 'unhealthy' | 'starting';
   timestamp: string;
   uptime: number;
+  peerId: string | null;
+  multiaddrs: string[];
   node: {
     running: boolean;
     peerId: string | null;
@@ -94,7 +96,7 @@ export class HealthServer {
   private getHealthStatus(): HealthStatus {
     const strands = this.node?.getStrands() ?? new Map();
     let active = 0, idle = 0, hibernating = 0;
-    
+
     for (const strand of strands.values()) {
       if (strand.status === 'active') active++;
       else if (strand.status === 'idle') idle++;
@@ -102,14 +104,18 @@ export class HealthServer {
     }
 
     const isRunning = this.node?.isRunning ?? false;
-    
+    const peerId = this.node?.peerId?.toString() ?? null;
+    const multiaddrs = this.node?.getMultiaddrs() ?? [];
+
     return {
       status: isRunning ? 'healthy' : 'starting',
       timestamp: new Date().toISOString(),
       uptime: (Date.now() - this.startTime.getTime()) / 1000,
+      peerId,
+      multiaddrs,
       node: {
         running: isRunning,
-        peerId: this.node?.peerId?.toString() ?? null,
+        peerId,
         partyId: '', // Would come from config
         profile: 'storage',
         strands: { total: strands.size, active, idle, hibernating },
@@ -172,7 +178,7 @@ export class HealthServer {
 
   private async startHealthServer(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.healthServer = http.createServer((req, res) => {
+      this.healthServer = http.createServer(async (req, res) => {
         const url = new URL(req.url ?? '/', `http://localhost`);
 
         try {
@@ -189,6 +195,8 @@ export class HealthServer {
             const status = this.getHealthStatus();
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(status, null, 2));
+          } else if (url.pathname === '/seed' && req.method === 'POST') {
+            await this.handleSeedRequest(req, res);
           } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('Not Found');
@@ -206,6 +214,44 @@ export class HealthServer {
         resolve();
       });
     });
+  }
+
+  private async handleSeedRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.node) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Node not attached' }));
+      return;
+    }
+
+    // Read request body
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk as Buffer);
+    }
+    const body = Buffer.concat(chunks).toString('utf8');
+
+    try {
+      const { seed } = JSON.parse(body) as { seed?: string };
+      if (!seed) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'seed is required' }));
+        return;
+      }
+
+      // Decode and apply the seed
+      const { fromString } = await import('uint8arrays');
+      const bytes = fromString(seed, 'base64url');
+      const json = new TextDecoder().decode(bytes);
+      const decodedSeed = JSON.parse(json);
+
+      const result = await this.node.applySeed(decodedSeed);
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      log('Seed request error: %o', error);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Invalid request' }));
+    }
   }
 
   private async startMetricsServer(): Promise<void> {

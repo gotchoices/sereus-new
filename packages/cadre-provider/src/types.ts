@@ -58,6 +58,8 @@ export interface Container {
   status: ContainerStatus;
   /** Peer ID once enrolled */
   peerId?: string;
+  /** Multiaddrs for the container's libp2p node */
+  multiaddrs?: string[];
   /** Docker container ID */
   dockerId?: string;
   /** Resource specifications */
@@ -74,6 +76,8 @@ export interface Container {
   healthEndpoint?: string;
   /** Metrics endpoint URL */
   metricsEndpoint?: string;
+  /** Seed API endpoint URL (for applying seeds) */
+  seedEndpoint?: string;
 }
 
 /** Container status response */

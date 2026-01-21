@@ -24,10 +24,10 @@ declare schema CadreControl {
             (select count(1) from AuthorityKey) <= 1
 
                 -- Old authority can authorize by signature and transaction stamp id (not repeatable)
-                or (old.Key is not null and old.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, old.Key))
+                or (old.Key is not null and old.Key = context.AuthorityKey and verify(digest(context.StampId, 'sha256', 'utf8'), context.Signature, old.Key, 'ed25519'))
 
                 -- or other authorities can authorize by signature and transaction stamp id (not repeatable)
-                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId, 'sha256', 'utf8'), context.Signature, A.Key, 'ed25519'))
         )
     ) with context (AuthorityKey text null, Signature text null, StampId text);
 
@@ -36,7 +36,7 @@ declare schema CadreControl {
         Key text primary key,
         constraint Authorized check (
             -- Authorities can authorize by signature and transaction stamp id (not repeatable)
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId, 'sha256', 'utf8'), context.Signature, A.Key, 'ed25519'))
         )
     ) with context (AuthorityKey text, StampId text, Signature text);
 
@@ -48,7 +48,7 @@ declare schema CadreControl {
         Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the sApp, but only Closed controls reads
         constraint Authorized check (
             -- Authorized by authority signature and transaction stamp id (not repeatable)
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId, 'sha256', 'utf8'), context.Signature, A.Key, 'ed25519'))
 
                 -- or authorized by a cadre peer who has received a valid formation invitation
                 or exists (select 1 from FormationUsage FU where FU.StrandId = new.Id)
@@ -62,13 +62,14 @@ declare schema CadreControl {
         Multiaddr text,
         constraint AuthorizedInsert check on insert, delete (
             -- Authorized by an authority key
-            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(coalesce(new.PeerId, old.PeerId)), context.Signature, A.Key))
+            -- Use utf8 input encoding since peer IDs are base58btc strings, not base64url
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(coalesce(new.PeerId, old.PeerId), 'sha256', 'utf8'), context.Signature, A.Key, 'ed25519'))
         ),
         constraint AuthorizedUpdate check on update (
-            -- Peer can change its own multiaddr
-            verify(digest(new.PeerId, new.Multiaddr), context.Signature, new.PeerId)
+            -- Peer can change its own multiaddr (using utf8 encoding for both values)
+            verify(digest(new.PeerId, 'sha256', 'utf8') || digest(new.Multiaddr, 'sha256', 'utf8'), context.Signature, new.PeerId, 'ed25519')
                 -- or authorized by an authority key
-                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(new.PeerId), context.Signature, A.Key))
+                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(new.PeerId, 'sha256', 'utf8'), context.Signature, A.Key, 'ed25519'))
         )
     ) with context (AuthorityKey text null, Signature text);
 
