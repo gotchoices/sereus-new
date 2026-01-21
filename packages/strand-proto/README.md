@@ -1,4 +1,5 @@
 ## @sereus/strand-proto
+THIS MODULE IS DEPRECATED
 
 Configurable invitation-based bootstrap over libp2p to provision a shared Sereus strand (SQL DB), with protocol string override and neutral types.
 
