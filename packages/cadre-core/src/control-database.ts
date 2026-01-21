@@ -1,7 +1,4 @@
 import debug from 'debug';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { Database, registerPlugin } from '@quereus/quereus';
 import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
 import optimysticPlugin from '@optimystic/quereus-plugin-optimystic/plugin';
@@ -11,6 +8,108 @@ import type { IRepo } from '@optimystic/db-core';
 import type { StrandRow } from './types.js';
 
 const log = debug('sereus:cadre:control-db');
+
+/**
+ * Embedded control schema for cross-platform compatibility.
+ * This schema is embedded directly in the code to work in React Native and other
+ * environments where file system access is not available.
+ */
+const CONTROL_SCHEMA = `-- This manages a Sereus party's cadre, or set of nodes, and their participation in strands (networks)
+declare schema CadreControl {
+    -- A key that can authorize various control changes
+    table AuthorityKey (
+        Key text primary key,
+        constraint Authorized check (
+            -- Bootstrap: first authority key needs no existing authorization
+            (select count(1) from AuthorityKey) <= 1
+
+                -- Old authority can authorize by signature and transaction stamp id (not repeatable)
+                or (old.Key is not null and old.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, old.Key))
+
+                -- or other authorities can authorize by signature and transaction stamp id (not repeatable)
+                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+        )
+    ) with context (AuthorityKey text null, Signature text null, StampId text);
+
+    -- A key that can validate a strand formation disclosure
+    table ValidationKey (
+        Key text primary key,
+        constraint Authorized check (
+            -- Authorities can authorize by signature and transaction stamp id (not repeatable)
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+        )
+    ) with context (AuthorityKey text, StampId text, Signature text);
+
+    -- A network of members sharing an sApp database, each contributing peer nodes (their cadre) to the overall cohort
+    -- Cadre peers should participate in each of these strands
+    table Strand (
+        Id text primary key,    -- UUID
+        MemberPrivateKey text null unique,   -- Our private key as a member of this strand
+        Type text, -- Types: 'o' = Open, 'c' = Closed -- Open can still control writes in the sApp, but only Closed controls reads
+        constraint Authorized check (
+            -- Authorized by authority signature and transaction stamp id (not repeatable)
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+
+                -- or authorized by a cadre peer who has received a valid formation invitation
+                or exists (select 1 from FormationUsage FU where FU.StrandId = new.Id)
+        ),
+        -- TODO: constraint to ensure member private key only if closed
+    ) with context (AuthorityKey text, StampId text, Signature text);
+
+    -- A peer (node) that is part of the cadre
+    table CadrePeer (
+        PeerId text primary key,
+        Multiaddr text,
+        constraint AuthorizedInsert check on insert, delete (
+            -- Authorized by an authority key
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(coalesce(new.PeerId, old.PeerId)), context.Signature, A.Key))
+        ),
+        constraint AuthorizedUpdate check on update (
+            -- Peer can change its own multiaddr
+            verify(digest(new.PeerId, new.Multiaddr), context.Signature, new.PeerId)
+                -- or authorized by an authority key
+                or exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(new.PeerId), context.Signature, A.Key))
+        )
+    ) with context (AuthorityKey text null, Signature text);
+
+    -- An open invitation to form a strand with this party
+    table FormationInvite (
+        Token text primary key, -- Just a random string
+        sAppId text, -- The app for the strand that will be formed
+        ExpiresAt datetime null,
+        TotalUses int null check (TotalUses >= 0),
+        ValidationUrl text null,   -- Web hook - send disclosure, IP address...
+        constraint AuthorizedAddOrRemove check on insert, delete (
+            -- Authorized by an authority key to add or remove this invite
+            exists (select 1 from AuthorityKey A where A.Key = context.AuthorityKey and verify(digest(context.StampId), context.Signature, A.Key))
+        )
+    ) with context (AuthorityKey text, StampId text, Signature text);
+
+    table FormationUsage (
+        Token text,
+        UseNumber int,
+        Disclosure text,
+        StrandId text,
+        primary key (Token, UseNumber),
+        constraint InsertOnly check on update, delete (false),
+        constraint Monotonic check (
+            new.UseNumber = coalesce((select max(UseNumber) from FormationUsage U where U.Token = new.Token), 0) + 1
+        ),
+        constraint Authorized check on insert (
+            -- Satisfies an invitation
+            exists (
+                select 1 from FormationInvite FI
+                    where FI.Token = new.Token
+                        and (FI.TotalUses is null or FI.TotalUses >= new.UseNumber)
+                        and (FI.ExpiresAt is null or FI.ExpiresAt > context.Now)
+                        and (FI.ValidationUrl is null or verify(digest(new.Token, new.Disclosure), context.ValidationSignature, context.ValidationKey))
+            )
+        ),
+        constraint StrandExists check (exists (select 1 from Strand S where S.Id = new.StrandId)),
+    ) with context (PeerId text, PeerSignature text, Now datetime, ValidationKey text null, ValidationSignature text null);
+}
+
+apply schema CadreControl;`;
 
 /**
  * Generate a unique stamp ID for transaction authorization.
@@ -55,7 +154,11 @@ interface OptimysticPluginResult {
 export interface ControlDatabaseConfig {
   /** Party ID for the control network */
   partyId: string;
-  /** Path to the control schema file (defaults to bundled schema) */
+  /**
+   * Optional path to the control schema file.
+   * If not provided, uses the embedded schema for cross-platform compatibility.
+   * Only use this if you need to override the default schema (e.g., for testing).
+   */
   schemaPath?: string;
   /** Libp2p node for the control network (injected) */
   libp2pNode: Libp2p;
@@ -130,19 +233,39 @@ export class ControlDatabase {
   }
 
   private async loadSchema(): Promise<void> {
-    const schemaPath = this.config.schemaPath ?? this.getDefaultSchemaPath();
-    log('Loading schema from: %s', schemaPath);
+    let schemaContent: string;
 
-    const schemaContent = await readFile(schemaPath, 'utf-8');
+    if (this.config.schemaPath) {
+      // Load from file if explicitly provided (for testing or custom schemas)
+      // This only works in Node.js environments
+      log('Loading schema from file: %s', this.config.schemaPath);
+
+      // Check if we're in a Node.js environment
+      if (typeof process !== 'undefined' && process.versions?.node) {
+        try {
+          // Use require to conditionally load fs only in Node.js
+          // This won't be bundled by React Native's Metro bundler
+          const fs = require('fs/promises');
+          schemaContent = await fs.readFile(this.config.schemaPath, 'utf-8');
+        } catch (error) {
+          throw new Error(
+            `Failed to load schema from ${this.config.schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      } else {
+        throw new Error(
+          'Loading schema from file is not supported in React Native. ' +
+          'Remove the schemaPath option to use the embedded schema instead.'
+        );
+      }
+    } else {
+      // Use embedded schema for cross-platform compatibility
+      log('Using embedded control schema');
+      schemaContent = CONTROL_SCHEMA;
+    }
+
     await this.db!.exec(schemaContent);
     log('Schema loaded and executed');
-  }
-
-  private getDefaultSchemaPath(): string {
-    // Resolve path relative to the package root
-    const currentDir = dirname(fileURLToPath(import.meta.url));
-    // Go up from dist/src or src to package root, then up to repo root, then to schemas/
-    return resolve(currentDir, '..', '..', '..', 'schemas', 'control.qsql');
   }
 
   /**
