@@ -18,6 +18,19 @@
       "import": "./dist/index.js"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gotchoices/sereus.git",
+    "directory": "packages/cadre-provider"
+  },
+  "keywords": [
+    "sereus",
+    "cadre",
+    "provider",
+    "distributed",
+    "p2p",
+    "hosting"
+  ],
   "scripts": {
     "clean": "rimraf dist",
     "build": "tsc -p tsconfig.build.json",
@@ -27,21 +40,23 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^22.13.10",
-    "aegir": "^45.1.4",
-    "rimraf": "^5.0.5",
-    "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "@types/dockerode": "^3.3.31",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.10",
+    "aegir": "^45.2.1",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.0",
-    "@sereus/cadre-core": "^0.0.1",
-    "commander": "^12.0.0",
-    "debug": "^4.3.4",
-    "dockerode": "^4.0.2",
-    "fastify": "^5.0.0",
-    "js-yaml": "^4.1.0",
-    "nanoid": "^5.0.7"
+    "@fastify/cors": "^11.2.0",
+    "@sereus/cadre-core": "workspace:^",
+    "commander": "^14.0.2",
+    "debug": "^4.4.3",
+    "dockerode": "^4.0.9",
+    "fastify": "^5.7.1",
+    "js-yaml": "^4.1.1",
+    "nanoid": "^5.1.6"
   },
   "engines": {
     "node": ">=18"

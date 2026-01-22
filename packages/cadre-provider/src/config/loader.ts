@@ -3,8 +3,8 @@
  * Supports YAML/JSON files and environment variable overrides.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import yaml from 'js-yaml';
 import debug from 'debug';
 import { type ProviderConfig, type PartialProviderConfig, DEFAULT_CONFIG } from './types.js';
@@ -12,7 +12,7 @@ import { type ProviderConfig, type PartialProviderConfig, DEFAULT_CONFIG } from 
 const log = debug('cadre:provider:config');
 
 /** Deep merge two objects */
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
   const result = { ...target };
   for (const key in source) {
     const sourceVal = source[key];
@@ -25,12 +25,12 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
       typeof targetVal === 'object' &&
       !Array.isArray(targetVal)
     ) {
-      (result as Record<string, unknown>)[key] = deepMerge(
-        targetVal as Record<string, unknown>,
-        sourceVal as Record<string, unknown>
+      (result as any)[key] = deepMerge(
+        targetVal as Record<string, any>,
+        sourceVal as Record<string, any>
       );
     } else if (sourceVal !== undefined) {
-      (result as Record<string, unknown>)[key] = sourceVal;
+      (result as any)[key] = sourceVal;
     }
   }
   return result;
@@ -124,16 +124,16 @@ export function loadConfig(options: LoadConfigOptions = {}): ProviderConfig {
   // Load from file if provided
   if (options.configFile) {
     const fileConfig = loadConfigFile(options.configFile);
-    config = deepMerge(config, fileConfig);
+    config = deepMerge(config, fileConfig as any);
   }
 
   // Apply environment variables
   const envConfig = loadEnvConfig();
-  config = deepMerge(config, envConfig);
+  config = deepMerge(config, envConfig as any);
 
   // Apply overrides
   if (options.overrides) {
-    config = deepMerge(config, options.overrides);
+    config = deepMerge(config, options.overrides as any);
   }
 
   log('Loaded configuration: %O', config);

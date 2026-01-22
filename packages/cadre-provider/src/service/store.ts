@@ -2,8 +2,8 @@
  * Storage abstraction for provider state.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import debug from 'debug';
 import type { Container, ApiKey, CustomerBilling, UsageMetrics } from '../types.js';
 import type { StorageConfig } from '../config/types.js';

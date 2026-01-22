@@ -152,8 +152,8 @@ export class DockerOrchestrator implements Orchestrator {
     return {
       cpuPercent,
       memoryBytes: stats.memory_stats.usage ?? 0,
-      networkRxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.rx_bytes ?? 0), 0),
-      networkTxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.tx_bytes ?? 0), 0),
+      networkRxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.rx_bytes ?? 0), 0) as number,
+      networkTxBytes: Object.values(stats.networks ?? {}).reduce((sum: number, n: any) => sum + (n.tx_bytes ?? 0), 0) as number,
     };
   }
 
@@ -176,9 +176,10 @@ export class DockerOrchestrator implements Orchestrator {
   private async pullImage(): Promise<void> {
     log('Pulling image %s', this.config.image);
     await new Promise<void>((resolve, reject) => {
-      this.docker.pull(this.config.image, {}, (err, stream) => {
+      this.docker.pull(this.config.image, {}, (err: Error | null, stream?: NodeJS.ReadableStream) => {
         if (err) return reject(err);
-        this.docker.modem.followProgress(stream, (err2) => err2 ? reject(err2) : resolve());
+        if (!stream) return reject(new Error('No stream returned from pull'));
+        this.docker.modem.followProgress(stream, (err2: Error | null) => err2 ? reject(err2) : resolve());
       });
     });
   }
