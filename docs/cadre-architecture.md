@@ -49,17 +49,24 @@ The control network is a private Optimystic network involving only the party's o
 | `FormationInvite` | Open invitations to form strands with this party |
 | `FormationUsage` | Audit log of formation invite consumption |
 
-The control network protocol prefix is fixed: `/sereus/control/<party-id>`.
+#### Network scoping (current implementation)
+
+Cadre uses `@optimystic/db-p2p` to create libp2p+Optimystic nodes. In that implementation, **libp2p service protocols are namespaced by** `networkName` via:
+
+- `protocolPrefix = /optimystic/${networkName}`
+- control network uses `networkName = control-${partyId}`
+
+Cadre-specific protocols are separate and live under `/sereus/*` (e.g. seed delivery uses `/sereus/seed/1.0.0`).
 
 ### Strand Networks
 
 Each strand is an independent Optimystic network with its own:
-- Protocol prefix: `/sereus/strand/<strand-id>`
+- Network namespace: `networkName = strand-${strandId}` (libp2p services are scoped under `/optimystic/strand-${strandId}` in `@optimystic/db-p2p`)
 - Member list (for closed strands)
 - Application schema
 - Peer cohort (union of all member cadres)
 
-Strands use the `Strand` schema which manages membership, invites, and authority delegation.
+**Note:** the repository contains a proposed strand membership schema in `schemas/strand.qsql`, but the current `StrandDatabase` implementation applies only the sApp DDL under `declare schema App { ... }` (i.e. the `Strand` membership schema is not yet applied automatically).
 
 ### Cadre Node
 
@@ -173,7 +180,7 @@ Adding a new node to a cadre involves a "cold start" problem: the new node needs
 When a new node joins a cadre:
 
 1. **New node has empty control DB** — no `CadrePeer` entries, can't validate anyone
-2. **Existing nodes validate via CadrePeer** — they'll reject unknown peers
+2. **Existing nodes enforce authorization in the DB layer** — CadreControl constraints reject unauthorized control writes; there is not yet a libp2p connection-gating layer
 3. **NAT complicates dialing** — phones behind NAT can't receive incoming connections
 
 The seed provides the minimal state needed to break this chicken-and-egg cycle.
@@ -193,12 +200,18 @@ interface ControlNetworkSeed {
   // Optional: signed Optimystic transactions for log consistency
   // (allows verification rather than blind trust)
   transactions?: SignedTransaction[];
+
+  // Signature over { partyId, peers, transactions? }
+  signature: string;
+
+  // ed25519 public key (base64url) used to verify `signature`
+  signerKey: string;
 }
 
 interface SeedPeer {
   peerId: string;           // libp2p peer ID
   multiaddrs: string[];     // Dial hints (may be empty if NAT'd)
-  isAuthority: boolean;     // Can this peer sign control changes?
+  isAuthority: boolean;     // Hint: an authority-hosting peer to prefer dialing (authority signing is represented by `signerKey`)
 }
 ```
 
@@ -212,18 +225,14 @@ After applying a seed, a node follows a simple unified algorithm regardless of n
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Node Behavior After applySeed()                 │
 │                                                                  │
-│  1. Populate cache with all peers from seed                     │
+│  1. Populate peerstore with peers + multiaddrs from seed        │
 │                                                                  │
-│  2. Start listening for connections                             │
-│     → Accept if remote PeerId is in cache                       │
+│  2. Attempt outbound dials (best effort)                         │
+│     → Prefer peers flagged isAuthority first                     │
 │                                                                  │
-│  3. For each peer with multiaddrs, attempt dial (parallel)      │
-│     → First successful connection wins                          │
-│     → Failed dials are fine (peer might be offline/NAT'd)       │
-│                                                                  │
-│  4. Once ANY connection established:                            │
-│     → Begin control network sync                                │
-│     → select * from CadrePeer to refresh authoritative cache    │
+│  3. Once a connection is established:                            │
+│     → Begin control network sync (Optimystic)                    │
+│     → Refresh via select * from CadrePeer                        │
 │                                                                  │
 │  5. Periodic refresh (until reactivity):                        │
 │     → Re-query CadrePeer, update local cache                    │
@@ -477,6 +486,7 @@ interface SeedMessage {
   peers: SeedPeer[];                  // Authorization cache entries
   transactions?: SignedTransaction[]; // Optional: verifiable log entries
   signature: string;                  // Signed by an authority key
+  signerKey: string;                  // Authority ed25519 public key (base64url)
 }
 
 // New Node → Instigator
@@ -487,8 +497,9 @@ interface SeedAckMessage {
 ```
 
 **Validation**:
-- New node verifies `signature` is from a peer listed in `peers[]` with `isAuthority: true`
-- This creates a trust chain: seed is signed by an authority, and that authority is in the seed
+- New node verifies `signature` using `signerKey` (ed25519)
+- TODO: enforce a trust policy for `signerKey` (e.g. pinned authority keys per party, or TOFU with explicit user confirmation)
+- Note: current implementation additionally requires that the seed contains *some* peer with `isAuthority: true`, but it does not verify that the signing key corresponds to that peer
 - For additional security, seeds can include `transactions[]` with signed Optimystic entries
 
 **Alternative Delivery Mechanisms**:
@@ -508,10 +519,7 @@ From the **instigator's** perspective:
 
 ```typescript
 // 1. Authorize the new peer
-await cadreNode.authorizePeer({
-  peerId: newNodePeerId,
-  multiaddrs: newNodeMultiaddrs  // may be empty if NAT'd
-});
+await cadreNode.authorizePeer(newNodePeerId, newNodeMultiaddrs);
 
 // 2. Generate seed for the new peer
 const seed = await cadreNode.createSeed();
@@ -617,7 +625,7 @@ const { seed, encodedSeed } = await authorityPhone.addPhoneWithRelay(newPhonePee
 
 Cadre nodes watch the control network's `Strand` table for changes. When a strand is added, each node:
 
-1. Creates a new libp2p node with protocol prefix `/sereus/strand/<strand-id>`
+1. Creates a new libp2p node via `@optimystic/db-p2p` with `networkName = strand-${strandId}` (protocols scoped under `/optimystic/strand-${strandId}`)
 2. Loads the strand's sApp schema via declarative schema
 3. Bootstraps into the strand's cohort
 4. Begins participating in transactions
@@ -766,9 +774,9 @@ Applications can provide latency hints in the strand header that influence hiber
 
 Each strand operates as a completely isolated libp2p network. This isolation is achieved through:
 
-1. **Protocol prefix**: Each strand uses `/sereus/strand/<strand-id>` as its protocol prefix for all services (identify, pubsub, cluster, fret)
+1. **Network name scoping**: Each strand uses `networkName = strand-${strandId}` which results in protocol prefix `/optimystic/strand-${strandId}` for libp2p services (identify, cluster, repo, sync) within `@optimystic/db-p2p`
 2. **Separate libp2p node**: Each strand instance runs its own libp2p node with independent connection management
-3. **Independent DHT**: Each strand's FRET overlay is scoped to its protocol prefix
+3. **Independent DHT**: Each strand's FRET overlay is scoped to its `networkName`
 4. **Separate storage namespace**: Each strand's Optimystic data is partitioned by strand ID
 
 ```
@@ -777,7 +785,7 @@ Each strand operates as a completely isolated libp2p network. This isolation is 
 │                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                     Control Network                          │   │
-│  │             /sereus/control/<party-id>                       │   │
+│  │         /optimystic/control-<party-id>                       │   │
 │  │                                                              │   │
 │  │  Peers: Only this party's cadre nodes                       │   │
 │  │  Data:  CadreControl schema                                  │   │
@@ -786,15 +794,15 @@ Each strand operates as a completely isolated libp2p network. This isolation is 
 │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────┐   │
 │  │  Strand Network A │  │  Strand Network B │  │ Strand Net C  │   │
 │  │                   │  │                   │  │               │   │
-│  │  /sereus/strand/  │  │  /sereus/strand/  │  │ /sereus/...   │   │
-│  │    <uuid-a>       │  │    <uuid-b>       │  │   <uuid-c>    │   │
+│  │ /optimystic/      │  │ /optimystic/      │  │ /optimystic/  │   │
+│  │  strand-<uuid-a>  │  │  strand-<uuid-b>  │  │ strand-<...>  │   │
 │  │                   │  │                   │  │               │   │
 │  │  Peers: Cohort A  │  │  Peers: Cohort B  │  │ Peers: Coh C  │   │
 │  │  (Party 1, 2, 3)  │  │  (Party 1, 4)     │  │ (Party 1, 5)  │   │
 │  │                   │  │                   │  │               │   │
-│  │  Data: sApp A +   │  │  Data: sApp B +   │  │ Data: sApp C +│   │
-│  │        Strand     │  │        Strand     │  │       Strand  │   │
-│  │        schema     │  │        schema     │  │       schema  │   │
+│  │  Data: sApp A     │  │  Data: sApp B     │  │ Data: sApp C  │   │
+│  │   (App schema)    │  │   (App schema)    │  │  (App schema) │   │
+│  │                   │  │                   │  │               │   │
 │  └───────────────────┘  └───────────────────┘  └───────────────┘   │
 │                                                                     │
 │  No cross-network communication. Each network has its own:         │
@@ -1110,7 +1118,6 @@ interface StrandInstance {
 
 - `@gotchoices/optimystic/packages/db-p2p` - libp2p node creation with Optimystic integration
 - `packages/strand-proto` - Bootstrap session management
-- `packages/reference-peer` - Reference CLI implementation
 - `packages/cadre-core` - Core cadre node library
 - `packages/cadre-cli` - CLI wrapper for cadre nodes
 - `packages/cadre-provider` - Reference provider service for hosting cadre nodes
@@ -1140,7 +1147,7 @@ interface StrandInstance {
   - [x] `startStrand(strandId, config)` - spin up isolated libp2p instance
   - [x] `stopStrand(strandId)` - graceful shutdown
   - [x] `stopAll()` - shutdown all instances
-  - [x] Protocol prefix configuration per strand (`/sereus/strand/<strandId>`)
+  - [x] Network name configuration per strand (`networkName = strand-${strandId}`, resulting in protocol prefix `/optimystic/strand-${strandId}`)
   - [x] Isolated storage paths per strand (`<basePath>/strands/<strandId>/`)
   - [x] sApp config tracking (id, version, schema, signature, latencyHint)
   - [ ] App schema verification (AppSignature validates AppSchema)
@@ -1160,7 +1167,7 @@ interface StrandInstance {
   - [x] `getRelayAddress()` - get this node's circuit relay address for inclusion in seeds
   - [x] `enableSeedListener()` - enable protocol handler for receiving seeds (drones, no authority key)
   - [x] `getMultiaddrs()` - get this node's multiaddrs for provider API reporting
-  - [x] Seed validation (signature from authority in peers[])
+  - [x] Seed validation (signature verified using `signerKey`; weak authority check—requires at least one peer with `isAuthority: true`, but does not verify that signer matches authority peer)
   - [x] Automatic connection behavior after seed application (dial hints, accept validated peers)
   - [x] Helper functions for common scenarios:
     - [x] `addDrone(options)` - authorize drone and create seed for provider API initialization
@@ -1238,6 +1245,29 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
 - Real formation over the network won't work
 - Blocks E2E strand creation between parties
 
+##### 5. **Seed authority validation weakness** (`seed-bootstrap.ts`)
+The current seed validation in `applySeed()` only checks that the seed contains *some* peer with `isAuthority: true`, but does not verify that the `signerKey` corresponds to an authority peer's public key.
+
+**Implications:**
+- An attacker with any valid signing key could forge seeds
+- Authority trust model is incomplete
+- Should verify `signerKey` is the public key of a known authority
+
+##### 6. **String-interpolated SQL in `authorizePeer()`** (`seed-bootstrap.ts`)
+The `authorizePeer()` function builds an INSERT statement by string interpolation rather than parameterized queries.
+
+**Implications:**
+- SQL injection risk (low if inputs are controlled, but violates best practice)
+- Should refactor to use Quereus parameterized queries
+
+##### 7. **Inline dynamic imports in `applySeed()`** (`seed-bootstrap.ts`)
+The function uses inline `import()` calls that should be hoisted to the top of the file or injected as dependencies.
+
+**Implications:**
+- Inconsistent with codebase conventions
+- Makes testing harder
+- Should be refactored for consistent module loading
+
 ---
 
 #### Priority Assessment
@@ -1245,6 +1275,9 @@ The `StrandSolicitationService` has the types but isn't wired to the actual prot
 | Item | Priority | Reason |
 |------|----------|--------|
 | strand-proto SessionManager integration | **High** | Needed for real strand formation |
+| Seed authority validation fix | **High** | Security gap in peer enrollment |
+| String-interpolated SQL cleanup | **Medium** | SQL injection prevention, best practice |
+| Inline dynamic imports refactor | **Low** | Style consistency |
 | App schema verification | **Medium** | Security hardening, can proceed without |
 | Ring/quota enforcement | **Low** | Blocked on Arachnode anyway |
 

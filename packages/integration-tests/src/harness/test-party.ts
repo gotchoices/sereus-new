@@ -55,12 +55,19 @@ async function createTestNode(
   const multiaddrs = node.getMultiaddrs().map(ma => ma.toString());
   const peerId = node.peerId.toString();
 
+  // If we requested an ephemeral port (0), infer the actual bound TCP port from the listen multiaddrs.
+  // This is best-effort: if we can't find it, we keep the requested port.
+  const inferredPort = multiaddrs
+    .map(addr => addr.match(/\/tcp\/([0-9]+)/)?.[1])
+    .find(Boolean);
+  const actualPort = inferredPort ? Number(inferredPort) : port;
+
   log('Node created: %s listening on %j', peerId, multiaddrs);
 
   return {
     libp2p: node,
     peerId,
-    port,
+    port: actualPort,
     multiaddrs,
     profile,
     coordinatedRepo: node.coordinatedRepo

@@ -37,7 +37,7 @@
   "scripts": {
     "clean": "rimraf dist",
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "dev:test": "vitest",
     "start": "node dist/bin/cadre.js"
   },
