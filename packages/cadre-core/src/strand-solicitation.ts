@@ -8,6 +8,10 @@ import type {
   ValidateFormationResult,
   StrandFormationDisclosure
 } from './types.js';
+import {
+  StrandFormationManager,
+  type StrandFormationManagerConfig
+} from './strand-formation-manager.js';
 
 const log = debug('sereus:cadre:solicitation');
 
@@ -76,46 +80,99 @@ export interface StrandSolicitationServiceOptions {
   formationUsageRecorder?: FormationUsageRecorder;
   strandProvisioner?: StrandProvisioner;
   formationSigner?: FormationSigner;
+  /** Party ID for this node (used in protocol messages) */
+  partyId?: string;
+  /** Cadre peer addresses for this node */
+  cadrePeerAddrs?: string[];
+  /** Configuration for the formation manager */
+  formationConfig?: StrandFormationManagerConfig;
 }
 
 /**
  * Strand Solicitation API for forming strands via open invitations.
- * 
+ *
  * This service handles the high-level API defined in api.md:
- * - formStrand(token, disclosure) - called by initiator
+ * - formStrand(invitation, disclosure, node) - called by initiator
  * - validateStrandFormation(token, disclosure) - called by responder
- * 
- * The underlying protocol is handled by strand-proto's SessionManager.
+ *
+ * When a libp2p node is provided, the underlying protocol is handled by
+ * strand-proto's SessionManager via StrandFormationManager.
  */
 export class StrandSolicitationService {
   private readonly disclosureValidator?: DisclosureValidator;
   private readonly formationUsageRecorder?: FormationUsageRecorder;
   private readonly strandProvisioner?: StrandProvisioner;
   private readonly formationSigner?: FormationSigner;
+  private readonly partyId: string;
+  private readonly cadrePeerAddrs: string[];
+  private formationManager?: StrandFormationManager;
+  private readonly formationConfig?: StrandFormationManagerConfig;
 
   constructor(options?: StrandSolicitationServiceOptions) {
     this.disclosureValidator = options?.disclosureValidator;
     this.formationUsageRecorder = options?.formationUsageRecorder;
     this.strandProvisioner = options?.strandProvisioner;
     this.formationSigner = options?.formationSigner;
-    log('StrandSolicitationService created');
+    this.partyId = options?.partyId ?? `party-${Date.now()}`;
+    this.cadrePeerAddrs = options?.cadrePeerAddrs ?? [];
+    this.formationConfig = options?.formationConfig;
+    log('StrandSolicitationService created for party: %s', this.partyId);
+  }
+
+  /**
+   * Get or create the StrandFormationManager.
+   * Lazily initialized to allow configuration after construction.
+   */
+  private getFormationManager(): StrandFormationManager {
+    if (!this.formationManager) {
+      this.formationManager = new StrandFormationManager({
+        disclosureValidator: this.disclosureValidator,
+        formationUsageRecorder: this.formationUsageRecorder,
+        strandProvisioner: this.strandProvisioner,
+        partyId: this.partyId,
+        cadrePeerAddrs: this.cadrePeerAddrs,
+        config: this.formationConfig
+      });
+    }
+    return this.formationManager;
+  }
+
+  /**
+   * Register as a responder on a libp2p node.
+   * This enables the node to handle incoming strand formation requests.
+   */
+  registerResponder(node: Libp2p): void {
+    this.getFormationManager().registerResponder(node);
+    log('Registered as responder');
+  }
+
+  /**
+   * Unregister as a responder from a libp2p node.
+   */
+  unregisterResponder(node: Libp2p): void {
+    this.getFormationManager().unregisterResponder(node);
+    log('Unregistered as responder');
   }
 
   /**
    * Form a strand with a responder via an open invitation.
-   * 
+   *
    * Called by the initiator (the party who received an out-of-band invitation).
    * This generates a member key, contacts the responder's cadre, and negotiates
    * strand formation.
-   * 
-   * @param token The invitation token from the OpenInvitation
+   *
+   * @param invitation The open invitation (or just token for legacy API)
    * @param disclosure Identity/context information to share with the responder
+   * @param node Optional libp2p node for real protocol handling
    * @returns The member key and strand info if successful
    */
   async formStrand(
-    token: string,
-    disclosure: StrandFormationDisclosure
+    invitation: OpenInvitation | string,
+    disclosure: StrandFormationDisclosure,
+    node?: Libp2p
   ): Promise<FormStrandResult> {
+    // Handle legacy API where just token was passed
+    const token = typeof invitation === 'string' ? invitation : invitation.token;
     log('Forming strand with token: %s', token);
 
     // Generate a new keypair for this strand membership
@@ -128,16 +185,23 @@ export class StrandSolicitationService {
 
     log('Generated member key: %s', memberKey);
 
-    // In a full implementation, this would:
-    // 1. Look up bootstrap addresses from the token
-    // 2. Connect to responder's cadre via strand-proto
-    // 3. Exchange disclosure for validation
-    // 4. Receive strand provisioning result
-    // 
-    // For now, we return the generated keys - the actual protocol
-    // negotiation happens via strand-proto's SessionManager.initiateBootstrap()
+    // If we have a full invitation and a node, use the real protocol
+    if (typeof invitation !== 'string' && node) {
+      log('Using strand-proto for real protocol handling');
+      const result = await this.getFormationManager().formStrand(
+        invitation,
+        { ...disclosure, partyId: memberKey },
+        node
+      );
+      return {
+        memberKey,
+        invitePrivateKey,
+        strandId: result.strandId
+      };
+    }
 
-    // Placeholder strandId - in reality this comes from the responder
+    // Fallback: placeholder strandId (for testing without network)
+    log('No node provided, using placeholder strandId');
     const strandId = `strand-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     return {

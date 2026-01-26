@@ -4089,12 +4089,14 @@ __metadata:
     "@libp2p/crypto": "npm:^5.1.13"
     "@libp2p/interface": "npm:^2.11.0"
     "@libp2p/peer-id": "npm:^5.1.9"
+    "@libp2p/peer-id-factory": "npm:^4.2.4"
     "@libp2p/tcp": "npm:^10.1.19"
     "@optimystic/db-core": "npm:^0.1.0"
     "@optimystic/db-p2p": "npm:^0.1.1"
     "@optimystic/quereus-plugin-crypto": "npm:^0.3.0"
     "@optimystic/quereus-plugin-optimystic": "npm:^0.3.0"
     "@quereus/quereus": "npm:^0.15.1"
+    "@sereus/strand-proto": "workspace:^"
     "@types/debug": "npm:^4.1.12"
     "@types/node": "npm:^25.0.10"
     aegir: "npm:^45.2.1"
@@ -4159,7 +4161,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/strand-proto@workspace:packages/strand-proto":
+"@sereus/strand-proto@workspace:^, @sereus/strand-proto@workspace:packages/strand-proto":
   version: 0.0.0-use.local
   resolution: "@sereus/strand-proto@workspace:packages/strand-proto"
   dependencies:

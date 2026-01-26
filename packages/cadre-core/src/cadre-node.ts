@@ -10,20 +10,26 @@ import type {
   SAppConfig,
   CadreNodeEvents,
   ControlNetworkSeed,
-  AuthorizePeerOptions,
   ApplySeedResult,
   AddDroneOptions,
   AddPhoneOptions,
   DroneInitResult,
   InviteResult,
-  CadreInvite
+  CadreInvite,
+  OpenInvitation,
+  FormStrandResult,
+  StrandFormationDisclosure
 } from './types.js';
 import { StrandWatcher, type StrandQueryable, type SAppIdLookup } from './strand-watcher.js';
 import { StrandInstanceManager } from './strand-instance-manager.js';
 import { EnrollmentService } from './enrollment.js';
 import { HibernationManager, type HibernationCallbacks } from './hibernation-manager.js';
 import { ControlDatabase } from './control-database.js';
-import { SeedBootstrapService, type SeedBootstrapConfig } from './seed-bootstrap.js';
+import { SeedBootstrapService } from './seed-bootstrap.js';
+import {
+  StrandSolicitationService,
+  type StrandSolicitationServiceOptions
+} from './strand-solicitation.js';
 
 const log = debug('sereus:cadre:node');
 
@@ -47,6 +53,7 @@ export class CadreNode implements SAppIdLookup {
   private hibernationManager: HibernationManager;
   private enrollmentService: EnrollmentService;
   private seedBootstrapService: SeedBootstrapService | null = null;
+  private strandSolicitationService: StrandSolicitationService | null = null;
   private running = false;
   private eventHandlers: Map<keyof CadreNodeEvents, Set<EventHandler<any>>> = new Map();
 
@@ -396,6 +403,12 @@ export class CadreNode implements SAppIdLookup {
     if (this.seedBootstrapService) {
       await this.seedBootstrapService.shutdown();
       this.seedBootstrapService = null;
+    }
+
+    // Unregister strand solicitation service
+    if (this.strandSolicitationService && this.controlNode) {
+      this.strandSolicitationService.unregisterResponder(this.controlNode);
+      this.strandSolicitationService = null;
     }
 
     // Stop strand watcher
@@ -788,6 +801,119 @@ export class CadreNode implements SAppIdLookup {
       return;
     }
     await this.seedBootstrapService.dialInvite(invite);
+  }
+
+  // ============================================================================
+  // Strand Solicitation API (strand-proto integration)
+  // ============================================================================
+
+  /**
+   * Initialize the strand solicitation service.
+   * This enables forming strands with other parties via open invitations.
+   *
+   * @param options - Configuration for the solicitation service
+   */
+  initializeStrandSolicitation(options?: StrandSolicitationServiceOptions): void {
+    if (!this.controlNode) {
+      throw new Error('CadreNode must be started before initializing strand solicitation');
+    }
+
+    this.strandSolicitationService = new StrandSolicitationService({
+      ...options,
+      partyId: this.config.controlNetwork.partyId,
+      cadrePeerAddrs: this.getMultiaddrs()
+    });
+
+    // Register as responder on the control node
+    this.strandSolicitationService.registerResponder(this.controlNode);
+    log('Strand solicitation service initialized');
+  }
+
+  /**
+   * Get the strand solicitation service (for advanced use)
+   */
+  getStrandSolicitationService(): StrandSolicitationService | null {
+    return this.strandSolicitationService;
+  }
+
+  /**
+   * Create an open invitation for others to form strands with this party.
+   *
+   * @param sAppId - The sApp to use for formed strands
+   * @param expirationMs - How long the invitation is valid (ms from now)
+   * @returns The open invitation to share out-of-band
+   */
+  async createOpenInvitation(
+    sAppId: string,
+    expirationMs: number = 24 * 60 * 60 * 1000 // 24 hours default
+  ): Promise<OpenInvitation> {
+    if (!this.strandSolicitationService) {
+      // Create a temporary service for creating invitations
+      this.initializeStrandSolicitation();
+    }
+
+    const bootstrap = this.getMultiaddrs();
+    if (bootstrap.length === 0) {
+      throw new Error('No multiaddrs available for invitation');
+    }
+
+    return await this.strandSolicitationService!.createOpenInvitation(
+      sAppId,
+      expirationMs,
+      bootstrap
+    );
+  }
+
+  /**
+   * Form a strand with a responder via an open invitation.
+   *
+   * @param invitation - The open invitation received out-of-band
+   * @param disclosure - Identity/context information to share with the responder
+   * @returns The member key and strand info if successful
+   */
+  async formStrand(
+    invitation: OpenInvitation,
+    disclosure: StrandFormationDisclosure = {}
+  ): Promise<FormStrandResult> {
+    if (!this.controlNode) {
+      throw new Error('CadreNode must be started before forming strands');
+    }
+
+    if (!this.strandSolicitationService) {
+      this.initializeStrandSolicitation();
+    }
+
+    return await this.strandSolicitationService!.formStrand(
+      invitation,
+      disclosure,
+      this.controlNode
+    );
+  }
+
+  /**
+   * Encode an open invitation for out-of-band delivery (QR, link, etc.).
+   */
+  encodeInvitation(invitation: OpenInvitation): string {
+    const json = JSON.stringify({
+      ...invitation,
+      expiration: invitation.expiration.toISOString()
+    });
+    const { toString } = require('uint8arrays');
+    return toString(new TextEncoder().encode(json), 'base64url');
+  }
+
+  /**
+   * Decode an open invitation from base64url encoding.
+   */
+  decodeInvitation(encoded: string): OpenInvitation {
+    const { fromString } = require('uint8arrays');
+    const bytes = fromString(encoded, 'base64url');
+    const json = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(json);
+    return {
+      ...parsed,
+      expiration: new Date(parsed.expiration)
+    };
   }
 }
 

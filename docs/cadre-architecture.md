@@ -670,7 +670,12 @@ Cadre nodes watch the control network's `Strand` table for changes. When a stran
 
 ### Strand Formation
 
-When forming a new strand with another party, the bootstrap protocol (`strand-proto`) negotiates provisioning:
+When forming a new strand with another party, the bootstrap protocol (`strand-proto`) negotiates provisioning. The `StrandFormationManager` bridges `cadre-core` interfaces with `strand-proto`'s `SessionManager`:
+
+- **`StrandFormationManager`**: Implements `SessionHooks` by delegating to `DisclosureValidator`, `FormationUsageRecorder`, and `StrandProvisioner`
+- **`StrandSolicitationService.registerResponder(node)`**: Registers the libp2p node to handle incoming formation requests
+- **`StrandSolicitationService.formStrand(invitation, disclosure, node)`**: Initiates strand formation over the real protocol
+- **`CadreNode` high-level API**: `createOpenInvitation()`, `formStrand()`, `encodeInvitation()`, `decodeInvitation()`
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -1125,127 +1130,51 @@ interface StrandInstance {
 
 ---
 
+## Implementation Status
+
+### `@sereus/cadre-core` (Complete)
+
+- **CadreNode**: Main entry point with `start()`/`stop()` lifecycle, event emission, control network management
+- **StrandWatcher**: Poll-based monitoring of `Strand` table with configurable filters (`all`, `sAppId`, `strandId`, `none`)
+- **StrandInstanceManager**: Per-strand libp2p node creation with isolated storage paths and sApp schema application
+- **EnrollmentService**: `createCadrePeer()` for Ed25519 keypair generation
+- **Seed Bootstrap API**: `createSeed()`, `applySeed()`, `deliverSeed()`, `encodeSeed()`/`decodeSeed()`, helper functions (`addDrone`, `createInvite`, `acceptPhone`, `addPhoneWithRelay`)
+- **Member Registration API**: `registerMember()`, `validateMemberRegistration()` with pluggable verifier/registry interfaces
+- **Strand Solicitation API**: `createOpenInvitation()`, `formStrand()`, `validateStrandFormation()` with full `strand-proto` SessionManager integration via `StrandFormationManager`
+- **Hibernation**: Activity-based lifecycle with latency hints (`realtime`, `interactive`, `background`, `archive`), configurable timeouts, exponential backoff check-in
+- **Profile Configuration**: Transaction vs storage mode with FRET profile mapping
+
+### `@sereus/cadre-cli` (Complete)
+
+- CLI commands: `cadre start`, `cadre status`, `cadre enroll`, `cadre strands`
+- YAML/JSON config with environment variable overrides
+- Systemd service file with security hardening, graceful shutdown
+
+### Container Runtime (Complete)
+
+- Docker image based on node:22-alpine with entrypoint script
+- Health check endpoints (`/health`, `/ready`, `/status`)
+- Provider integration: enrollment token, status reporting, metrics, seed delivery
+- Docker Compose template with volume and network configuration
+
+### `@sereus/cadre-provider` (Complete)
+
+- Provider API: container CRUD, billing plans/status, seed delivery, peer info
+- Billing integration: usage metering, Stripe-ready hooks, quota enforcement
+- Orchestration: Docker orchestrator, mock orchestrator, pluggable interface
+
+### Testing (104 tests passing)
+
+- Unit tests: CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, StrandSolicitationService, types
+- Integration tests: Seed bootstrap, strand formation protocol
+
+---
+
 ## TODO
 
-### Phase 1: Core Library (`@sereus/cadre-core`)
+#### Incomplete Items
 
-- [x] **CadreNode class**: Main entry point that manages control network and strand instances
-  - [x] Constructor accepts `CadreNodeConfig`
-  - [x] `start()` / `stop()` lifecycle methods
-  - [x] Internal control network libp2p node creation
-  - [x] Event emission for lifecycle events (`control:connected`, `control:disconnected`, `strand:started`, `strand:stopped`, `strand:error`)
-  - [x] Schema loading for CadreControl (stub - returns empty strand list)
-
-- [x] **Strand watcher**: Reactive component that monitors control network
-  - [x] Poll-based watching (until Optimystic supports reactive subscriptions)
-  - [x] Trigger strand instance start/stop on row changes
-  - [x] Apply strand filter from config (all/strandId/none modes complete)
-  - [x] sAppId filter mode (filters by sAppId when lookup is available)
-  - [x] Schema application per strand (wraps sApp DDL in `declare schema App { ... }; apply schema App;`)
-
-- [x] **Strand instance manager**: Creates and manages per-strand libp2p nodes
-  - [x] `startStrand(strandId, config)` - spin up isolated libp2p instance
-  - [x] `stopStrand(strandId)` - graceful shutdown
-  - [x] `stopAll()` - shutdown all instances
-  - [x] Network name configuration per strand (`networkName = strand-${strandId}`, resulting in protocol prefix `/optimystic/strand-${strandId}`)
-  - [x] Isolated storage paths per strand (`<basePath>/strands/<strandId>/`)
-  - [x] sApp config tracking (id, version, schema, signature, latencyHint)
-  - [ ] App schema verification (AppSignature validates AppSchema)
-
-- [x] **Enrollment API**: Methods for creating peer identities
-  - [x] `createCadrePeer()` - generate Ed25519 keypair, return PeerId and private key
-  - [x] Removed deprecated `registerCadrePeer` (superseded by Seed Bootstrap API)
-
-- [x] **Seed Bootstrap API**: Control network seed generation and delivery (replaces `registerCadrePeer`)
-  - [x] `ControlNetworkSeed` type - partyId, peers[], optional transactions[]
-  - [x] `SeedPeer` type - peerId, multiaddrs[], isAuthority flag
-  - [x] `authorizePeer(peerId, multiaddrs?)` - sign and insert CadrePeer entry
-  - [x] `createSeed()` - generate seed from current control network state
-  - [x] `applySeed(seed)` - apply seed to populate cache, enable connections
-  - [x] `deliverSeed(multiaddr, seed)` - direct delivery via `/sereus/seed/1.0.0` protocol
-  - [x] `encodeSeed(seed)` / `decodeSeed(encoded)` - base64 encoding for out-of-band delivery
-  - [x] `getRelayAddress()` - get this node's circuit relay address for inclusion in seeds
-  - [x] `enableSeedListener()` - enable protocol handler for receiving seeds (drones, no authority key)
-  - [x] `getMultiaddrs()` - get this node's multiaddrs for provider API reporting
-  - [x] Seed validation (signature verified using `signerKey`; weak authority check—requires at least one peer with `isAuthority: true`, but does not verify that signer matches authority peer)
-  - [x] Automatic connection behavior after seed application (dial hints, accept validated peers)
-  - [x] Helper functions for common scenarios:
-    - [x] `addDrone(options)` - authorize drone and create seed for provider API initialization
-    - [x] `createInvite(token?, expiresIn?)` - create invite for phone to join (QR/link flow)
-    - [x] `acceptPhone(options, invite?)` - validate token and authorize phone after dial-in
-    - [x] `addPhoneWithRelay(phonePeerId)` - add phone with relay addresses (NAT-to-NAT)
-    - [x] `encodeInvite(invite)` / `decodeInvite(encoded)` - base64url for out-of-band sharing
-    - [x] `dialInvite(invite)` - phone dials authority addresses from invite
-
-- [x] **Member Registration API**: Accept invitations to join strands
-  - [x] `registerMember(registration, signature)` - accept strand invitation and join as member
-  - [x] `validateMemberRegistration()` - pre-flight validation
-  - [x] Member verification interface (`MemberVerifier`)
-  - [x] Member registry interface (`MemberRegistry`)
-
-- [x] **Strand Solicitation API**: Form strands via open invitations
-  - [x] `OpenInvitation` type - token, sAppId, expiration, bootstrap addresses
-  - [x] `formStrand(token, disclosure)` - initiator forms strand with responder via open invitation
-  - [x] `validateStrandFormation(token, disclosure)` - responder validates and approves formation
-  - [x] `createOpenInvitation()` - create shareable invitations
-  - [x] Disclosure validation hooks (`DisclosureValidator` interface)
-  - [x] Formation usage tracking (`FormationUsageRecorder` interface)
-  - [ ] Full integration with `strand-proto` SessionManager for protocol handling
-
-- [x] **Profile configuration**: Transaction vs storage mode
-  - [x] Profile configuration in types (`'transaction' | 'storage'`)
-  - [x] FRET profile mapping (storage → 'core', transaction → 'edge')
-  - [ ] Ring Zulu participation (all nodes) - configuration present
-  - [ ] Storage ring opt-in (storage profile only) - Blocked: Arachnode not yet implemented
-  - [ ] Quota enforcement for storage nodes
-
-- [x] **Strand hibernation**: Activity-based lifecycle management
-  - [x] Latency hint type defined (`'realtime' | 'interactive' | 'background' | 'archive'`)
-  - [x] Activity tracking per strand instance (`lastActivity` field)
-  - [x] Status tracking (`'starting' | 'active' | 'idle' | 'hibernating' | 'stopping' | 'stopped' | 'error'`)
-  - [x] State machine: active → idle → hibernating (HibernationManager)
-  - [x] Configurable timeouts based on latency hints (HIBERNATION_TIMEOUTS constant)
-  - [x] Check-in with exponential backoff for hibernating strands
-  - [x] Wake mechanism via control network propagation
-  - [x] App latency hint parsing from sApp config
-
-**Tests**: Unit tests passing covering CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, StrandSolicitationService, and type definitions.
-
-#### Incomplete Phase I Items
-
-##### 1. **App schema verification** (AppSignature validates AppSchema)
-When joining a strand, the node should verify the sApp schema signature to ensure it hasn't been tampered with.
-
-**Implications:**
-- Security gap: malicious schema could be injected
-- Trust model incomplete—apps aren't cryptographically verified
-- Important for closed strands with sensitive data
-
-##### 2. **Ring Zulu participation** and **Storage ring opt-in** (Blocked: Arachnode not yet implemented)
-These are blocked on the Arachnode storage system not being built yet.
-
-**Implications:**
-- Profile distinction (`transaction` vs `storage`) has no real effect beyond FRET hints
-- No actual distributed archival storage
-- Acceptable blocker—correctly marked as a dependency
-
-##### 3. **Quota enforcement for storage nodes**
-Storage nodes should enforce capacity limits.
-
-**Implications:**
-- Without quotas, a storage node could fill its disk
-- Provider billing can't tie to actual storage used
-- Lower priority until Arachnode exists
-
-##### 4. **Full integration with strand-proto SessionManager**
-The `StrandSolicitationService` has the types but isn't wired to the actual protocol handler.
-
-**Implications:**
-- Strand formation works in unit tests with mocks
-- Real formation over the network won't work
-- Blocks E2E strand creation between parties
-
-##### 5. **Seed authority validation weakness** (`seed-bootstrap.ts`)
+##### 1. **Seed authority validation weakness** (`seed-bootstrap.ts`)
 The current seed validation in `applySeed()` only checks that the seed contains *some* peer with `isAuthority: true`, but does not verify that the `signerKey` corresponds to an authority peer's public key.
 
 **Implications:**
@@ -1253,14 +1182,22 @@ The current seed validation in `applySeed()` only checks that the seed contains 
 - Authority trust model is incomplete
 - Should verify `signerKey` is the public key of a known authority
 
-##### 6. **String-interpolated SQL in `authorizePeer()`** (`seed-bootstrap.ts`)
+##### 2. **String-interpolated SQL in `authorizePeer()`** (`seed-bootstrap.ts`)
 The `authorizePeer()` function builds an INSERT statement by string interpolation rather than parameterized queries.
 
 **Implications:**
 - SQL injection risk (low if inputs are controlled, but violates best practice)
 - Should refactor to use Quereus parameterized queries
 
-##### 7. **Inline dynamic imports in `applySeed()`** (`seed-bootstrap.ts`)
+##### 3. **App schema verification** (AppSignature validates AppSchema)
+When joining a strand, the node should verify the sApp schema signature to ensure it hasn't been tampered with.
+
+**Implications:**
+- Security gap: malicious schema could be injected
+- Trust model incomplete—apps aren't cryptographically verified
+- Important for closed strands with sensitive data
+
+##### 4. **Inline dynamic imports in `applySeed()`** (`seed-bootstrap.ts`)
 The function uses inline `import()` calls that should be hoisted to the top of the file or injected as dependencies.
 
 **Implications:**
@@ -1268,91 +1205,50 @@ The function uses inline `import()` calls that should be hoisted to the top of t
 - Makes testing harder
 - Should be refactored for consistent module loading
 
+##### 5. **Ring Zulu participation** and **Storage ring opt-in** (Blocked: Arachnode)
+These are blocked on the Arachnode storage system not being built yet.
+
+**Implications:**
+- Profile distinction (`transaction` vs `storage`) has no real effect beyond FRET hints
+- No actual distributed archival storage
+
+##### 6. **Quota enforcement for storage nodes** (Blocked: Arachnode)
+Storage nodes should enforce capacity limits.
+
+**Implications:**
+- Without quotas, a storage node could fill its disk
+- Provider billing can't tie to actual storage used
+
 ---
 
 #### Priority Assessment
 
-| Item | Priority | Reason |
-|------|----------|--------|
-| strand-proto SessionManager integration | **High** | Needed for real strand formation |
-| Seed authority validation fix | **High** | Security gap in peer enrollment |
-| String-interpolated SQL cleanup | **Medium** | SQL injection prevention, best practice |
-| Inline dynamic imports refactor | **Low** | Style consistency |
-| App schema verification | **Medium** | Security hardening, can proceed without |
-| Ring/quota enforcement | **Low** | Blocked on Arachnode anyway |
+| Priority | Item | Reason |
+|----------|------|--------|
+| **1 - High** | Seed authority validation fix | Security gap in peer enrollment |
+| **2 - High** | Demo application | Validates full stack, provides developer reference |
+| **3 - High** | E2E tests for enrollment/formation | Catches integration issues early |
+| **4 - Medium** | String-interpolated SQL cleanup | SQL injection prevention, best practice |
+| **5 - Medium** | App schema verification | Security hardening, can proceed without |
+| **6 - Low** | Inline dynamic imports refactor | Style consistency |
+| **7 - Low** | Ring/quota enforcement | Blocked on Arachnode anyway |
 
 
 ### Phase 2: CLI Wrapper (`@sereus/cadre-cli`)
 
-- [x] **Command-line interface**
-  - [x] `cadre start` - start node with config file
-  - [x] `cadre status` - show control network and strand status
-  - [x] `cadre enroll` - enrollment subcommands (create, register)
-  - [x] `cadre strands` - list active strands
-
-- [x] **Configuration file format**
-  - [x] YAML/JSON config loading
-  - [x] Environment variable overrides
-  - [x] Secure key file handling
-
-- [x] **Daemon mode**
-  - [x] Systemd service file with security hardening
-  - [x] Graceful shutdown handling (SIGINT/SIGTERM)
-  - [x] Journal logging integration (systemd native)
+**Status**: Complete.
 
 ### Phase 3: Container Runtime
 
-- [x] **Docker image**
-  - [x] Dockerfile based on node:22-alpine (`packages/cadre-cli/docker/Dockerfile`)
-  - [x] Entrypoint script for enrollment (`packages/cadre-cli/docker/entrypoint.sh`)
-  - [x] Volume mounts for data persistence
-  - [x] Health check endpoint (`/health`, `/ready`, `/status`)
-
-- [x] **Docker Compose template**
-  - [x] Environment variable configuration (`ops/docker/sereus-node/env.example`)
-  - [x] Volume definitions (`sereus_cadre_data`)
-  - [x] Network configuration (`sereus_network`)
-
-- [x] **Provider integration hooks**
-  - [x] Enrollment token consumption (via `CADRE_ENROLLMENT_TOKEN`)
-  - [x] Status reporting endpoint (`/status` JSON endpoint with `peerId` and `multiaddrs`)
-  - [x] Metrics exposure (Prometheus format at `/metrics` on port 9090)
-  - [x] Seed delivery endpoint (`POST /seed` on health port for provider API)
-  - [x] `--seed <encoded>` flag for out-of-band seed delivery at startup
-  - [x] `--listen-for-seeds` flag for protocol-based seed delivery
+**Status**: Complete.
 
 ### Phase 4: Provider Service (`@sereus/cadre-provider`)
 
-- [x] **Provider API**
-  - [x] `POST /containers` - allocate new container
-  - [x] `GET /containers/:id` - get container status
-  - [x] `GET /containers` - list customer containers
-  - [x] `DELETE /containers/:id` - terminate container
-  - [x] Authentication via API key or OAuth (pluggable hooks)
-  - [x] `GET /billing/plans` - list available billing plans
-  - [x] `GET /billing/status` - get customer billing status
-  - [x] `PUT /containers/:id/seed` - deliver control network seed to container
-  - [x] `GET /containers/:id/peer` - get container peer info (peerId, multiaddrs)
+**Status**: Core functionality complete. Remaining items are optional enhancements.
 
-- [x] **Billing integration**
-  - [x] Usage metering (storage, bandwidth, uptime via orchestrator stats)
-  - [x] Payment processor hooks (Stripe-ready with `BillingHooks` interface)
-  - [x] Quota enforcement (container limits per plan)
-  - [x] Default billing plans (starter, professional, enterprise)
-
-- [x] **Orchestration**
-  - [x] Docker orchestrator (`DockerOrchestrator` class)
-  - [x] Mock orchestrator for testing
-  - [x] Pluggable `Orchestrator` interface for custom backends
-  - [ ] Kubernetes operator (optional, not yet implemented)
-  - [ ] Auto-scaling based on demand
-  - [ ] Multi-region deployment
-
-- [x] **Configuration & CLI**
-  - [x] YAML/JSON config file support
-  - [x] Environment variable overrides
-  - [x] `cadre-provider start` CLI command
-  - [x] `cadre-provider check` config validation
+- [ ] Kubernetes operator (optional)
+- [ ] Auto-scaling based on demand
+- [ ] Multi-region deployment
 
 ### Phase 5: Mobile Integration
 
@@ -1379,12 +1275,7 @@ The function uses inline `import()` calls that should be hoisted to the top of t
 
 ### Testing
 
-- [x] **Unit tests**: Individual component testing (50 tests passing)
-  - [x] CadreNode lifecycle and configuration tests
-  - [x] StrandWatcher polling and filter tests
-  - [x] StrandInstanceManager start/stop tests
-  - [x] EnrollmentService peer creation and registration tests
-  - [x] Type definition validation tests
-- [x] **Integration tests**: Multi-node control network scenarios (seed-bootstrap.integration.ts)
+**Status**: Unit and integration tests complete (104 tests passing). Remaining items are E2E and load testing.
+
 - [ ] **E2E tests**: Full enrollment and strand formation flows
 - [ ] **Load tests**: Many strands on single node, many nodes in cohort

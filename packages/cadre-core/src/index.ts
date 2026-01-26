@@ -61,3 +61,11 @@ export {
   type SeedBootstrapConfig,
   type SeedEventCallbacks
 } from './seed-bootstrap.js';
+
+// Strand Formation (strand-proto integration)
+export {
+  StrandFormationManager,
+  createStrandFormationManager,
+  type StrandFormationManagerConfig,
+  type StrandFormationManagerOptions
+} from './strand-formation-manager.js';

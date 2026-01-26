@@ -1,11 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createLibp2p, type Libp2p } from 'libp2p';
+import { tcp } from '@libp2p/tcp';
+import { noise } from '@chainsafe/libp2p-noise';
+import { yamux } from '@chainsafe/libp2p-yamux';
+import { createEd25519PeerId, exportToProtobuf, createFromProtobuf } from '@libp2p/peer-id-factory';
 import {
   StrandSolicitationService,
   type DisclosureValidator,
   type FormationUsageRecorder,
-  type FormationSigner
+  type FormationSigner,
+  type StrandProvisioner
 } from '../src/strand-solicitation.js';
+import {
+  StrandFormationManager,
+  createStrandFormationManager
+} from '../src/strand-formation-manager.js';
 import type { StrandFormationDisclosure, OpenInvitation } from '../src/types.js';
+
+// Helper to create libp2p nodes with proper keys for Noise
+async function createLibp2pNodeWithKeys(port: number = 0): Promise<Libp2p> {
+  const generated = await createEd25519PeerId();
+  const reimported = await createFromProtobuf(exportToProtobuf(generated));
+  return createLibp2p({
+    peerId: reimported,
+    addresses: { listen: [`/ip4/127.0.0.1/tcp/${port}`] },
+    transports: [tcp()],
+    connectionEncrypters: [noise()],
+    streamMuxers: [yamux()],
+    connectionManager: { dialTimeout: 5000 }
+  });
+}
 
 describe('StrandSolicitationService', () => {
   describe('formStrand', () => {
@@ -170,3 +194,154 @@ describe('StrandSolicitationService', () => {
   });
 });
 
+describe('StrandFormationManager Integration', () => {
+  let nodeA: Libp2p;
+  let nodeB: Libp2p;
+
+  beforeEach(async () => {
+    nodeA = await createLibp2pNodeWithKeys();
+    nodeB = await createLibp2pNodeWithKeys();
+    await nodeA.start();
+    await nodeB.start();
+  });
+
+  afterEach(async () => {
+    try { await nodeA?.stop(); } catch {}
+    try { await nodeB?.stop(); } catch {}
+  });
+
+  it('should form strand via real protocol', async () => {
+    // Create mock provisioner that returns a strand
+    const mockProvisioner: StrandProvisioner = {
+      provisionStrand: async (sAppId, initiatorKey, responderKey) => ({
+        strandId: `strand-${Date.now()}-test`
+      })
+    };
+
+    // Create mock usage recorder that accepts all tokens
+    const mockRecorder: FormationUsageRecorder = {
+      recordUsage: async () => {},
+      isTokenUsed: async () => false,
+      isTokenValid: async (token) => ({
+        valid: token.startsWith('invite-'),
+        invitation: undefined
+      })
+    };
+
+    // Responder (nodeA) - the party who created the invitation
+    const responderService = new StrandSolicitationService({
+      partyId: 'responder-party',
+      cadrePeerAddrs: nodeA.getMultiaddrs().map(ma => ma.toString()),
+      strandProvisioner: mockProvisioner,
+      formationUsageRecorder: mockRecorder
+    });
+    responderService.registerResponder(nodeA);
+
+    // Create an invitation
+    const invitation = await responderService.createOpenInvitation(
+      'test-sapp',
+      60000,
+      nodeA.getMultiaddrs().map(ma => ma.toString())
+    );
+
+    // Initiator (nodeB) - the party who received the invitation
+    const initiatorService = new StrandSolicitationService({
+      partyId: 'initiator-party',
+      cadrePeerAddrs: nodeB.getMultiaddrs().map(ma => ma.toString())
+    });
+
+    // Form the strand
+    const result = await initiatorService.formStrand(
+      invitation,
+      { partyId: 'initiator-party', purpose: 'Test strand formation' },
+      nodeB
+    );
+
+    expect(result.memberKey).toBeDefined();
+    expect(result.memberKey.startsWith('12D3KooW')).toBe(true);
+    expect(result.strandId).toBeDefined();
+    expect(result.strandId.startsWith('strand-')).toBe(true);
+
+    // Cleanup
+    responderService.unregisterResponder(nodeA);
+  }, 15000);
+
+  it('should handle multiple concurrent formations', async () => {
+    const mockProvisioner: StrandProvisioner = {
+      provisionStrand: async () => ({
+        strandId: `strand-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      })
+    };
+
+    const mockRecorder: FormationUsageRecorder = {
+      recordUsage: async () => {},
+      isTokenUsed: async () => false,
+      isTokenValid: async (token) => ({ valid: true })
+    };
+
+    const responderService = new StrandSolicitationService({
+      partyId: 'responder-party',
+      strandProvisioner: mockProvisioner,
+      formationUsageRecorder: mockRecorder
+    });
+    responderService.registerResponder(nodeA);
+
+    const invitation = await responderService.createOpenInvitation(
+      'test-sapp',
+      60000,
+      nodeA.getMultiaddrs().map(ma => ma.toString())
+    );
+
+    // Create multiple initiators
+    const promises = [];
+    for (let i = 0; i < 3; i++) {
+      const initiatorService = new StrandSolicitationService({
+        partyId: `initiator-${i}`
+      });
+      promises.push(
+        initiatorService.formStrand(invitation, { partyId: `initiator-${i}` }, nodeB)
+      );
+    }
+
+    const results = await Promise.all(promises);
+
+    expect(results.length).toBe(3);
+    const strandIds = results.map(r => r.strandId);
+    const uniqueIds = new Set(strandIds);
+    expect(uniqueIds.size).toBe(3); // Each formation should get a unique strand
+
+    responderService.unregisterResponder(nodeA);
+  }, 20000);
+
+  it('should reject invalid tokens', async () => {
+    const mockRecorder: FormationUsageRecorder = {
+      recordUsage: async () => {},
+      isTokenUsed: async () => false,
+      isTokenValid: async (token) => ({ valid: token === 'valid-token' })
+    };
+
+    const responderService = new StrandSolicitationService({
+      partyId: 'responder-party',
+      formationUsageRecorder: mockRecorder
+    });
+    responderService.registerResponder(nodeA);
+
+    // Create invitation with invalid token
+    const invitation: OpenInvitation = {
+      token: 'invalid-token',
+      sAppId: 'test-sapp',
+      expiration: new Date(Date.now() + 60000),
+      bootstrap: nodeA.getMultiaddrs().map(ma => ma.toString())
+    };
+
+    const initiatorService = new StrandSolicitationService({
+      partyId: 'initiator-party'
+    });
+
+    await expect(
+      initiatorService.formStrand(invitation, {}, nodeB)
+    ).rejects.toThrow();
+
+    responderService.unregisterResponder(nodeA);
+  }, 10000);
+});

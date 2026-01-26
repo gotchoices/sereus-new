@@ -41,6 +41,7 @@
   "devDependencies": {
     "@chainsafe/libp2p-noise": "^16.1.5",
     "@chainsafe/libp2p-yamux": "^7.0.4",
+    "@libp2p/peer-id-factory": "^4.2.4",
     "@libp2p/tcp": "^10.1.19",
     "@types/debug": "^4.1.12",
     "@types/node": "^25.0.10",
@@ -58,6 +59,7 @@
     "@optimystic/quereus-plugin-crypto": "^0.3.0",
     "@optimystic/quereus-plugin-optimystic": "^0.3.0",
     "@quereus/quereus": "^0.15.1",
+    "@sereus/strand-proto": "workspace:^",
     "debug": "^4.4.3",
     "libp2p": "^2.10.0",
     "uint8arrays": "^5.1.0"
