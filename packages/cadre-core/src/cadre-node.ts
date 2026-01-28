@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
 import type { Libp2p, PeerId } from '@libp2p/interface';
 import { createLibp2pNode } from '@optimystic/db-p2p';
 import type { IRepo } from '@optimystic/db-core';
@@ -689,8 +690,7 @@ export class CadreNode implements SAppIdLookup {
   encodeSeed(seed: ControlNetworkSeed): string {
     // Static method - doesn't need service initialization
     const json = JSON.stringify(seed);
-    const { toString } = require('uint8arrays');
-    return toString(new TextEncoder().encode(json), 'base64url');
+    return uint8ArrayToString(new TextEncoder().encode(json), 'base64url');
   }
 
   /**
@@ -698,8 +698,7 @@ export class CadreNode implements SAppIdLookup {
    */
   decodeSeed(encoded: string): ControlNetworkSeed {
     // Static method - doesn't need service initialization
-    const { fromString } = require('uint8arrays');
-    const bytes = fromString(encoded, 'base64url');
+    const bytes = uint8ArrayFromString(encoded, 'base64url');
     const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as ControlNetworkSeed;
   }
@@ -771,16 +770,14 @@ export class CadreNode implements SAppIdLookup {
    */
   encodeInvite(invite: CadreInvite): string {
     const json = JSON.stringify(invite);
-    const { toString } = require('uint8arrays');
-    return toString(new TextEncoder().encode(json), 'base64url');
+    return uint8ArrayToString(new TextEncoder().encode(json), 'base64url');
   }
 
   /**
    * Decode an invite from base64url encoding.
    */
   decodeInvite(encoded: string): CadreInvite {
-    const { fromString } = require('uint8arrays');
-    const bytes = fromString(encoded, 'base64url');
+    const bytes = uint8ArrayFromString(encoded, 'base64url');
     const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as CadreInvite;
   }
@@ -898,16 +895,14 @@ export class CadreNode implements SAppIdLookup {
       ...invitation,
       expiration: invitation.expiration.toISOString()
     });
-    const { toString } = require('uint8arrays');
-    return toString(new TextEncoder().encode(json), 'base64url');
+    return uint8ArrayToString(new TextEncoder().encode(json), 'base64url');
   }
 
   /**
    * Decode an open invitation from base64url encoding.
    */
   decodeInvitation(encoded: string): OpenInvitation {
-    const { fromString } = require('uint8arrays');
-    const bytes = fromString(encoded, 'base64url');
+    const bytes = uint8ArrayFromString(encoded, 'base64url');
     const json = new TextDecoder().decode(bytes);
     const parsed = JSON.parse(json);
     return {

@@ -2,7 +2,9 @@ import debug from 'debug';
 import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
 import { digest, sign, verify, getPublicKey } from '@optimystic/quereus-plugin-crypto';
 import type { Libp2p, PeerId, Stream, Connection } from '@libp2p/interface';
+import { multiaddr } from '@multiformats/multiaddr';
 import type { Multiaddr } from '@multiformats/multiaddr';
+import { peerIdFromString } from '@libp2p/peer-id';
 import type {
   ControlNetworkSeed,
   SeedPeer,
@@ -221,9 +223,6 @@ export class SeedBootstrapService {
       try {
         // Import peer multiaddrs into the peer store
         if (peer.multiaddrs.length > 0) {
-          const { multiaddr } = await import('@multiformats/multiaddr');
-          const { peerIdFromString } = await import('@libp2p/peer-id');
-
           const peerId = peerIdFromString(peer.peerId);
           const addrs = peer.multiaddrs.map(ma => multiaddr(ma));
 
@@ -243,7 +242,6 @@ export class SeedBootstrapService {
     for (const peer of seed.peers.filter(p => p.isAuthority)) {
       try {
         if (peer.multiaddrs.length > 0) {
-          const { multiaddr } = await import('@multiformats/multiaddr');
           const addr = multiaddr(peer.multiaddrs[0]);
 
           log('Dialing authority peer: %s', peer.peerId);
@@ -284,7 +282,6 @@ export class SeedBootstrapService {
       throw new Error('Service not initialized');
     }
 
-    const { multiaddr } = await import('@multiformats/multiaddr');
     const addr = multiaddr(targetMultiaddr);
 
     log('Delivering seed to: %s', targetMultiaddr);
@@ -711,8 +708,6 @@ export class SeedBootstrapService {
     }
 
     log('Dialing invite authority with %d addresses', invite.authorityAddrs.length);
-
-    const { multiaddr } = await import('@multiformats/multiaddr');
 
     // Try each authority address until one succeeds
     let lastError: Error | null = null;
