@@ -1,7 +1,7 @@
 import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
-import { mplex } from '@libp2p/mplex'
+import { yamux } from '@chainsafe/libp2p-yamux'
 import { createEd25519PeerId } from '@libp2p/peer-id-factory'
 import { createBootstrapManager, DEFAULT_PROTOCOL_ID } from '../../src/bootstrap.ts'
 
@@ -12,7 +12,7 @@ async function main() {
     addresses: { listen: ['/ip4/127.0.0.1/tcp/0'] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
-    streamMuxers: [mplex()]
+    streamMuxers: [yamux()]
   })
   await node.start()
   console.log('Responder listening on:', node.getMultiaddrs().map(a => a.toString()))

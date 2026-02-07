@@ -1,4 +1,5 @@
 import type { Libp2p, PeerId } from '@libp2p/interface';
+import type { IRawStorage, Libp2pTransports } from '@optimystic/db-p2p';
 import type { StrandDatabase } from './strand-database.js';
 
 /**
@@ -59,11 +60,37 @@ export const HIBERNATION_TIMEOUTS: Record<LatencyHint, HibernationTimeouts> = {
 };
 
 /**
+ * Storage provider type - either an IRawStorage instance or a factory function.
+ * Factory functions are useful for creating strand-specific storage instances.
+ */
+export type RawStorageProvider = IRawStorage | ((strandId: string) => IRawStorage);
+
+/**
  * Storage configuration for storage profile nodes
  */
 export interface StorageConfig {
-  type: 'memory' | 'file';
-  path?: string;
+  /**
+   * Storage provider - either an IRawStorage instance or a factory function.
+   *
+   * For Node.js environments, use FileRawStorage from @optimystic/db-p2p-storage-fs:
+   * ```typescript
+   * import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
+   * storage: { provider: (strandId) => new FileRawStorage(`./data/${strandId}`) }
+   * ```
+   *
+   * For React Native, use the appropriate storage from @optimystic/db-p2p-storage-rn:
+   * ```typescript
+   * import { RNRawStorage } from '@optimystic/db-p2p-storage-rn';
+   * storage: { provider: (strandId) => new RNRawStorage(strandId) }
+   * ```
+   *
+   * For in-memory storage (testing):
+   * ```typescript
+   * import { MemoryRawStorage } from '@optimystic/db-p2p';
+   * storage: { provider: () => new MemoryRawStorage() }
+   * ```
+   */
+  provider: RawStorageProvider;
   quotaBytes?: number;
 }
 
@@ -80,6 +107,23 @@ export interface NetworkConfig {
    * better connectivity and uptime), false for transaction profile nodes.
    */
   enableRelay?: boolean;
+  /**
+   * Custom libp2p transports. When omitted, the default transports from
+   * `@optimystic/db-p2p` are used (TCP + circuit relay for Node.js).
+   *
+   * React Native apps must supply WebSocket-based transports because TCP
+   * is not available in the RN runtime:
+   * ```typescript
+   * import { webSockets } from '@libp2p/websockets';
+   * import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+   *
+   * network: {
+   *   transports: [webSockets(), circuitRelayTransport()],
+   *   listenAddrs: []  // RN nodes typically cannot listen
+   * }
+   * ```
+   */
+  transports?: Libp2pTransports;
 }
 
 /**

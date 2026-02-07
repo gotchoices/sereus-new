@@ -3,7 +3,7 @@ import { describe, it, beforeEach, afterEach } from 'vitest'
 import { createLibp2p, Libp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
-import { mplex } from '@libp2p/mplex'
+import { yamux } from '@chainsafe/libp2p-yamux'
 import { createEd25519PeerId } from '@libp2p/peer-id-factory'
 
 const TEST_PROTOCOL = '/test/json/1.0.0'
@@ -36,7 +36,7 @@ async function createNode(port = 0): Promise<Libp2p> {
     addresses: { listen: [`/ip4/127.0.0.1/tcp/${port}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
-    streamMuxers: [mplex()],
+    streamMuxers: [yamux()],
     connectionManager: { dialTimeout: 5000 }
   })
 }

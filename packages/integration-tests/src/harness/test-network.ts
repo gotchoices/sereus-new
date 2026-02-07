@@ -6,8 +6,8 @@
  */
 
 import debug from 'debug';
-import { ed25519 } from '@noble/curves/ed25519';
-import { sha256 } from '@noble/hashes/sha256';
+import { ed25519 } from '@noble/curves/ed25519.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { toString as uint8ArrayToString } from 'uint8arrays';
 import { createTestParty, shutdownTestParty } from './test-party.js';
 import { releaseAllPorts } from './port-allocator.js';

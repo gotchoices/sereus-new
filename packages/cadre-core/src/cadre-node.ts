@@ -251,17 +251,26 @@ export class CadreNode implements SAppIdLookup {
     // otherwise default to true for storage profile nodes (better connectivity/uptime)
     const enableRelay = network?.enableRelay ?? (profile === 'storage');
 
+    // Create storage provider for control network
+    // Uses the factory function pattern if provided to create control-network-specific storage
+    const controlStorageProvider = storage?.provider
+      ? (typeof storage.provider === 'function'
+          ? storage.provider('control')
+          : storage.provider)
+      : undefined;
+
     const nodeOptions: Parameters<typeof createLibp2pNode>[0] = {
       port: 0,
       bootstrapNodes: controlNetwork.bootstrapNodes,
       networkName: `control-${controlNetwork.partyId}`,
-      storageType: storage?.type ?? 'memory',
-      storagePath: storage?.path,
+      storage: controlStorageProvider,
       fretProfile: profile === 'storage' ? 'core' : 'edge',
       relay: enableRelay,
       clusterSize: 3,
       clusterPolicy: { allowDownsize: true, sizeTolerance: 0.5 },
-      arachnode: { enableRingZulu: true }
+      arachnode: { enableRingZulu: true },
+      ...(network?.transports && { transports: network.transports }),
+      ...(network?.listenAddrs && { listenAddrs: network.listenAddrs })
     };
 
     // If private key provided, we need to load it

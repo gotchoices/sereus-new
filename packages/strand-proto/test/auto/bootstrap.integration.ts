@@ -10,7 +10,7 @@ import { createLibp2p, Libp2p } from 'libp2p'
 import { createEd25519PeerId, exportToProtobuf, createFromProtobuf } from '@libp2p/peer-id-factory'
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
-import { mplex } from '@libp2p/mplex'
+import { yamux } from '@chainsafe/libp2p-yamux'
 import {
   SessionManager,
   ListenerSession,
@@ -37,7 +37,7 @@ function createLibp2pNode(port: number = 0): Promise<Libp2p> {
     addresses: { listen: [`/ip4/127.0.0.1/tcp/${port}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
-    streamMuxers: [mplex()],
+    streamMuxers: [yamux()],
     connectionManager: { dialTimeout: 5000 }
   })
 }
@@ -53,7 +53,7 @@ async function createLibp2pNodeWithKeys(port: number = 0): Promise<Libp2p> {
     addresses: { listen: [`/ip4/127.0.0.1/tcp/${port}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
-    streamMuxers: [mplex()],
+    streamMuxers: [yamux()],
     connectionManager: { dialTimeout: 5000 }
   })
 }
@@ -98,7 +98,8 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should handle multiple concurrent sessions without blocking', async () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => {
+      // In libp2p 3.x, StreamHandler receives (stream, connection) as separate args, not { stream }
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => {
         await managerA.handleNewStream(stream as any)
       })
       const promises: Promise<BootstrapResult>[] = []
@@ -126,7 +127,7 @@ describe('Sereus Bootstrap - full suite', () => {
 
     it('should clean up sessions after completion', async () => {
       const manager = new SessionManager(hooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await manager.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await manager.handleNewStream(stream as any) })
       const initialCounts = manager.getActiveSessionCounts()
       assert.equal(initialCounts.listeners, 0)
       assert.equal(initialCounts.dialers, 0)
@@ -148,7 +149,7 @@ describe('Sereus Bootstrap - full suite', () => {
 
     it('should isolate session failures from other sessions', async () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const mgrValid = new SessionManager(hooksB, DEFAULT_CONFIG)
       const mgrInvalid = new SessionManager(hooksB, DEFAULT_CONFIG)
       const validLink: BootstrapLink = {
@@ -180,7 +181,7 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should execute complete responderCreates bootstrap (2 messages)', async () => {
       const managerA = new SessionManager(hooksA, { ...DEFAULT_CONFIG, enableDebugLogging: true })
       const managerB = new SessionManager(hooksB, { ...DEFAULT_CONFIG, enableDebugLogging: true })
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -197,7 +198,7 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should execute complete initiatorCreates bootstrap (3 messages)', async () => {
       const managerA = new SessionManager(hooksA, { ...DEFAULT_CONFIG, enableDebugLogging: true })
       const managerB = new SessionManager(hooksB, { ...DEFAULT_CONFIG, enableDebugLogging: true })
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'initiator-token',
@@ -214,7 +215,7 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should handle rejection scenarios gracefully', async () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const invalidTokenLink: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'invalid-token',
@@ -238,7 +239,7 @@ describe('Sereus Bootstrap - full suite', () => {
       }
       const managerA = new SessionManager(rejectingHooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -255,26 +256,22 @@ describe('Sereus Bootstrap - full suite', () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
       let capturedContact: any = null
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => {
+      // In libp2p 3.x: stream is AsyncIterable directly, use stream.send() for writing
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream: any) => {
+        const { decode: lpDecode } = await import('it-length-prefixed')
+        const { pipe } = await import('it-pipe')
         const decoder = new TextDecoder()
-        let message = ''
-        for await (const chunk of (stream as any).source as any) {
-          const isAsyncIterable = chunk && typeof (chunk as any)[Symbol.asyncIterator] === 'function'
-          const isSyncIterable = chunk && typeof (chunk as any)[Symbol.iterator] === 'function'
-          if (isAsyncIterable || isSyncIterable) {
-            for await (const sub of (chunk as any)) {
-              message += decoder.decode(sub as Uint8Array, { stream: true })
-              try { capturedContact = JSON.parse(message); break } catch {}
-            }
-          } else if (chunk && (ArrayBuffer.isView(chunk) || chunk instanceof ArrayBuffer)) {
-            message += decoder.decode(chunk as ArrayBufferView, { stream: true })
-            try { capturedContact = JSON.parse(message); break } catch {}
-          }
-          if (capturedContact) break
+        for await (const chunk of pipe(stream, lpDecode)) {
+          capturedContact = JSON.parse(decoder.decode(chunk.subarray()))
+          break
         }
         const rejection = { approved: false, reason: 'Test completed - captured message' }
-        const encoded = new TextEncoder().encode(JSON.stringify(rejection))
-        await (stream as any).sink([encoded] as any)
+        const { encode: lpEncode } = await import('it-length-prefixed')
+        const encoded = pipe([new TextEncoder().encode(JSON.stringify(rejection))], lpEncode)
+        for await (const chunk of encoded) {
+          stream.send(chunk.subarray())
+        }
+        await stream.close()
       })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
@@ -296,7 +293,7 @@ describe('Sereus Bootstrap - full suite', () => {
         capturedResponse = response
         return originalValidateResponse(response, sessionId)
       }
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -322,39 +319,32 @@ describe('Sereus Bootstrap - full suite', () => {
         async validateDatabaseResult() { return true }
       }
       const rejectMgrA = new SessionManager(rejectingHooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await rejectMgrA.handleNewStream(stream as any) })
-      // Dial directly to capture rejection
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await rejectMgrA.handleNewStream(stream as any) })
+      // Dial directly to capture rejection - use libp2p 3.x stream API
       const { multiaddr } = await import('@multiformats/multiaddr')
+      const { encode: lpEncode, decode: lpDecode } = await import('it-length-prefixed')
+      const { pipe } = await import('it-pipe')
       const responderAddr = multiaddr(nodeA.getMultiaddrs()[0].toString())
-      const stream = await (nodeB as any).dialProtocol(responderAddr, DEFAULT_PROTOCOL_ID)
+      const stream = await (nodeB as any).dialProtocol(responderAddr, DEFAULT_PROTOCOL_ID) as any
       const contact = {
         token: 'invalid-token',
         partyId: 'test-session',
         identityBundle: { partyId: 'test-session' },
         cadrePeerAddrs: ['b1.local', 'b2.local']
       }
-      const enc = new TextEncoder().encode(JSON.stringify(contact))
-      await (stream as any).sink([enc])
-      const dec = new TextDecoder()
-      let msg = ''
-      let parsed: any = null
-      for await (const chunk of (stream as any).source as any) {
-        const isAsyncIterable = chunk && typeof (chunk as any)[Symbol.asyncIterator] === 'function'
-        const isSyncIterable = chunk && typeof (chunk as any)[Symbol.iterator] === 'function'
-        if (isAsyncIterable || isSyncIterable) {
-          for await (const sub of (chunk as any)) {
-            msg += dec.decode(sub as Uint8Array, { stream: true })
-            try { parsed = JSON.parse(msg); break } catch {}
-          }
-        } else if (chunk && (ArrayBuffer.isView(chunk) || chunk instanceof ArrayBuffer)) {
-          msg += dec.decode(chunk as ArrayBufferView, { stream: true })
-          try { parsed = JSON.parse(msg); break } catch {}
-        }
-        if (parsed) break
+      const encoded = pipe([new TextEncoder().encode(JSON.stringify(contact))], lpEncode)
+      for await (const chunk of encoded) {
+        stream.send(chunk.subarray())
       }
-      const rejection = parsed ?? JSON.parse(msg)
+      const dec = new TextDecoder()
+      let rejection: any = null
+      for await (const chunk of pipe(stream, lpDecode)) {
+        rejection = JSON.parse(dec.decode(chunk.subarray()))
+        break
+      }
       assert.equal(rejection.approved, false)
       assert.ok(!rejection.cadrePeerAddrs || rejection.cadrePeerAddrs.length === 0)
+      await stream.close()
       try { nodeA.unhandle(DEFAULT_PROTOCOL_ID) } catch {}
     }, 5000)
   })
@@ -385,7 +375,7 @@ describe('Sereus Bootstrap - full suite', () => {
       }
       const managerA = new SessionManager(tokenErrorHooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'error-token',
@@ -406,7 +396,7 @@ describe('Sereus Bootstrap - full suite', () => {
       }
       const managerA = new SessionManager(malformedHooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'test-token',
@@ -421,7 +411,7 @@ describe('Sereus Bootstrap - full suite', () => {
   describe('Concurrent Multi-Use Token Scenarios', () => {
     it('should handle multiple customers with same merchant token', async () => {
       const merchantManager = new SessionManager(hooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await merchantManager.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await merchantManager.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'multi-use-token',
@@ -449,7 +439,7 @@ describe('Sereus Bootstrap - full suite', () => {
 
     it('should maintain isolation with mixed valid/invalid requests', async () => {
       const merchantManager = new SessionManager(hooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await merchantManager.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await merchantManager.handleNewStream(stream as any) })
       const linkBase: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'multi-use-token',
@@ -488,7 +478,7 @@ describe('Sereus Bootstrap - full suite', () => {
       }
       const managerA = new SessionManager(slowHooksA, shortConfig)
       const managerB = new SessionManager(hooksB, shortConfig)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -502,7 +492,7 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should recover with subsequent successful session after timeout', async () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -518,7 +508,7 @@ describe('Sereus Bootstrap - full suite', () => {
       const managerA = new SessionManager(hooksA, DEFAULT_CONFIG)
       const managerB = new SessionManager(hooksB, DEFAULT_CONFIG)
       let attempt = 0
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => {
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => {
         attempt++
         if (attempt === 1) {
           try { (stream as any).close?.(); (stream as any).closeWrite?.() } catch {}
@@ -553,7 +543,7 @@ describe('Sereus Bootstrap - full suite', () => {
         async validateDatabaseResult() { return true }
       }
       const managerA = new SessionManager(transientHooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await managerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await managerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'responder-token',
@@ -575,7 +565,7 @@ describe('Sereus Bootstrap - full suite', () => {
     it('should limit concurrent sessions to configured maximum', async () => {
       const limitedConfig: SessionConfig = { sessionTimeoutMs: 10000, stepTimeoutMs: 2000, maxConcurrentSessions: 2, protocolId: DEFAULT_PROTOCOL_ID, enableDebugLogging: true }
       const limitedManagerA = new SessionManager(hooksA, limitedConfig)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await limitedManagerA.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await limitedManagerA.handleNewStream(stream as any) })
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],
         token: 'multi-use-token',
@@ -595,7 +585,7 @@ describe('Sereus Bootstrap - full suite', () => {
 
     it('should clean up resources after multiple sessions', async () => {
       const manager = new SessionManager(hooksA, DEFAULT_CONFIG)
-      nodeA.handle(DEFAULT_PROTOCOL_ID, async ({ stream }) => { await manager.handleNewStream(stream as any) })
+      nodeA.handle(DEFAULT_PROTOCOL_ID, async (stream) => { await manager.handleNewStream(stream as any) })
       const mgrB = new SessionManager(hooksB, DEFAULT_CONFIG)
       const link: BootstrapLink = {
         responderPeerAddrs: [nodeA.getMultiaddrs()[0].toString()],

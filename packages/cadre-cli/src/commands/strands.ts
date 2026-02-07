@@ -1,9 +1,37 @@
 import { Command } from 'commander';
 import debug from 'debug';
-import { CadreNode, type CadreNodeConfig, type StrandInstance } from '@sereus/cadre-core';
-import { resolveConfig } from '../config/index.js';
+import { CadreNode, type CadreNodeConfig, type StrandInstance, type StorageConfig } from '@sereus/cadre-core';
+import { MemoryRawStorage } from '@optimystic/db-p2p';
+import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
+import { resolveConfig, type ResolvedConfig } from '../config/index.js';
 
 const log = debug('cadre:cli:strands');
+
+/**
+ * Convert CLI storage config to cadre-core StorageConfig with provider
+ */
+function resolveStorageConfig(config: ResolvedConfig['storage']): StorageConfig | undefined {
+  if (!config) return undefined;
+
+  if (config.type === 'memory') {
+    return {
+      provider: () => new MemoryRawStorage(),
+      quotaBytes: config.quotaBytes,
+    };
+  }
+
+  if (config.type === 'file') {
+    if (!config.path) {
+      throw new Error('Storage path is required for file storage type');
+    }
+    return {
+      provider: (strandId: string) => new FileRawStorage(`${config.path}/${strandId}`),
+      quotaBytes: config.quotaBytes,
+    };
+  }
+
+  return undefined;
+}
 
 export const strandsCommand = new Command('strands')
   .description('List active strands')
@@ -23,7 +51,7 @@ export const strandsCommand = new Command('strands')
         controlNetwork: config.controlNetwork,
         profile: config.profile,
         strandFilter: config.strandFilter,
-        storage: config.storage,
+        storage: resolveStorageConfig(config.storage),
         network: config.network,
         hibernation: config.hibernation,
         strandWatchInterval: config.strandWatchInterval,

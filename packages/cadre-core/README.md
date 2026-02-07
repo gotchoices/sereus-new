@@ -56,6 +56,7 @@ npm install @sereus/cadre-core
 
 ```typescript
 import { CadreNode } from '@sereus/cadre-core';
+import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
 
 const node = new CadreNode({
   controlNetwork: {
@@ -64,8 +65,8 @@ const node = new CadreNode({
   },
   profile: 'storage',  // 'storage' for servers, 'transaction' for mobile
   storage: {
-    type: 'file',
-    path: '/data/sereus',
+    // Storage provider factory - called with strandId for strand-isolated storage
+    provider: (strandId) => new FileRawStorage(`/data/sereus/${strandId}`),
     quotaBytes: 10 * 1024 * 1024 * 1024  // 10 GB
   }
 });
@@ -185,11 +186,65 @@ The main entry point for cadre participation.
 - **[Strand Management](../../docs/strands.md)** - How strands connect multiple cadres
 - **[Schema Guide](../../docs/schema-guide.md)** - Optimystic schema definitions
 
+## React Native Support
+
+This package is compatible with React Native. For mobile apps, use the RN-specific storage provider:
+
+```typescript
+import { CadreNode } from '@sereus/cadre-core';
+import { RNRawStorage } from '@optimystic/db-p2p-storage-rn';
+import { webSockets } from '@libp2p/websockets';
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+
+const node = new CadreNode({
+  controlNetwork: {
+    partyId: 'your-unique-party-id',
+    bootstrapNodes: ['/dns4/relay.example.com/tcp/443/wss/p2p/12D3KooW...']
+  },
+  profile: 'transaction',  // Mobile devices typically use transaction profile
+  strandFilter: { mode: 'sAppId', sAppId: 'com.example.myapp' },
+  storage: {
+    // RN storage provider creates strand-isolated AsyncStorage
+    provider: (strandId) => new RNRawStorage(strandId)
+  },
+  network: {
+    // TCP doesn't work in React Native — use WebSocket transport instead
+    transports: [webSockets(), circuitRelayTransport()],
+    listenAddrs: []  // RN nodes typically cannot listen
+  }
+});
+```
+
+### Storage Provider Pattern
+
+The `storage.provider` option accepts either:
+- **An `IRawStorage` instance** - Shared storage for all strands
+- **A factory function** `(strandId: string) => IRawStorage` - Creates isolated storage per strand (recommended)
+
+Available storage implementations:
+| Package | Environment | Description |
+|---------|-------------|-------------|
+| `@optimystic/db-p2p` | All | `MemoryRawStorage` - In-memory (testing only) |
+| `@optimystic/db-p2p-storage-fs` | Node.js | `FileRawStorage` - File system storage |
+| `@optimystic/db-p2p-storage-rn` | React Native | `RNRawStorage` - AsyncStorage-based |
+
+### React Native Considerations
+
+1. **Network Transport**: libp2p's TCP transport doesn't work in RN. Pass `transports: [webSockets(), circuitRelayTransport()]` in the `network` config (see example above).
+
+2. **Schema Loading**: The control schema is embedded in the package. Do not set `schemaPath` in React Native.
+
+3. **Profile**: Mobile devices should use `profile: 'transaction'` for battery/bandwidth efficiency.
+
+4. **Strand Filtering**: Always filter strands on mobile to avoid participating in unnecessary networks.
+
 ## Related Packages
 
 - **[@sereus/strand-proto](../strand-proto/)** - Strand initialization protocol
 - **[@optimystic/db-core](https://github.com/gotchoices/optimystic)** - Distributed database core
 - **[@optimystic/db-p2p](https://github.com/gotchoices/optimystic)** - libp2p integration for Optimystic
+- **[@optimystic/db-p2p-storage-fs](https://github.com/gotchoices/optimystic)** - File system storage (Node.js)
+- **[@optimystic/db-p2p-storage-rn](https://github.com/gotchoices/optimystic)** - AsyncStorage (React Native)
 
 ## License
 

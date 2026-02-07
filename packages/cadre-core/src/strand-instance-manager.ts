@@ -1,7 +1,6 @@
 import debug from 'debug';
-import path from 'path';
 import type { Libp2p } from '@libp2p/interface';
-import { createLibp2pNode } from '@optimystic/db-p2p';
+import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
 import type { IRepo } from '@optimystic/db-core';
 import { StrandDatabase } from './strand-database.js';
 import type {
@@ -12,7 +11,8 @@ import type {
   LatencyHint,
   NodeProfile,
   SAppConfig,
-  SAppInfo
+  SAppInfo,
+  RawStorageProvider
 } from './types.js';
 
 /**
@@ -39,12 +39,52 @@ export interface StartStrandConfig {
 }
 
 /**
- * Get the isolated storage path for a specific strand
+ * Get the isolated storage path for a specific strand.
+ *
+ * @deprecated This function uses Node.js path module which is not available in React Native.
+ * Use a storage provider factory function instead, which receives the strandId and can
+ * create strand-specific storage paths using platform-appropriate methods.
+ *
+ * @example
+ * // Instead of using getStrandStoragePath, use a storage provider factory:
+ * const storage = {
+ *   provider: (strandId: string) => new FileRawStorage(`./data/strands/${strandId}`)
+ * };
  */
 export function getStrandStoragePath(basePath: string, strandId: string): string {
+  // Check if we're in a Node.js environment
+  if (typeof process === 'undefined' || !process.versions?.node) {
+    throw new Error(
+      'getStrandStoragePath is not available in React Native. ' +
+      'Use a storage provider factory function instead.'
+    );
+  }
+
+  // Dynamically require path only in Node.js
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require('path');
+
   // Sanitize strandId for filesystem safety (UUIDs should be safe, but just in case)
   const safeId = strandId.replace(/[^a-zA-Z0-9-]/g, '_');
   return path.join(basePath, 'strands', safeId);
+}
+
+/**
+ * Resolve a storage provider for a specific strand.
+ * If the provider is a factory function, call it with the strandId.
+ *
+ * @param provider - Storage provider (instance or factory)
+ * @param strandId - The strand ID to create storage for
+ * @returns The resolved IRawStorage instance, or undefined if no provider
+ */
+function resolveStrandStorage(
+  provider: RawStorageProvider | undefined,
+  strandId: string
+): IRawStorage | undefined {
+  if (!provider) {
+    return undefined;
+  }
+  return typeof provider === 'function' ? provider(strandId) : provider;
 }
 
 /**
@@ -122,11 +162,12 @@ export class StrandInstanceManager {
     this.instances.set(strandId, instance);
 
     try {
-      // Calculate isolated storage path for this strand
-      let strandStoragePath: string | undefined;
-      if (config.storage?.path && config.storage.type === 'file') {
-        strandStoragePath = getStrandStoragePath(config.storage.path, strandId);
-        log('Strand %s storage path: %s', strandId, strandStoragePath);
+      // Resolve storage for this strand
+      // If a factory function is provided, it will be called with the strandId
+      // to create strand-specific storage (e.g., strand-isolated directories)
+      const strandStorage = resolveStrandStorage(config.storage?.provider, strandId);
+      if (strandStorage) {
+        log('Strand %s using provided storage provider', strandId);
       }
 
       // Create isolated libp2p node for this strand
@@ -142,8 +183,7 @@ export class StrandInstanceManager {
         port: 0, // Random port
         bootstrapNodes: [], // Will be populated from strand cohort
         networkName: `strand-${strandId}`,
-        storageType: config.storage?.type ?? 'memory',
-        storagePath: strandStoragePath,
+        storage: strandStorage,
         fretProfile: config.profile === 'storage' ? 'core' : 'edge',
         relay: enableRelay,
         clusterSize: 3,
@@ -155,7 +195,9 @@ export class StrandInstanceManager {
           enableRingZulu: true
           // Storage ring participation stub - will be added when arachnode is built
           // storageRing: config.profile === 'storage' ? { ring: 0 } : undefined
-        }
+        },
+        ...(config.network?.transports && { transports: config.network.transports }),
+        ...(config.network?.listenAddrs && { listenAddrs: config.network.listenAddrs })
       }) as Libp2pNodeWithRepo;
 
       instance.libp2pNode = node;

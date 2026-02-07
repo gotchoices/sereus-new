@@ -2,7 +2,7 @@ import { describe, it } from 'vitest'
 import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
-import { mplex } from '@libp2p/mplex'
+import { yamux } from '@chainsafe/libp2p-yamux'
 import { createEd25519PeerId } from '@libp2p/peer-id-factory'
 import { strict as assert } from 'assert'
 
@@ -12,7 +12,7 @@ describe('PeerId sanity', () => {
       addresses: { listen: ['/ip4/127.0.0.1/tcp/0'] },
       transports: [tcp()],
       connectionEncrypters: [noise()],
-      streamMuxers: [mplex()],
+      streamMuxers: [yamux()],
     })
     await node.start()
     // This may not expose privateKey, but should be acceptable to Noise if internal keypair exists.

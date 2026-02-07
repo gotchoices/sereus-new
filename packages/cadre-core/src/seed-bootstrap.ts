@@ -1,10 +1,29 @@
 import debug from 'debug';
 import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
 import { digest, sign, verify, getPublicKey } from '@optimystic/quereus-plugin-crypto';
-import type { Libp2p, PeerId, Stream, Connection } from '@libp2p/interface';
+import type { Libp2p, PeerId, Connection } from '@libp2p/interface';
 import { multiaddr } from '@multiformats/multiaddr';
 import type { Multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
+
+/**
+ * Minimal libp2p stream interface for cross-platform compatibility.
+ * This abstraction works across different libp2p versions and environments.
+ */
+interface LibP2PStream {
+  source: AsyncIterable<Uint8Array>;
+  sink(source: AsyncIterable<Uint8Array>): Promise<void>;
+  close(): Promise<void>;
+}
+
+/**
+ * Incoming stream data from libp2p handle callback.
+ * Defined locally for cross-version compatibility.
+ */
+interface IncomingStreamData {
+  stream: LibP2PStream;
+  connection: Connection;
+}
 import type {
   ControlNetworkSeed,
   SeedPeer,
@@ -287,7 +306,8 @@ export class SeedBootstrapService {
     log('Delivering seed to: %s', targetMultiaddr);
 
     // Dial the target and open a stream
-    const stream = await this.libp2pNode.dialProtocol(addr, SEED_PROTOCOL);
+    const rawStream = await this.libp2pNode.dialProtocol(addr, SEED_PROTOCOL);
+    const stream = rawStream as unknown as LibP2PStream;
 
     try {
       // Send the seed message
@@ -305,12 +325,13 @@ export class SeedBootstrapService {
       const lengthBytes = new Uint8Array(4);
       new DataView(lengthBytes.buffer).setUint32(0, messageBytes.length, false);
 
-      await stream.sink([lengthBytes, messageBytes]);
+      async function* sinkData() { yield lengthBytes; yield messageBytes; }
+      await stream.sink(sinkData());
 
       // Read the acknowledgment
       const chunks: Uint8Array[] = [];
       for await (const chunk of stream.source) {
-        chunks.push(chunk.subarray());
+        chunks.push((chunk as Uint8Array).subarray());
         // Read until we have the length prefix
         if (chunks.reduce((sum, c) => sum + c.length, 0) >= 4) break;
       }
@@ -425,7 +446,8 @@ export class SeedBootstrapService {
   private registerProtocolHandler(): void {
     if (!this.libp2pNode) return;
 
-    this.libp2pNode.handle(SEED_PROTOCOL, async ({ stream, connection }) => {
+    this.libp2pNode.handle(SEED_PROTOCOL, async (data: unknown) => {
+      const { stream, connection } = data as IncomingStreamData;
       const remotePeerId = connection.remotePeer.toString();
       log('Incoming seed delivery from: %s', remotePeerId);
 
@@ -435,8 +457,8 @@ export class SeedBootstrapService {
         let totalLength = 0;
 
         for await (const chunk of stream.source) {
-          chunks.push(chunk.subarray());
-          totalLength += chunk.length;
+          chunks.push((chunk as Uint8Array).subarray());
+          totalLength += (chunk as Uint8Array).length;
           if (totalLength > MAX_SEED_SIZE) {
             throw new Error('Seed message too large');
           }
@@ -485,7 +507,8 @@ export class SeedBootstrapService {
         const lengthBytes = new Uint8Array(4);
         new DataView(lengthBytes.buffer).setUint32(0, ackBytes.length, false);
 
-        await stream.sink([lengthBytes, ackBytes]);
+        async function* sinkAck() { yield lengthBytes; yield ackBytes; }
+        await stream.sink(sinkAck());
 
       } catch (error) {
         log('Error handling seed delivery: %o', error);
@@ -505,7 +528,8 @@ export class SeedBootstrapService {
         new DataView(lengthBytes.buffer).setUint32(0, ackBytes.length, false);
 
         try {
-          await stream.sink([lengthBytes, ackBytes]);
+          async function* sinkError() { yield lengthBytes; yield ackBytes; }
+          await stream.sink(sinkError());
         } catch {
           // Ignore sink errors
         }

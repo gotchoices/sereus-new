@@ -11,27 +11,16 @@ A **cadre** is a party's personal cluster of nodes that collectively represent t
 - **Flexible deployment**: Support for self-hosted nodes, provider-hosted containers, and mobile devices
 - **Key-based authorization**: Cryptographic authority delegation without central servers
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Party (User)                                   │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        Control Network                               │   │
-│  │  (Distributed Optimystic DB with CadreControl schema)               │   │
-│  │                                                                      │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │   │
-│  │  │ Phone    │  │ Laptop   │  │ Cloud    │  │ NAS      │            │   │
-│  │  │ (edge)   │──│ (edge)   │──│ (core)   │──│ (core)   │            │   │
-│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│              ┌─────────────────────┼─────────────────────┐                 │
-│              ▼                     ▼                     ▼                 │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐         │
-│  │ Strand A         │  │ Strand B         │  │ Strand C         │         │
-│  │ (2 nodes active) │  │ (3 nodes active) │  │ (1 node active)  │         │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘         │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Party["Party (User)"]
+        subgraph CN["Control Network<br/>(Distributed Optimystic DB, CadreControl schema)"]
+            Phone["Phone (edge)"] --- Laptop["Laptop (edge)"] --- Cloud["Cloud (core)"] --- NAS["NAS (core)"]
+        end
+        CN --> SA["Strand A (2 nodes)"]
+        CN --> SB["Strand B (3 nodes)"]
+        CN --> SC["Strand C (1 node)"]
+    end
 ```
 
 ## Core Components
@@ -77,39 +66,18 @@ A cadre node is a running instance of the `@sereus/cadre-core` library. Each nod
 3. **Starts/stops strand instances** as rows are added/removed
 4. **Reports its multiaddr** back to `CadrePeer` for peer discovery
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Cadre Node Process                         │
-│                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐ │
-│  │                    Control Network Instance                    │ │
-│  │  libp2p + Optimystic + Quereus (CadreControl schema)          │ │
-│  │                                                                │ │
-│  │  ┌─────────────────┐                                          │ │
-│  │  │ Strand Watcher  │──watches──▶ Strand table changes         │ │
-│  │  └────────┬────────┘                                          │ │
-│  └───────────┼───────────────────────────────────────────────────┘ │
-│              │                                                      │
-│              │ start/stop strand instances                         │
-│              ▼                                                      │
-│  ┌───────────────────────────────────────────────────────────────┐ │
-│  │                    Strand Instance Manager                     │ │
-│  │                                                                │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │ │
-│  │  │ Strand A    │  │ Strand B    │  │ Strand C    │           │ │
-│  │  │ Instance    │  │ Instance    │  │ Instance    │           │ │
-│  │  │             │  │             │  │             │           │ │
-│  │  │ libp2p node │  │ libp2p node │  │ libp2p node │           │ │
-│  │  │ + Optimystic│  │ + Optimystic│  │ + Optimystic│           │ │
-│  │  │ + App Schema│  │ + App Schema│  │ + App Schema│           │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘           │ │
-│  └───────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐ │
-│  │                      Storage Layer                             │ │
-│  │  (Shared across all instances - memory, file, or LevelDB)     │ │
-│  └───────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph CN["Control Network Instance<br/>(libp2p + Optimystic + Quereus, CadreControl schema)"]
+        SW["Strand Watcher"] -->|watches| ST["Strand table changes"]
+    end
+    SW -->|start/stop| SIM
+    subgraph SIM["Strand Instance Manager"]
+        SA["Strand A<br/>libp2p + Optimystic + App Schema"]
+        SB["Strand B<br/>libp2p + Optimystic + App Schema"]
+        SC["Strand C<br/>libp2p + Optimystic + App Schema"]
+    end
+    SIM --- SL["Storage Layer<br/>(shared — memory, file, or LevelDB)"]
 ```
 
 ## Node Profiles
@@ -136,40 +104,8 @@ Mobile nodes typically run as part of a specific application and should not part
 
 This allows a mobile app to embed a cadre node that only participates in the app's strand while the user's server nodes handle the full portfolio.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Arachnode Rings                             │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                      Ring Zulu (Transaction)                 │   │
-│  │                                                              │   │
-│  │   All nodes participate here regardless of profile           │   │
-│  │   • Transaction verification                                 │   │
-│  │   • Ephemeral caching                                        │   │
-│  │   • Forward to storage rings                                 │   │
-│  │                                                              │   │
-│  │   ┌─────────────────────────────────────────────────────┐   │   │
-│  │   │              Ring 3 (8 partitions)                   │   │   │
-│  │   │                                                      │   │   │
-│  │   │   ┌─────────────────────────────────────────────┐   │   │   │
-│  │   │   │          Ring 2 (4 partitions)               │   │   │   │
-│  │   │   │                                              │   │   │   │
-│  │   │   │   ┌─────────────────────────────────────┐   │   │   │   │
-│  │   │   │   │      Ring 1 (2 partitions)          │   │   │   │   │
-│  │   │   │   │                                     │   │   │   │   │
-│  │   │   │   │   ┌─────────────────────────────┐   │   │   │   │   │
-│  │   │   │   │   │   Ring 0 (full keyspace)    │   │   │   │   │   │
-│  │   │   │   │   │                             │   │   │   │   │   │
-│  │   │   │   │   │   Storage profile nodes     │   │   │   │   │   │
-│  │   │   │   │   │   join appropriate ring     │   │   │   │   │   │
-│  │   │   │   │   │   based on capacity         │   │   │   │   │   │
-│  │   │   │   │   └─────────────────────────────┘   │   │   │   │   │
-│  │   │   │   └─────────────────────────────────────┘   │   │   │   │
-│  │   │   └─────────────────────────────────────────────┘   │   │   │
-│  │   └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+- **Ring Zulu (Transaction)**: All nodes participate — transaction verification, ephemeral caching, forward to storage rings
+- **Ring 3** (8 partitions) → **Ring 2** (4 partitions) → **Ring 1** (2 partitions) → **Ring 0** (full keyspace): Concentric storage rings. Storage-profile nodes join the appropriate ring based on capacity.
 
 ## Enrollment and Bootstrap
 
@@ -221,24 +157,10 @@ The seed is **cache pre-population**, not a separate database. After applying th
 
 After applying a seed, a node follows a simple unified algorithm regardless of network topology:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  Node Behavior After applySeed()                 │
-│                                                                  │
-│  1. Populate peerstore with peers + multiaddrs from seed        │
-│                                                                  │
-│  2. Attempt outbound dials (best effort)                         │
-│     → Prefer peers flagged isAuthority first                     │
-│                                                                  │
-│  3. Once a connection is established:                            │
-│     → Begin control network sync (Optimystic)                    │
-│     → Refresh via select * from CadrePeer                        │
-│                                                                  │
-│  5. Periodic refresh (until reactivity):                        │
-│     → Re-query CadrePeer, update local cache                    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. Populate peerstore with peers + multiaddrs from seed
+2. Attempt outbound dials (best effort) — prefer peers flagged `isAuthority` first
+3. Once connected: begin control network sync (Optimystic), refresh via `select * from CadrePeer`
+4. Periodic refresh (until reactivity): re-query CadrePeer, update local cache
 
 The node doesn't need to know who will dial whom — it tries everything and accepts whatever works first.
 
@@ -246,74 +168,24 @@ The node doesn't need to know who will dial whom — it tries everything and acc
 
 The most common case: a user on a NAT'd phone adds a provider-hosted node.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     Phone (NAT'd) → Add Drone (Public IP)                    │
-│                                                                              │
-│  Phone (Authority)          Provider API             Drone (New Node)        │
-│  ┌────────────────┐         ┌──────────┐            ┌────────────────┐       │
-│  │ Control DB:    │         │          │            │ Empty          │       │
-│  │  AuthorityKey  │         │          │            │                │       │
-│  │  CadrePeer:    │         │          │            │                │       │
-│  │   - phone      │         │          │            │                │       │
-│  └───────┬────────┘         └────┬─────┘            └───────┬────────┘       │
-│          │                       │                          │                │
-│          │ 1. createContainer    │                          │                │
-│          │    (plan, payment)    │                          │                │
-│          ├──────────────────────▶│                          │                │
-│          │                       │  2. Spawn container      │                │
-│          │                       ├─────────────────────────▶│                │
-│          │                       │     createCadrePeer()    │                │
-│          │                       │◀─────────────────────────┤                │
-│          │ 3. Return PeerId +    │     PeerId + multiaddr   │                │
-│          │    multiaddr          │                          │                │
-│          │◀──────────────────────┤                          │                │
-│          │                       │                          │                │
-│  ┌───────┴────────┐              │                          │                │
-│  │ 4. authorizePeer(drone)       │                          │                │
-│  │    Signs CadrePeer entry      │                          │                │
-│  │    Inserts into control DB    │                          │                │
-│  └───────┬────────┘              │                          │                │
-│          │                       │                          │                │
-│  ┌───────┴────────┐              │                          │                │
-│  │ 5. createSeed()               │                          │                │
-│  │    { partyId,                 │                          │                │
-│  │      peers: [                 │                          │                │
-│  │        { phone, addrs: [] }   │  ← Phone NAT'd, no addrs │                │
-│  │      ]                        │                          │                │
-│  │    }                          │                          │                │
-│  └───────┬────────┘              │                          │                │
-│          │                       │                          │                │
-│          │ 6. initializeNode     │                          │                │
-│          │    (containerId, seed)│                          │                │
-│          ├──────────────────────▶│  7. Forward seed         │                │
-│          │                       ├─────────────────────────▶│                │
-│          │                       │                          │                │
-│          │                       │              ┌───────────┴────────┐       │
-│          │                       │              │ 8. applySeed()     │       │
-│          │                       │              │    Cache: phone ✓  │       │
-│          │                       │              │    No dial hints   │       │
-│          │                       │              │    → wait for conn │       │
-│          │                       │              └───────────┬────────┘       │
-│          │                       │                          │                │
-│          │ 9. Dial drone (outbound - NAT safe)              │                │
-│          ├─────────────────────────────────────────────────▶│                │
-│          │                       │              ┌───────────┴────────┐       │
-│          │                       │              │ 10. Validate:      │       │
-│          │                       │              │   phone in cache? ✓│       │
-│          │                       │              │   Accept connection│       │
-│          │                       │              └───────────┬────────┘       │
-│          │                       │                          │                │
-│          │◀═══════════════ Control Network Sync ═══════════▶│                │
-│          │                       │                          │                │
-│          │                       │              ┌───────────┴────────┐       │
-│          │                       │              │ 11. select * from  │       │
-│          │                       │              │     CadrePeer      │       │
-│          │                       │              │   → authoritative  │       │
-│          │                       │              │     cache refresh  │       │
-│          │                       │              └────────────────────┘       │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Ph as Phone (Authority, NAT'd)
+    participant P as Provider API
+    participant D as Drone (New)
+    Ph->>P: 1. createContainer (plan, payment)
+    P->>D: 2. Spawn container
+    D->>P: createCadrePeer() → PeerId + multiaddr
+    P->>Ph: 3. Return PeerId + multiaddr
+    Note over Ph: 4. authorizePeer(drone) — sign & insert CadrePeer
+    Note over Ph: 5. createSeed({peers:[{phone, addrs:[]}]}) — NAT'd, no addrs
+    Ph->>P: 6. initializeNode(containerId, seed)
+    P->>D: 7. Forward seed
+    Note over D: 8. applySeed() → cache phone ✓, no dial hints → wait
+    Ph->>D: 9. Dial drone (outbound, NAT-safe)
+    Note over D: 10. Validate: phone in cache? ✓ → accept
+    Ph<<->>D: Control Network Sync
+    Note over D: 11. select * from CadrePeer → authoritative cache refresh
 ```
 
 Key points:
@@ -326,101 +198,43 @@ Key points:
 
 When a server (public IP) adds a phone to its cadre:
 
+```mermaid
+sequenceDiagram
+    participant S as Server (Authority)
+    participant Ph as Phone (New)
+    S->>Ph: 1. Share invite out-of-band (QR/link)<br/>Contains: partyId, serverMultiaddr
+    Note over Ph: 2. createCadrePeer() — generate keypair
+    Ph->>S: 3. Dial server (using invite addr)<br/>Sends {peerId, inviteToken}
+    Note over S: 4. Validate token<br/>5. authorizePeer(phone), insert CadrePeer
+    S<<->>Ph: Control Network Sync
+    Note over Ph: 6. Phone syncs full control DB
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     Server (Public IP) → Add Phone (NAT'd)                   │
-│                                                                              │
-│  Server (Authority)                              Phone (New Node)            │
-│  ┌────────────────┐                             ┌────────────────┐           │
-│  │ Control DB:    │                             │ Empty          │           │
-│  │  AuthorityKey  │                             │                │           │
-│  │  CadrePeer:    │                             │                │           │
-│  │   - server     │                             │                │           │
-│  └───────┬────────┘                             └───────┬────────┘           │
-│          │                                              │                    │
-│          │  1. Share invite out-of-band (QR, link)      │                    │
-│          ├─────────────────────────────────────────────▶│                    │
-│          │     Contains: partyId, serverMultiaddr       │                    │
-│          │                                              │                    │
-│          │                              ┌───────────────┴────────┐           │
-│          │                              │ 2. createCadrePeer()   │           │
-│          │                              │    Generate keypair    │           │
-│          │                              └───────────────┬────────┘           │
-│          │                                              │                    │
-│          │  3. Phone dials server (using invite addr)   │                    │
-│          │     Sends: { peerId, inviteToken }           │                    │
-│          │◀─────────────────────────────────────────────┤                    │
-│          │                                              │                    │
-│  ┌───────┴────────┐                                     │                    │
-│  │ 4. Validate token                                    │                    │
-│  │ 5. authorizePeer(phone)                              │                    │
-│  │    Insert CadrePeer                                  │                    │
-│  └───────┬────────┘                                     │                    │
-│          │                                              │                    │
-│          │◀═══════════════ Control Network Sync ═══════▶│                    │
-│          │                                              │                    │
-│          │                              ┌───────────────┴────────┐           │
-│          │                              │ 6. Phone syncs full    │           │
-│          │                              │    control DB          │           │
-│          │                              └────────────────────────┘           │
-│                                                                              │
-│  No seed needed! Server is dialable, so phone just connects and syncs.      │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+No seed needed — server is dialable, so phone just connects and syncs.
 
 ### Enrollment Flow: Server Adds Drone
 
 When a server adds another provider-hosted node:
 
+```mermaid
+sequenceDiagram
+    participant S as Server (Authority)
+    participant P as Provider API
+    participant D as Drone (New)
+    S->>P: 1. createContainer
+    P->>D: 2. Spawn container
+    D->>P: createCadrePeer() → PeerId
+    P->>S: Return PeerId + multiaddr
+    Note over S: 3. authorizePeer(drone)<br/>4. createSeed({peers:[{server, addrs:[serverAddr]}]})
+    S->>P: 5. initializeNode(seed)
+    P->>D: 6. Forward seed
+    Note over D: 7. applySeed() → cache server, has dial hints
+    D->>S: 8. Drone dials server
+    Note over S: 9. Validate: drone in DB ✓ → Accept
+    S<<->>D: Control Network Sync
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     Server (Public IP) → Add Drone (Public IP)               │
-│                                                                              │
-│  Server (Authority)         Provider API             Drone (New Node)        │
-│  ┌────────────────┐         ┌──────────┐            ┌────────────────┐       │
-│  │ Control DB:    │         │          │            │ Empty          │       │
-│  └───────┬────────┘         └────┬─────┘            └───────┬────────┘       │
-│          │                       │                          │                │
-│          │ 1. createContainer    │  2. Spawn, return PeerId │                │
-│          ├──────────────────────▶│◀─────────────────────────┤                │
-│          │◀──────────────────────┤                          │                │
-│          │                       │                          │                │
-│  ┌───────┴────────┐              │                          │                │
-│  │ 3. authorizePeer(drone)       │                          │                │
-│  │ 4. createSeed()               │                          │                │
-│  │    { partyId,                 │                          │                │
-│  │      peers: [                 │                          │                │
-│  │        { server,              │                          │                │
-│  │          addrs: [serverAddr] }│  ← Server is dialable    │                │
-│  │      ]                        │                          │                │
-│  │    }                          │                          │                │
-│  └───────┬────────┘              │                          │                │
-│          │                       │                          │                │
-│          │ 5. initializeNode     │  6. Forward              │                │
-│          ├──────────────────────▶├─────────────────────────▶│                │
-│          │                       │              ┌───────────┴────────┐       │
-│          │                       │              │ 7. applySeed()     │       │
-│          │                       │              │    Cache: server ✓ │       │
-│          │                       │              │    Has dial hints  │       │
-│          │                       │              │    → dial server   │       │
-│          │                       │              └───────────┬────────┘       │
-│          │                                                  │                │
-│          │◀══════════ 8. Drone dials server ═══════════════┤                │
-│          │                                                  │                │
-│  ┌───────┴────────┐                                         │                │
-│  │ 9. Validate:   │                                         │                │
-│  │   drone in DB? ✓ (added in step 3)                       │                │
-│  │   Accept       │                                         │                │
-│  └───────┬────────┘                                         │                │
-│          │                                                  │                │
-│          │◀═══════════════ Control Network Sync ═══════════▶│                │
-│                                                                              │
-│  Seed includes bootstrapAddrs because server IS dialable.                   │
-│  Drone initiates connection to server.                                      │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+Seed includes `bootstrapAddrs` because server IS dialable. Drone initiates connection to server.
 
 ### When Is a Seed Needed?
 
@@ -441,40 +255,16 @@ Seeds can be delivered through multiple mechanisms. For direct delivery when the
 
 **Protocol ID**: `/sereus/seed/1.0.0`
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Seed Delivery Protocol                               │
-│                                                                              │
-│  Instigator (Authority)                      New Node (Seeded)               │
-│  ┌────────────────────┐                     ┌────────────────────┐           │
-│  │                    │                     │                    │           │
-│  │ 1. Dial new node   │                     │ Listening on       │           │
-│  │    /sereus/seed/   │                     │ /sereus/seed/1.0.0 │           │
-│  │    1.0.0           │                     │                    │           │
-│  │                    │────────────────────▶│                    │           │
-│  │                    │                     │                    │           │
-│  │ 2. Send SeedMessage│                     │                    │           │
-│  │    {               │                     │                    │           │
-│  │      partyId,      │                     │                    │           │
-│  │      peers: [...], │                     │                    │           │
-│  │      signature     │ ─────────────────▶  │                    │           │
-│  │    }               │                     │                    │           │
-│  │                    │                     │ 3. Validate:       │           │
-│  │                    │                     │    - sig from peer │           │
-│  │                    │                     │      in peers[]?   │           │
-│  │                    │                     │                    │           │
-│  │                    │                     │ 4. Apply seed:     │           │
-│  │                    │                     │    - Set partyId   │           │
-│  │                    │                     │    - Populate cache│           │
-│  │                    │                     │                    │           │
-│  │                    │  ◀───────────────── │ 5. Send SeedAck    │           │
-│  │                    │     { accepted }    │    { accepted: T } │           │
-│  │                    │                     │                    │           │
-│  │                    │◀════ Control Network Sync begins ═══════▶│           │
-│  │                    │                     │                    │           │
-│  └────────────────────┘                     └────────────────────┘           │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant I as Instigator (Authority)
+    participant N as New Node (listening on /sereus/seed/1.0.0)
+    I->>N: 1. Dial /sereus/seed/1.0.0
+    I->>N: 2. Send SeedMessage {partyId, peers, signature}
+    Note over N: 3. Validate: sig from peer in peers[]?
+    Note over N: 4. Apply seed: set partyId, populate cache
+    N->>I: 5. SeedAck {accepted: true}
+    I<<->>N: Control Network Sync begins
 ```
 
 **Message Types**:
@@ -630,42 +420,10 @@ Cadre nodes watch the control network's `Strand` table for changes. When a stran
 3. Bootstraps into the strand's cohort
 4. Begins participating in transactions
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Strand Lifecycle                               │
-│                                                                     │
-│  Control Network                    Cadre Node                      │
-│  ┌───────────────┐                 ┌───────────────┐               │
-│  │               │                 │               │               │
-│  │  INSERT INTO  │   watch event   │  Strand       │               │
-│  │  Strand (...)─┼────────────────▶│  Watcher      │               │
-│  │               │                 │       │       │               │
-│  └───────────────┘                 │       ▼       │               │
-│                                    │  ┌─────────┐  │               │
-│                                    │  │ Start   │  │               │
-│                                    │  │ Strand  │  │               │
-│                                    │  │ Instance│  │               │
-│                                    │  └────┬────┘  │               │
-│                                    │       │       │               │
-│                                    │       ▼       │               │
-│                                    │  libp2p node  │               │
-│                                    │  + Optimystic │               │
-│                                    │  + sApp Schema│               │
-│                                    └───────────────┘               │
-│                                                                     │
-│  ┌───────────────┐                 ┌───────────────┐               │
-│  │               │                 │               │               │
-│  │  DELETE FROM  │   watch event   │  Strand       │               │
-│  │  Strand (...) ┼────────────────▶│  Watcher      │               │
-│  │               │                 │       │       │               │
-│  └───────────────┘                 │       ▼       │               │
-│                                    │  ┌─────────┐  │               │
-│                                    │  │ Stop    │  │               │
-│                                    │  │ Strand  │  │               │
-│                                    │  │ Instance│  │               │
-│                                    │  └─────────┘  │               │
-│                                    └───────────────┘               │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    INS["INSERT INTO Strand (...)"] -->|watch event| SW1["Strand Watcher"] --> START["Start Instance<br/>libp2p + Optimystic + sApp Schema"]
+    DEL["DELETE FROM Strand (...)"] -->|watch event| SW2["Strand Watcher"] --> STOP["Stop Instance"]
 ```
 
 ### Strand Formation
@@ -677,42 +435,17 @@ When forming a new strand with another party, the bootstrap protocol (`strand-pr
 - **`StrandSolicitationService.formStrand(invitation, disclosure, node)`**: Initiates strand formation over the real protocol
 - **`CadreNode` high-level API**: `createOpenInvitation()`, `formStrand()`, `encodeInvitation()`, `decodeInvitation()`
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Strand Formation Flow                            │
-│                                                                     │
-│  Party A (Responder)              Party B (Initiator)              │
-│  ┌────────────────┐               ┌────────────────┐               │
-│  │                │               │                │               │
-│  │ FormationInvite│               │ Receives       │               │
-│  │ token created  │               │ invitation     │               │
-│  │                │               │ out-of-band    │               │
-│  └───────┬────────┘               └───────┬────────┘               │
-│          │                                │                         │
-│          │                                │ formStrand(token,       │
-│          │                                │   disclosure)           │
-│          │◀───────────────────────────────┤                         │
-│          │ Contact message                │                         │
-│          │                                │                         │
-│          │ Validate token                 │                         │
-│          │ Validate identity              │                         │
-│          │ Record FormationUsage          │                         │
-│          │                                │                         │
-│          │ Provision strand               │                         │
-│          │ (responderCreates mode)        │                         │
-│          │                                │                         │
-│          ├───────────────────────────────▶│                         │
-│          │ Response with strand info      │                         │
-│          │                                │                         │
-│          │                                │ Add to Strand table     │
-│          │                                │ (both parties)          │
-│          │                                │                         │
-│  ┌───────┴────────┐               ┌───────┴────────┐               │
-│  │ Strand row     │               │ Strand row     │               │
-│  │ triggers node  │               │ triggers node  │               │
-│  │ participation  │               │ participation  │               │
-│  └────────────────┘               └────────────────┘               │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant A as Party A (Responder)
+    participant B as Party B (Initiator)
+    Note over A: FormationInvite token created
+    Note over B: Receives invitation out-of-band
+    B->>A: formStrand(token, disclosure)
+    Note over A: Validate token, validate identity,<br/>record FormationUsage
+    Note over A: Provision strand (responderCreates mode)
+    A->>B: Response with strand info
+    Note over A,B: Both add to Strand table →<br/>triggers node participation
 ```
 
 ### Strand Hibernation
@@ -729,29 +462,12 @@ A party may participate in many strands (potentially hundreds), but most are ina
 
 **Activity-Based Transitions:**
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Strand State Machine                             │
-│                                                                     │
-│                         ┌────────────┐                              │
-│                         │   active   │◀─────────────────────────┐  │
-│                         └─────┬──────┘                          │  │
-│                               │                                  │  │
-│                   idle timeout (configurable)                   │  │
-│                               │                                  │  │
-│                               ▼                                  │  │
-│                         ┌────────────┐      incoming activity   │  │
-│                         │    idle    │──────────────────────────┘  │
-│                         └─────┬──────┘                             │
-│                               │                                     │
-│                    extended idle + backoff                         │
-│                               │                                     │
-│                               ▼                                     │
-│                         ┌────────────┐      wake signal            │
-│                         │hibernating │─────────────────────────────┘
-│                         └────────────┘                              │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+stateDiagram-v2
+    active --> idle : idle timeout (configurable)
+    idle --> active : incoming activity
+    idle --> hibernating : extended idle + backoff
+    hibernating --> active : wake signal
 ```
 
 **Idle Strand Behavior:**
@@ -784,39 +500,12 @@ Each strand operates as a completely isolated libp2p network. This isolation is 
 3. **Independent DHT**: Each strand's FRET overlay is scoped to its `networkName`
 4. **Separate storage namespace**: Each strand's Optimystic data is partitioned by strand ID
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Network Isolation Model                          │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                     Control Network                          │   │
-│  │         /optimystic/control-<party-id>                       │   │
-│  │                                                              │   │
-│  │  Peers: Only this party's cadre nodes                       │   │
-│  │  Data:  CadreControl schema                                  │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────┐   │
-│  │  Strand Network A │  │  Strand Network B │  │ Strand Net C  │   │
-│  │                   │  │                   │  │               │   │
-│  │ /optimystic/      │  │ /optimystic/      │  │ /optimystic/  │   │
-│  │  strand-<uuid-a>  │  │  strand-<uuid-b>  │  │ strand-<...>  │   │
-│  │                   │  │                   │  │               │   │
-│  │  Peers: Cohort A  │  │  Peers: Cohort B  │  │ Peers: Coh C  │   │
-│  │  (Party 1, 2, 3)  │  │  (Party 1, 4)     │  │ (Party 1, 5)  │   │
-│  │                   │  │                   │  │               │   │
-│  │  Data: sApp A     │  │  Data: sApp B     │  │ Data: sApp C  │   │
-│  │   (App schema)    │  │   (App schema)    │  │  (App schema) │   │
-│  │                   │  │                   │  │               │   │
-│  └───────────────────┘  └───────────────────┘  └───────────────┘   │
-│                                                                     │
-│  No cross-network communication. Each network has its own:         │
-│  • Connection pool                                                  │
-│  • Gossipsub mesh                                                   │
-│  • FRET routing table                                               │
-│  • Cluster coordination                                             │
-└─────────────────────────────────────────────────────────────────────┘
-```
+- **Control Network** (`/optimystic/control-<party-id>`): peers = only this party's cadre nodes; data = CadreControl schema
+- **Strand Network A** (`/optimystic/strand-<uuid-a>`): peers = Cohort A (Party 1, 2, 3); data = sApp A schema
+- **Strand Network B** (`/optimystic/strand-<uuid-b>`): peers = Cohort B (Party 1, 4); data = sApp B schema
+- ... and so on for each strand
+
+No cross-network communication. Each network has its own connection pool, gossipsub mesh, FRET routing table, and cluster coordination.
 
 ## Provider Integration
 
@@ -824,51 +513,25 @@ Cloud providers can host cadre nodes on behalf of users. The provider never has 
 
 ### Provider Flow
 
+```mermaid
+sequenceDiagram
+    participant U as User (Phone)
+    participant P as Provider API
+    participant C as Provider Container
+    U->>P: 1. Request container (payment)
+    P->>C: 2. Spawn container
+    C->>P: createCadrePeer() → PeerId
+    P->>U: 3. Return PeerId + multiaddr
+    Note over U: 4. authorizePeer (add to local control DB)<br/>5. createSeed()
+    U->>P: 6. POST /containers/:id/seed
+    P->>C: Forward seed
+    Note over C: applySeed() (populate cache)
+    U->>C: 7. Dial container (outbound, NAT-safe)
+    U<<->>C: Control Network Sync
+    Note over C: Watch Strand table
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Provider Enrollment Flow                         │
-│                                                                     │
-│  User (Phone)           Provider API           Provider Container   │
-│  ┌─────────┐            ┌─────────┐            ┌─────────────────┐ │
-│  │         │            │         │            │                 │ │
-│  │         │  1. Request│         │            │                 │ │
-│  │         │────────────▶         │            │                 │ │
-│  │         │  container │         │            │                 │ │
-│  │         │  (payment) │         │            │                 │ │
-│  │         │            │         │ 2. Spawn   │                 │ │
-│  │         │            │         │───────────▶│                 │ │
-│  │         │            │         │            │ createCadrePeer │ │
-│  │         │            │         │            │ (generates key) │ │
-│  │         │            │         │◀───────────│                 │ │
-│  │         │◀───────────│         │ 3. Return  │                 │ │
-│  │         │ PeerId +   │         │    PeerId  │                 │ │
-│  │         │ multiaddr  │         │            │                 │ │
-│  │         │            │         │            │                 │ │
-│  │ 4. authorizePeer     │         │            │                 │ │
-│  │    (add to local     │         │            │                 │ │
-│  │    control DB)       │         │            │                 │ │
-│  │                      │         │            │                 │ │
-│  │ 5. createSeed()      │         │            │                 │ │
-│  │                      │         │            │                 │ │
-│  │         │ 6. POST /containers/:id/seed      │                 │ │
-│  │         │────────────▶         │────────────▶│                 │ │
-│  │         │            │         │            │ applySeed()     │ │
-│  │         │            │         │            │ (populate cache)│ │
-│  │         │            │         │            │                 │ │
-│  │         │ 7. Dial container (outbound - NAT safe)             │ │
-│  │         │────────────────────────────────────────────────────▶│ │
-│  │         │            │         │            │                 │ │
-│  │         │◀═══════════ Control Network Sync ═══════════════════│ │
-│  │         │            │         │            │                 │ │
-│  │         │            │         │            │ Watch Strand    │ │
-│  │         │            │         │            │ table           │ │
-│  │         │            │         │            │                 │ │
-│  └─────────┘            └─────────┘            └─────────────────┘ │
-│                                                                     │
-│  Provider only sees: container ID, network traffic, opaque seed   │
-│  Provider never has: authority keys, strand data (encrypted)       │
-└─────────────────────────────────────────────────────────────────────┘
-```
+
+Provider only sees: container ID, network traffic, opaque seed. Provider never has: authority keys, strand data.
 
 ### Relay Integration
 
@@ -886,30 +549,16 @@ const seed = await cadreNode.createSeed();
 
 When both nodes are NAT'd (e.g., phone adding another phone), the seed includes relay addresses so the new node can dial through the relay:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     Phone (NAT) → Add Phone (NAT)                            │
-│                                                                              │
-│  Phone 1 (Authority)          Relay               Phone 2 (New Node)         │
-│  ┌────────────────┐         ┌──────┐            ┌────────────────┐           │
-│  │                │◀───────▶│      │            │                │           │
-│  │ Connected to   │         │      │            │ Receives seed  │           │
-│  │ relay          │         │      │            │ with relay addr│           │
-│  └───────┬────────┘         └──┬───┘            └───────┬────────┘           │
-│          │                     │                        │                    │
-│  Seed: { peers: [{             │                        │                    │
-│    phone1,                     │                        │                    │
-│    addrs: ["/dns4/.../        │                        │                    │
-│             p2p-circuit/       │                        │                    │
-│             p2p/<phone1>"]     │                        │                    │
-│  }]}                           │                        │                    │
-│          │                     │                        │                    │
-│          │                     │◀───── dial relay ──────┤                    │
-│          │◀── circuit relay ───┼────────────────────────┤                    │
-│          │                     │                        │                    │
-│          │◀═════════════ Control Network Sync ═════════▶│                    │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant P1 as Phone 1 (Authority)
+    participant R as Relay
+    participant P2 as Phone 2 (New)
+    Note over P1: Seed includes relay addr:<br/>/dns4/.../p2p-circuit/p2p/&lt;phone1&gt;
+    P1-->>R: Connected to relay
+    P2->>R: Dial relay (from seed addr)
+    R->>P1: Circuit relay connection
+    P1<<->>P2: Control Network Sync
 ```
 
 Once multiple nodes with public IPs exist in the cadre, the control network becomes more resilient and less dependent on relays.
@@ -918,110 +567,33 @@ Once multiple nodes with public IPs exist in the cadre, the control network beco
 
 ### Minimal (Single Phone)
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    Single Phone Cadre                            │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                      Phone                                │   │
-│  │                                                           │   │
-│  │  Control Network: Party's sole node                       │   │
-│  │  Profile: Transaction-only                                │   │
-│  │  Connectivity: Via relay when behind NAT                  │   │
-│  │                                                           │   │
-│  │  Strands: Participates in all, limited by battery/conn   │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  Limitations:                                                    │
-│  • No redundancy (phone offline = party unreachable)            │
-│  • No archival storage (transaction-only)                       │
-│  • Dependent on relays for inbound connectivity                 │
-└──────────────────────────────────────────────────────────────────┘
-```
+- **Phone** as sole cadre node: transaction-only profile, connectivity via relay when behind NAT, participates in all strands (limited by battery/connectivity)
+- Limitations: no redundancy (phone offline = party unreachable), no archival storage, relay-dependent for inbound connectivity
 
 ### Standard (Phone + Cloud Node)
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                  Phone + Cloud Cadre                             │
-│                                                                  │
-│  ┌────────────────────┐      ┌────────────────────────────────┐ │
-│  │       Phone        │      │        Cloud Node              │ │
-│  │                    │      │                                │ │
-│  │  Profile: Txn-only │◀────▶│  Profile: Storage              │ │
-│  │  Always has latest │      │  Always online                 │ │
-│  │  authority keys    │      │  Public IP (no relay needed)   │ │
-│  │                    │      │  Archival storage enabled      │ │
-│  └────────────────────┘      └────────────────────────────────┘ │
-│                                                                  │
-│  Benefits:                                                       │
-│  • Redundancy (either node can serve control network)           │
-│  • Storage capacity for strand data                             │
-│  • Cloud node bootstrap for new nodes/peers                     │
-└──────────────────────────────────────────────────────────────────┘
-```
+- **Phone** (transaction-only, has authority keys) ↔ **Cloud Node** (storage profile, always online, public IP, archival storage)
+- Benefits: redundancy (either can serve control network), storage capacity for strand data, cloud node as bootstrap for new nodes/peers
 
 ### Enterprise (Multi-Node Mixed)
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│               Enterprise Multi-Node Cadre                        │
-│                                                                  │
-│  ┌────────┐  ┌────────┐  ┌────────────┐  ┌─────────────────────┐│
-│  │ Phone  │  │ Laptop │  │ Cloud (x3) │  │ On-prem NAS (x2)   ││
-│  │        │  │        │  │            │  │                    ││
-│  │ Txn    │  │ Txn    │  │ Storage    │  │ Storage (primary)  ││
-│  │ only   │  │ only   │  │ (backup)   │  │                    ││
-│  └────────┘  └────────┘  └────────────┘  └─────────────────────┘│
-│                                                                  │
-│  Features:                                                       │
-│  • High availability (multiple always-on nodes)                 │
-│  • Geo-distributed storage                                      │
-│  • Key material secured on mobile devices                       │
-│  • Scales to many strands                                       │
-└──────────────────────────────────────────────────────────────────┘
-```
+- **Phone + Laptop** (transaction-only) · **Cloud ×3** (storage/backup) · **On-prem NAS ×2** (primary storage)
+- High availability (multiple always-on nodes), geo-distributed storage, key material secured on mobile, scales to many strands
 
 ## Package Structure
 
 The cadre system is implemented across several packages:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                       Package Hierarchy                             │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                    @sereus/cadre-core                        │   │
-│  │                                                              │   │
-│  │  Core library for any cadre member. Platform-agnostic.      │   │
-│  │                                                              │   │
-│  │  • CadreNode class (main entry point)                       │   │
-│  │  • Control network management                                │   │
-│  │  • Strand instance lifecycle                                 │   │
-│  │  • Enrollment API (createCadrePeer, seed bootstrap)         │   │
-│  │  • Profile configuration (transaction vs storage)           │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│        ┌─────────────────────┼─────────────────────┐               │
-│        │                     │                     │               │
-│        ▼                     ▼                     ▼               │
-│  ┌───────────────┐   ┌───────────────┐   ┌───────────────────────┐│
-│  │ @sereus/      │   │ Mobile        │   │ Container runtime     ││
-│  │ cadre-cli     │   │ integration   │   │ (provider-specific)   ││
-│  │               │   │ (app code)    │   │                       ││
-│  │ CLI wrapper   │   │               │   │ Docker entrypoint     ││
-│  │ for servers   │   │ React Native  │   │ Health checks         ││
-│  │               │   │ NativeScript  │   │ Provider enrollment   ││
-│  └───────────────┘   └───────────────┘   └───────────────────────┘│
-│                                                                     │
-│  Dependencies:                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ @optimystic/db-p2p    - libp2p node creation, networking    │   │
-│  │ @quereus/quereus      - SQL engine, schema management       │   │
-│  │ @optimystic/fret      - DHT routing                         │   │
-│  │ @sereus/strand-proto  - bootstrap protocol                  │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    CC["<b>@sereus/cadre-core</b><br/>Core library, platform-agnostic<br/>CadreNode, control network, strand lifecycle,<br/>enrollment API, seed bootstrap, profiles"]
+    CLI["<b>@sereus/cadre-cli</b><br/>CLI wrapper for servers"]
+    MOB["<b>Mobile integration</b><br/>React Native / NativeScript"]
+    CTR["<b>Container runtime</b><br/>Docker entrypoint, health checks,<br/>provider enrollment"]
+    CC --> CLI
+    CC --> MOB
+    CC --> CTR
+    CC -.->|depends on| DEP["@optimystic/db-p2p · @quereus/quereus<br/>@optimystic/fret · @sereus/strand-proto"]
 ```
 
 ## Key Data Structures
@@ -1050,9 +622,9 @@ interface CadreNodeConfig {
     | { mode: 'none' };                         // Control network only
 
   // Storage configuration (only for storage profile)
+  // Uses the provider pattern for cross-platform support (Node.js, React Native, etc.)
   storage?: {
-    type: 'memory' | 'file';
-    path?: string;
+    provider: IRawStorage | ((strandId: string) => IRawStorage);  // Storage instance or factory
     quotaBytes?: number;          // Maximum storage to use
   };
 
@@ -1061,7 +633,8 @@ interface CadreNodeConfig {
     listenAddrs?: string[];       // Addresses to listen on
     announceAddrs?: string[];     // Addresses to advertise
     relayAddrs?: string[];        // Relay servers to connect through
-    enableRelay?: boolean;        // Enable circuit relay server (default: true for storage profile)
+    enableRelay?: boolean;        // Enable circuit relay (default: true for storage profile)
+    transports?: Libp2pTransports; // Custom libp2p transports (default: TCP + relay)
   };
 
   // Hibernation configuration
@@ -1104,6 +677,71 @@ interface StrandInstance {
   latencyHint: 'realtime' | 'interactive' | 'background' | 'archive';
 }
 ```
+
+### Cross-Platform Storage Setup
+
+The storage provider pattern decouples cadre-core from any specific storage backend, enabling the same code to run on Node.js servers, React Native mobile apps, and in test environments.
+
+#### Node.js (Servers, CLI)
+
+```typescript
+import { CadreNode } from '@sereus/cadre-core';
+import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
+
+const node = new CadreNode({
+  // ...
+  storage: {
+    provider: (strandId) => new FileRawStorage(`/data/sereus/${strandId}`),
+    quotaBytes: 10 * 1024 * 1024 * 1024  // 10 GB
+  }
+});
+```
+
+#### React Native (Mobile)
+
+```typescript
+import { CadreNode } from '@sereus/cadre-core';
+import { RNRawStorage } from '@optimystic/db-p2p-storage-rn';
+import { webSockets } from '@libp2p/websockets';
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+
+const node = new CadreNode({
+  // ...
+  profile: 'transaction',
+  strandFilter: { mode: 'sAppId', sAppId: 'com.example.myapp' },
+  storage: {
+    provider: (strandId) => new RNRawStorage(strandId)
+  },
+  network: {
+    transports: [webSockets(), circuitRelayTransport()],
+    listenAddrs: []  // RN nodes typically cannot listen
+  }
+});
+```
+
+#### In-Memory (Testing)
+
+```typescript
+import { CadreNode } from '@sereus/cadre-core';
+import { MemoryRawStorage } from '@optimystic/db-p2p';
+
+const node = new CadreNode({
+  // ...
+  storage: {
+    provider: () => new MemoryRawStorage()
+  }
+});
+```
+
+#### Available Storage Implementations
+
+| Package | Environment | Class | Description |
+|---------|-------------|-------|-------------|
+| `@optimystic/db-p2p` | All | `MemoryRawStorage` | In-memory, for testing only |
+| `@optimystic/db-p2p-storage-fs` | Node.js | `FileRawStorage` | File system persistence |
+| `@optimystic/db-p2p-storage-rn` | React Native | `RNRawStorage` | AsyncStorage-based persistence |
+
+The `provider` field accepts either an `IRawStorage` instance (shared across all strands) or a factory function `(strandId: string) => IRawStorage` (recommended—creates isolated storage per strand). The factory pattern ensures each strand's data is partitioned, simplifying cleanup and preventing cross-strand interference.
 
 ## References
 
@@ -1252,10 +890,19 @@ Storage nodes should enforce capacity limits.
 
 ### Phase 5: Mobile Integration
 
-- [ ] **React Native bindings**
-  - [ ] Native module for libp2p (or JS implementation)
+**Status**: Core cross-platform support complete. `cadre-core` is platform-agnostic with pluggable storage providers.
+
+- [x] **Cross-platform storage provider pattern**
+  - [x] `@optimystic/db-p2p-storage-fs` for Node.js file system storage
+  - [x] `@optimystic/db-p2p-storage-rn` for React Native AsyncStorage
+  - [x] `MemoryRawStorage` for testing (any platform)
+  - [x] No Node.js-specific imports in `cadre-core` (no `fs`, `path`, etc.)
+
+- [ ] **React Native app integration**
+  - [x] `cadre-core` usable from React Native without native modules
   - [ ] Secure key storage (Keychain/Keystore)
   - [ ] Background service for always-on connectivity
+  - [x] WebSocket transport for libp2p (TCP not available in RN)
 
 - [ ] **Mobile-specific optimizations**
   - [ ] Battery-aware sync scheduling

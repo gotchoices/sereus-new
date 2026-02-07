@@ -9,7 +9,7 @@ import debug from 'debug';
 import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
 import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 import { toString as uint8ArrayToString } from 'uint8arrays';
-import { createLibp2pNode } from '@optimystic/db-p2p';
+import { createLibp2pNode, MemoryRawStorage } from '@optimystic/db-p2p';
 import { ControlDatabase } from '@sereus/cadre-core';
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
@@ -41,7 +41,7 @@ async function createTestNode(
     port,
     bootstrapNodes,
     networkName,
-    storageType: 'memory',
+    storage: () => new MemoryRawStorage(),
     fretProfile: profile === 'storage' ? 'core' : 'edge',
     clusterSize: 3,
     clusterPolicy: {

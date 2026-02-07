@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { 
-  CadreNodeConfig, 
-  StrandFilter, 
+import { MemoryRawStorage } from '@optimystic/db-p2p';
+import type {
+  CadreNodeConfig,
+  StrandFilter,
   StrandInstance,
   StrandRow,
   NodeProfile,
@@ -34,8 +35,7 @@ describe('Types', () => {
         profile: 'storage',
         strandFilter: { mode: 'all' },
         storage: {
-          type: 'file',
-          path: '/data/cadre',
+          provider: () => new MemoryRawStorage(),
           quotaBytes: 1024 * 1024 * 1024
         },
         network: {
@@ -52,7 +52,7 @@ describe('Types', () => {
 
       expect(config.privateKey).toEqual(new Uint8Array([1, 2, 3]));
       expect(config.profile).toBe('storage');
-      expect(config.storage?.type).toBe('file');
+      expect(config.storage?.provider).toBeDefined();
       expect(config.hibernation?.enabled).toBe(true);
     });
   });

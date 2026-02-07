@@ -7,6 +7,8 @@
 
 import type { Libp2p } from 'libp2p'
 import { multiaddr as toMultiaddr } from '@multiformats/multiaddr'
+import { pipe } from 'it-pipe'
+import { encode as lpEncode, decode as lpDecode } from 'it-length-prefixed'
 
 export const DEFAULT_PROTOCOL_ID = '/sereus/bootstrap/1.0.0'
 
@@ -21,12 +23,17 @@ export type BootstrapMode = 'responderCreates' | 'initiatorCreates'
 export type ListenerState = 'L_PROCESS_CONTACT' | 'L_SEND_RESPONSE' | 'L_AWAIT_DATABASE' | 'L_DONE' | 'L_FAILED'
 export type DialerState = 'D_SEND_CONTACT' | 'D_AWAIT_RESPONSE' | 'D_PROVISION_DATABASE' | 'D_DONE' | 'D_FAILED'
 
-// Minimal libp2p stream surface
-export interface LibP2PStream {
-  source: AsyncIterable<Uint8Array>
-  sink(source: AsyncIterable<Uint8Array>): Promise<void>
-  closeWrite?(): void
-  close?(): void
+/**
+ * Minimal libp2p stream surface compatible with libp2p 3.x.
+ * In libp2p 3.x, streams are AsyncIterable for reading and use send() for writing.
+ */
+export interface LibP2PStream extends AsyncIterable<Uint8Array> {
+  /** Send data to the stream (libp2p 3.x API) */
+  send(data: Uint8Array): boolean
+  /** Close the stream */
+  close(): Promise<void>
+  /** Abort the stream with an error */
+  abort?(err: Error): void
 }
 
 export interface SessionConfig {
@@ -86,46 +93,49 @@ export interface BootstrapResult {
   dbConnectionInfo: { endpoint: string, credentialsRef: string }
 }
 
-async function writeJson(stream: LibP2PStream, obj: unknown, closeAfter = false): Promise<void> {
+/**
+ * Write a JSON object to the stream using length-prefixed encoding.
+ * Length-prefixed encoding allows the receiver to know when a message ends
+ * without relying on stream close.
+ *
+ * Note: This function never closes the stream. Streams should be closed
+ * explicitly by the caller when all communication is complete.
+ */
+async function writeJson(stream: LibP2PStream, obj: unknown): Promise<void> {
   const jsonData = JSON.stringify(obj)
   const encoded = new TextEncoder().encode(jsonData)
-  async function* one() { yield encoded }
-  await stream.sink(one())
-  if (closeAfter) {
-    if (stream.closeWrite) stream.closeWrite()
-    else if (stream.close) stream.close()
+  // Use length-prefixed encoding to frame the message
+  const lpEncoded = pipe([encoded], lpEncode)
+  for await (const chunk of lpEncoded) {
+    stream.send(chunk.subarray())
   }
 }
 
-async function readJson<T = unknown>(stream: LibP2PStream): Promise<T> {
-  const decoder = new TextDecoder()
-  let message = ''
-  for await (const chunk of stream.source) {
-    // Some libp2p implementations yield iterables of Uint8Array "sub-chunks"
-    const maybeIterable = chunk as unknown as Iterable<Uint8Array>
-    if (chunk instanceof Uint8Array) {
-      message += decoder.decode(chunk, { stream: true })
-    } else if (maybeIterable && typeof (maybeIterable as any)[Symbol.iterator] === 'function') {
-      for (const part of maybeIterable) {
-        message += decoder.decode(part, { stream: true })
-      }
-    } else {
-      // Fallback: attempt to decode directly
-      // @ts-ignore
-      message += decoder.decode(chunk, { stream: true })
+/**
+ * Read a JSON object from the stream using length-prefixed decoding.
+ * Returns the first complete message received.
+ */
+async function readJson<T = unknown>(stream: LibP2PStream, debug?: boolean): Promise<T> {
+  try {
+    const decoder = new TextDecoder()
+    if (debug) console.debug('[readJson] starting to read from stream')
+    if (debug) console.debug('[readJson] stream type:', typeof stream, 'keys:', Object.keys(stream as any))
+    // Use length-prefixed decoding to read exactly one message
+    if (debug) console.debug('[readJson] calling lpDecode via pipe')
+    const decoded = pipe(stream, lpDecode)
+    if (debug) console.debug('[readJson] created decoded iterator, type:', typeof decoded)
+    if (debug) console.debug('[readJson] starting iteration')
+    for await (const data of decoded) {
+      if (debug) console.debug('[readJson] received data:', data.byteLength, 'bytes')
+      const message = decoder.decode(data.subarray())
+      if (debug) console.debug('[readJson] decoded message:', message.substring(0, 100))
+      return JSON.parse(message) as T
     }
-    // Try to parse incrementally to avoid hanging on streams that don't close
-    try {
-      const trimmed = message.trim()
-      if (trimmed.length > 0) {
-        return JSON.parse(trimmed) as T
-      }
-    } catch {
-      // keep buffering until valid JSON is received
-    }
+    throw new Error('Received empty data from stream')
+  } catch (err) {
+    if (debug) console.debug('[readJson] ERROR:', err)
+    throw err
   }
-  if (!message.trim()) throw new Error('Received empty data from stream')
-  return JSON.parse(message.trim()) as T
 }
 
 export class SessionManager {
@@ -150,8 +160,9 @@ export class SessionManager {
   // Helper to register/unregister libp2p protocol handlers
   register(node: Libp2p, protocolId?: string): void {
     const pid = protocolId || this.config.protocolId || DEFAULT_PROTOCOL_ID
-    node.handle(pid, async ({ stream }) => {
-      await this.handleNewStream(stream as any)
+    // In libp2p 3.x, StreamHandler receives (stream, connection) as separate arguments
+    node.handle(pid, async (stream: unknown) => {
+      await this.handleNewStream(stream as LibP2PStream)
     })
   }
   unregister(node: Libp2p, protocolId?: string): void {
@@ -161,7 +172,8 @@ export class SessionManager {
 
   async handleNewStream(stream: LibP2PStream): Promise<void> {
     if (this.listenerSessions.size >= this.config.maxConcurrentSessions) {
-      await writeJson(stream, { approved: false, reason: 'Too many concurrent sessions' }, true)
+      await writeJson(stream, { approved: false, reason: 'Too many concurrent sessions' })
+      await stream.close()
       return
     }
     const sessionId = this.generateSessionId()
@@ -213,17 +225,19 @@ export class ListenerSession {
         await this.sendResponse()
         if (tokenInfoToMode(this.tokenInfo!) === 'initiatorCreates') await this.awaitDatabase()
         this.transitionTo('L_DONE')
-        this.closeStream()
       })
     } catch (e) {
       this.transitionTo('L_FAILED', e)
       throw e
+    } finally {
+      // Always close the stream when the session is complete
+      this.closeStream()
     }
   }
 
   private async processContact(): Promise<void> {
     if (this.config.enableDebugLogging) console.debug(`[L:${this.sessionId}] processContact: waiting for contact`)
-    const msg = await this.withStepTimeout(() => readJson<InboundContactMessage>(this.stream))
+    const msg = await this.withStepTimeout(() => readJson<InboundContactMessage>(this.stream, this.config.enableDebugLogging))
     if (this.config.enableDebugLogging) console.debug(`[L:${this.sessionId}] received contact`, msg)
     this.contactMessage = msg
     const tokenInfo = await this.withStepTimeout(() => this.hooks.validateToken(msg.token, this.sessionId))
@@ -250,10 +264,10 @@ export class ListenerSession {
       cadrePeerAddrs: ['cadre-a-1.local', 'cadre-a-2.local'],
       provisionResult: this.provisionResult || undefined
     }
-    // Close write after sending to signal end-of-message to the peer
+    // Send response - don't close stream yet, caller handles stream lifecycle
     if (this.config.enableDebugLogging) console.debug(`[L:${this.sessionId}] sending response`, response)
-    await this.withStepTimeout(() => writeJson(this.stream, response, true))
-    if (this.config.enableDebugLogging) console.debug(`[L:${this.sessionId}] response sent and write-closed`)
+    await this.withStepTimeout(() => writeJson(this.stream, response))
+    if (this.config.enableDebugLogging) console.debug(`[L:${this.sessionId}] response sent`)
   }
 
   private async awaitDatabase(): Promise<void> {
@@ -273,8 +287,11 @@ export class ListenerSession {
     })
   }
   private withStepTimeout<T>(op: () => Promise<T>): Promise<T> { return this.withTimeout(this.config.stepTimeoutMs, op) }
-  private async sendRejection(reason: string): Promise<void> { await writeJson(this.stream, { approved: false, reason }, true) }
-  private closeStream(): void { try { this.stream.closeWrite?.(); this.stream.close?.() } catch {} }
+  private async sendRejection(reason: string): Promise<void> {
+    await writeJson(this.stream, { approved: false, reason })
+    await this.stream.close()
+  }
+  private closeStream(): void { try { this.stream.close?.() } catch {} }
 }
 
 export class DialerSession {
@@ -301,13 +318,15 @@ export class DialerSession {
           return await this.provisionAndSendDatabase()
         } else {
           if (!this.responseMessage.provisionResult) throw new Error('Missing provision result for responderCreates mode')
-          this.closeStream()
           return this.responseMessage.provisionResult
         }
       })
     } catch (e) {
       this.state = 'D_FAILED'
       throw e
+    } finally {
+      // Always close the stream when the session is complete
+      this.closeStream()
     }
   }
 
@@ -315,7 +334,7 @@ export class DialerSession {
     const responderAddr = toMultiaddr(this.link.responderPeerAddrs[0])
     const pid = this.link.protocolId || this.config.protocolId || DEFAULT_PROTOCOL_ID
     if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] dialing`, responderAddr.toString(), 'pid', pid)
-    const stream = await this.withStepTimeout(async () => (await this.node.dialProtocol(responderAddr, pid)) as LibP2PStream)
+    const stream = await this.withStepTimeout(async () => (await this.node.dialProtocol(responderAddr, pid)) as unknown as LibP2PStream)
     if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] dialed; sending contact`)
     const contact: InboundContactMessage = {
       token: this.link.token,
@@ -323,16 +342,16 @@ export class DialerSession {
       identityBundle: { partyId: this.sessionId },
       cadrePeerAddrs: ['cadre-b-1.local', 'cadre-b-2.local']
     }
-    // Close write to signal message boundary; keep read side open to receive response
-    await this.withStepTimeout(() => writeJson(stream, contact, true))
-    if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] contact sent and write-closed`)
+    // Send contact - don't close stream, we need to read the response
+    await this.withStepTimeout(() => writeJson(stream, contact))
+    if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] contact sent`)
     return stream
   }
 
   private async awaitResponse(): Promise<ProvisioningResultMessage> {
     if (!this.stream) throw new Error('No stream')
     if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] awaiting response`)
-    const response = await this.withStepTimeout(() => readJson<ProvisioningResultMessage>(this.stream!))
+    const response = await this.withStepTimeout(() => readJson<ProvisioningResultMessage>(this.stream!, this.config.enableDebugLogging))
     if (this.config.enableDebugLogging) console.debug(`[D:${this.sessionId}] response received`, response)
     if (!response.approved) throw new Error(`Bootstrap rejected: ${response.reason || 'No reason provided'}`)
     const ok = await this.withStepTimeout(() => this.hooks.validateResponse(response, this.sessionId))
@@ -352,8 +371,9 @@ export class DialerSession {
     const dbMsg: DatabaseResultMessage = { strand: provision.strand, dbConnectionInfo: provision.dbConnectionInfo }
     const pid = this.link.protocolId || this.config.protocolId || DEFAULT_PROTOCOL_ID
     const maddr = toMultiaddr(this.link.responderPeerAddrs[0])
-    const newStream = await this.withStepTimeout(async () => (await this.node.dialProtocol(maddr, pid)) as LibP2PStream)
-    await this.withStepTimeout(() => writeJson(newStream, dbMsg, true))
+    const newStream = await this.withStepTimeout(async () => (await this.node.dialProtocol(maddr, pid)) as unknown as LibP2PStream)
+    await this.withStepTimeout(() => writeJson(newStream, dbMsg))
+    await newStream.close()
     this.closeStream()
     return provision
   }
@@ -365,7 +385,7 @@ export class DialerSession {
     })
   }
   private withStepTimeout<T>(op: () => Promise<T>): Promise<T> { return this.withTimeout(this.config.stepTimeoutMs, op) }
-  private closeStream(): void { try { this.stream?.closeWrite?.(); this.stream?.close?.() } catch {} }
+  private closeStream(): void { try { this.stream?.close?.() } catch {} }
 }
 
 export function createBootstrapManager(hooks: SessionHooks, config?: Partial<SessionConfig>): SessionManager {
