@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Sereus P2P Chat",
+    "slug": "sereus-p2p-chat",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "scheme": "sereus-chat",
+    "newArchEnabled": true,
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "org.gotchoices.sereus.chat",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "org.gotchoices.sereus.chat",
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
+

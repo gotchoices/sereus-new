@@ -1,3 +1,5 @@
+You are focused on the Sereus monorepo, but have access to ../quereus and ../optimystic workspaces as well for reference and debugging.
+
 ## General Conventions
 
 - Use lowercase SQL reserved words for readability (e.g., `select * from Table`)

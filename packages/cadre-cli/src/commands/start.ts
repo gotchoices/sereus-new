@@ -53,6 +53,7 @@ export const startCommand = new Command('start')
   .option('--no-health-server', 'Disable health check and metrics servers')
   .option('--seed <encoded>', 'Apply a base64url-encoded seed on startup')
   .option('--listen-for-seeds', 'Enable the seed protocol listener for receiving seeds')
+  .option('--ws-port <port>', 'WebSocket listen port (convenience: appends /ip4/0.0.0.0/tcp/<port>/ws to listen addresses)')
   .action(async (options) => {
     if (options.debug) {
       debug.enable('cadre:*,sereus:*');
@@ -63,6 +64,21 @@ export const startCommand = new Command('start')
 
     try {
       const config = await resolveConfig(options.config);
+
+      // --ws-port convenience: append a WebSocket listen address
+      if (options.wsPort) {
+        const wsPort = parseInt(options.wsPort, 10);
+        if (isNaN(wsPort) || wsPort < 1 || wsPort > 65535) {
+          throw new Error(`Invalid WebSocket port: ${options.wsPort}`);
+        }
+        const wsAddr = `/ip4/0.0.0.0/tcp/${wsPort}/ws`;
+        if (!config.network) config.network = {};
+        if (!config.network.listenAddrs) config.network.listenAddrs = [];
+        if (!config.network.listenAddrs.includes(wsAddr)) {
+          config.network.listenAddrs.push(wsAddr);
+          log('Added WebSocket listen address: %s', wsAddr);
+        }
+      }
 
       const nodeConfig: CadreNodeConfig = {
         privateKey: config.privateKey,

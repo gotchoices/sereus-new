@@ -1,0 +1,53 @@
+# Drone node configuration for the Sereus P2P Chat reference app.
+#
+# This file is used with cadre-cli to run the always-on "drone" node that
+# the phone connects to via WebSocket.
+#
+# Usage:
+#   cd packages/cadre-cli
+#   npx cadre start -c ../reference-app-rn/drone.cadre.yaml --listen-for-seeds
+#
+# After starting the drone, note its Peer ID from the console output, then
+# use the phone's Settings screen to connect with:
+#   Party ID:       <same as controlNetwork.partyId below>
+#   Bootstrap addr: /ip4/<drone-ip>/tcp/4002/ws/p2p/<drone-peer-id>
+#
+# Two-node startup sequence:
+#   1. Start the drone:  npx cadre start -c drone.cadre.yaml --listen-for-seeds
+#   2. Open the Expo app on the phone
+#   3. In Settings, enter the Party ID and drone bootstrap addr, tap Connect
+#   4. Create a strand from the phone's Settings screen
+#   5. Start chatting!
+
+# Control network — must match the phone's Party ID
+controlNetwork:
+  partyId: "reference-chat-party"
+  # When the drone starts first it has no bootstrap peers; the phone
+  # discovers it via the bootstrap addr entered in Settings.
+  bootstrapNodes: []
+
+# Storage profile — always on, stores data for the phone when offline
+profile: storage
+
+# Participate in all strands the phone creates
+strandFilter: all
+
+# Persist strand data to disk
+storage:
+  type: file
+  path: ./data/reference-chat
+
+# Network — WebSocket listener + relay for NAT'd phones
+network:
+  listenAddrs:
+    # TCP for local / LAN peers
+    - "/ip4/0.0.0.0/tcp/4001"
+    # WebSocket for the React Native phone (required — RN can't do raw TCP)
+    - "/ip4/0.0.0.0/tcp/4002/ws"
+  # Enable relay so the drone can bridge connections for NAT'd phones
+  enableRelay: true
+
+# No hibernation — the drone stays hot so the phone can reconnect any time
+hibernation:
+  enabled: false
+

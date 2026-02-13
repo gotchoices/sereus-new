@@ -1,0 +1,17 @@
+-- Simplified chat schema for the reference app.
+-- No signature verification, no invite flow, no authorization constraints.
+-- Keeps the reference app focused on P2P plumbing rather than application-level crypto.
+
+table Member (
+    Id text primary key,
+    Name text not null check (length(Name) between 1 and 100)
+);
+
+table Message (
+    Id integer primary key,
+    MemberId text not null,
+    Content text not null,
+    Timestamp datetime not null,
+    foreign key (MemberId) references Member(Id)
+);
+
