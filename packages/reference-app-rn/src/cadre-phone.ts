@@ -7,14 +7,14 @@
  * - Authority role: the phone holds the signing keys
  */
 
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import type {
   CadreNodeConfig,
   ControlNetworkSeed,
   ApplySeedResult,
   StrandInstance,
   StrandConfig,
-} from '@sereus/cadre-core';
+} from '@serfab/cadre-core';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { MMKV } from 'react-native-mmkv';

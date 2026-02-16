@@ -5,7 +5,7 @@
  * helpers to create or join a chat strand.
  */
 
-import type { CadreNode, StrandInstance, SAppConfig, StrandRow } from '@sereus/cadre-core';
+import type { CadreNode, StrandInstance, SAppConfig, StrandRow } from '@serfab/cadre-core';
 
 // ── Embedded schema ──────────────────────────────────────────────────────────
 // Matches schemas/chat-simple.qsql.  Embedded as a string constant so the RN

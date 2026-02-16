@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { StrandInstance } from '@sereus/cadre-core';
+import type { StrandInstance } from '@serfab/cadre-core';
 import {
   insertMember,
   insertMessage,

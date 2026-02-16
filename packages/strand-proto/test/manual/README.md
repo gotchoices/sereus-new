@@ -8,7 +8,7 @@ Prerequisites:
 - Option A: Run with ts-node (recommended for quick trials)
   - Use `npx ts-node` (no global install required)
 - Option B: Build to JS and run with node
-  - Build: `yarn workspace @sereus/strand-proto build`
+  - Build: `yarn workspace @serfab/strand-proto build`
   - Then run compiled JS (you would need to copy or re-point these scripts; Option A is simpler).
 
 ## 1) Start the responder (listener)
@@ -43,6 +43,6 @@ Bootstrap result: { strand: { strandId: 'str-...', createdBy: 'responder' }, dbC
 
 Notes:
 - If you prefer, you can add `/p2p/<peerId>` to the address, but for local tests the bare TCP multiaddr is sufficient.
-- If your environment doesn’t have `ts-node`, install it or use `tsx`, or build with `yarn workspace @sereus/strand-proto build` and run equivalent compiled scripts.
+- If your environment doesn’t have `ts-node`, install it or use `tsx`, or build with `yarn workspace @serfab/strand-proto build` and run equivalent compiled scripts.
 
 

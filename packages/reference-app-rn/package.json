@@ -1,9 +1,10 @@
 {
-  "name": "@sereus/reference-app-rn",
+  "name": "@serfab/reference-app-rn",
   "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "eas-build-pre-install": "corepack enable && corepack prepare yarn@4.12.0 --activate",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -16,7 +17,7 @@
     "@optimystic/db-p2p": "^0.2.1",
     "@optimystic/db-p2p-storage-rn": "^0.2.1",
     "@quereus/quereus": "^0.16.3",
-    "@sereus/cadre-core": "workspace:^",
+    "@serfab/cadre-core": "workspace:^",
     "expo": "~53.0.0",
     "expo-constants": "~17.1.8",
     "expo-dev-client": "^6.0.20",

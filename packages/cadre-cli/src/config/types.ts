@@ -1,4 +1,4 @@
-import type { NodeProfile, LatencyHint, StrandFilter } from '@sereus/cadre-core';
+import type { NodeProfile, LatencyHint, StrandFilter } from '@serfab/cadre-core';
 
 /**
  * CLI configuration file format (YAML/JSON)

@@ -1,4 +1,4 @@
-# @sereus/cadre-core
+# @serfab/cadre-core
 
 Core library for Sereus cadre nodes—the infrastructure that enables parties to manage their personal cluster of nodes participating in distributed strand networks.
 
@@ -49,13 +49,13 @@ Each `CadreNode` instance:
 ## Installation
 
 ```bash
-npm install @sereus/cadre-core
+npm install @serfab/cadre-core
 ```
 
 ## Quick Start
 
 ```typescript
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
 
 const node = new CadreNode({
@@ -191,7 +191,7 @@ The main entry point for cadre participation.
 This package is compatible with React Native. For mobile apps, use the RN-specific storage provider:
 
 ```typescript
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import { RNRawStorage } from '@optimystic/db-p2p-storage-rn';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
@@ -240,7 +240,7 @@ Available storage implementations:
 
 ## Related Packages
 
-- **[@sereus/strand-proto](../strand-proto/)** - Strand initialization protocol
+- **[@serfab/strand-proto](../strand-proto/)** - Strand initialization protocol
 - **[@optimystic/db-core](https://github.com/gotchoices/optimystic)** - Distributed database core
 - **[@optimystic/db-p2p](https://github.com/gotchoices/optimystic)** - libp2p integration for Optimystic
 - **[@optimystic/db-p2p-storage-fs](https://github.com/gotchoices/optimystic)** - File system storage (Node.js)

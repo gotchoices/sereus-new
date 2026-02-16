@@ -1,4 +1,4 @@
-# @sereus/cadre-provider
+# @serfab/cadre-provider
 
 Reference provider service for hosting Sereus cadre nodes on behalf of users.
 
@@ -13,7 +13,7 @@ This package provides a complete provider API that enables:
 ## Installation
 
 ```bash
-npm install @sereus/cadre-provider
+npm install @serfab/cadre-provider
 ```
 
 ## Quick Start
@@ -34,7 +34,7 @@ cadre-provider start -c provider.yaml --debug
 ### Programmatic Usage
 
 ```typescript
-import { createProviderServer, loadConfig } from '@sereus/cadre-provider';
+import { createProviderServer, loadConfig } from '@serfab/cadre-provider';
 
 const config = loadConfig({ configFile: 'provider.yaml' });
 const server = await createProviderServer({ config });
@@ -100,7 +100,7 @@ storage:
 ## Custom Authentication
 
 ```typescript
-import { createProviderServer, loadConfig, type AuthHooks } from '@sereus/cadre-provider';
+import { createProviderServer, loadConfig, type AuthHooks } from '@serfab/cadre-provider';
 
 const authHooks: AuthHooks = {
   async validateJwt(token) {
@@ -121,7 +121,7 @@ const server = await createProviderServer({
 ## Custom Billing
 
 ```typescript
-import { createProviderServer, loadConfig, type BillingHooks } from '@sereus/cadre-provider';
+import { createProviderServer, loadConfig, type BillingHooks } from '@serfab/cadre-provider';
 
 const billingHooks: BillingHooks = {
   async processPayment(customerId, amountCents) {

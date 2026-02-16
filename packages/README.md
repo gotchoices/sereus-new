@@ -4,6 +4,6 @@ This folder contains **publishable Sereus libraries** (TypeScript packages) used
 
 Notes:
 - Packages are kept separate from `../ops/` (how to run services) and `../docs/` (design/protocol docs).
-- Current: `strand-proto/` (published as `@sereus/strand-proto`).
+- Current: `strand-proto/` (published as `@serfab/strand-proto`).
 
 

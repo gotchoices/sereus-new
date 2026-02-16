@@ -16,8 +16,8 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { MemoryRawStorage } from '@optimystic/db-p2p';
-import { CadreNode } from '@sereus/cadre-core';
-import type { CadreNodeConfig, StrandRow, StrandInstance } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
+import type { CadreNodeConfig, StrandRow, StrandInstance } from '@serfab/cadre-core';
 import { waitUntil, sleep } from '../harness/wait-utils.js';
 
 // ── Chat schema (mirrors reference-app-rn/src/chat-strand.ts) ──────────────

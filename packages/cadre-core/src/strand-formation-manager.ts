@@ -11,7 +11,7 @@ import {
   type BootstrapMode,
   type DialogParty,
   type ProvisionResult
-} from '@sereus/strand-proto';
+} from '@serfab/strand-proto';
 import type {
   OpenInvitation,
   FormStrandResult,

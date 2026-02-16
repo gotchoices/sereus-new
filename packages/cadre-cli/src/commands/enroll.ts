@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import debug from 'debug';
-import { EnrollmentService } from '@sereus/cadre-core';
+import { EnrollmentService } from '@serfab/cadre-core';
 import { toString as uint8ArrayToString } from 'uint8arrays';
 
 const log = debug('cadre:cli:enroll');

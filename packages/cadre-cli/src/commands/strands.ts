@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import debug from 'debug';
-import { CadreNode, type CadreNodeConfig, type StrandInstance, type StorageConfig } from '@sereus/cadre-core';
+import { CadreNode, type CadreNodeConfig, type StrandInstance, type StorageConfig } from '@serfab/cadre-core';
 import { MemoryRawStorage } from '@optimystic/db-p2p';
 import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
 import { resolveConfig, type ResolvedConfig } from '../config/index.js';

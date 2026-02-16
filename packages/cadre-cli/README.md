@@ -1,4 +1,4 @@
-# @sereus/cadre-cli
+# @serfab/cadre-cli
 
 CLI wrapper for Sereus cadre nodes - start, monitor, and manage cadre node instances.
 
@@ -6,7 +6,7 @@ CLI wrapper for Sereus cadre nodes - start, monitor, and manage cadre node insta
 
 ```bash
 # Install
-npm install -g @sereus/cadre-cli
+npm install -g @serfab/cadre-cli
 
 # Create identity
 cadre enroll create --output . --name my-node
@@ -22,7 +22,7 @@ Choose **one** installation method. Both produce the same CLI; npm is simpler, g
 ### Option A: npm (stable releases)
 
 ```bash
-npm install -g @sereus/cadre-cli
+npm install -g @serfab/cadre-cli
 ```
 
 For server deployments (non-global):
@@ -30,16 +30,16 @@ For server deployments (non-global):
 ```bash
 cd /opt/cadre
 npm init -y
-npm install @sereus/cadre-cli @sereus/cadre-core
+npm install @serfab/cadre-cli @serfab/cadre-core
 ```
 
 **Paths (npm):**
 | Item | Location |
 |------|----------|
 | CLI binary | `node_modules/.bin/cadre` or global `cadre` |
-| Example config | `node_modules/@sereus/cadre-cli/example.cadre.yaml` |
-| Systemd service | `node_modules/@sereus/cadre-cli/contrib/cadre-node.service` |
-| Install script | `node_modules/@sereus/cadre-cli/contrib/cadre-install.sh` |
+| Example config | `node_modules/@serfab/cadre-cli/example.cadre.yaml` |
+| Systemd service | `node_modules/@serfab/cadre-cli/contrib/cadre-node.service` |
+| Install script | `node_modules/@serfab/cadre-cli/contrib/cadre-install.sh` |
 
 ### Option B: Git clone (bleeding edge)
 
@@ -47,7 +47,7 @@ npm install @sereus/cadre-cli @sereus/cadre-core
 git clone https://github.com/anthropics/sereus.git /opt/sereus
 cd /opt/sereus
 npm install
-npm run build -w @sereus/cadre-core -w @sereus/cadre-cli
+npm run build -w @serfab/cadre-core -w @serfab/cadre-cli
 ```
 
 **Paths (git):**
@@ -64,7 +64,7 @@ npm run build -w @sereus/cadre-core -w @sereus/cadre-cli
 cd /opt/sereus
 git pull
 npm install
-npm run build -w @sereus/cadre-core -w @sereus/cadre-cli
+npm run build -w @serfab/cadre-core -w @serfab/cadre-cli
 sudo systemctl restart cadre-node  # if running as service
 ```
 
@@ -183,7 +183,7 @@ The steps below use variables for paths. Set them based on your installation met
 # For npm install:
 CADRE_ROOT="/opt/cadre"
 CADRE_BIN="$CADRE_ROOT/node_modules/.bin/cadre"
-CADRE_PKG="$CADRE_ROOT/node_modules/@sereus/cadre-cli"
+CADRE_PKG="$CADRE_ROOT/node_modules/@serfab/cadre-cli"
 
 # For git clone:
 CADRE_ROOT="/opt/sereus"
@@ -206,7 +206,7 @@ sudo chown cadre:cadre /var/lib/cadre
 ```bash
 cd /opt/cadre
 sudo npm init -y
-sudo npm install @sereus/cadre-cli @sereus/cadre-core
+sudo npm install @serfab/cadre-cli @serfab/cadre-core
 ```
 
 **git method:**
@@ -215,7 +215,7 @@ sudo npm install @sereus/cadre-cli @sereus/cadre-core
 sudo git clone https://github.com/anthropics/sereus.git /opt/sereus
 cd /opt/sereus
 sudo npm install
-sudo npm run build -w @sereus/cadre-core -w @sereus/cadre-cli
+sudo npm run build -w @serfab/cadre-core -w @serfab/cadre-cli
 sudo chown -R root:root /opt/sereus
 ```
 
@@ -247,7 +247,7 @@ sudo -u cadre $CADRE_BIN enroll create --output /etc/cadre --name cadre-peer
 sudo cp "$CADRE_PKG/contrib/cadre-node.service" /etc/systemd/system/
 
 # For git installs, update the ExecStart path:
-# sudo sed -i 's|/opt/cadre/node_modules/@sereus/cadre-cli|/opt/sereus/packages/cadre-cli|' \
+# sudo sed -i 's|/opt/cadre/node_modules/@serfab/cadre-cli|/opt/sereus/packages/cadre-cli|' \
 #   /etc/systemd/system/cadre-node.service
 # sudo sed -i 's|WorkingDirectory=/opt/cadre|WorkingDirectory=/opt/sereus|' \
 #   /etc/systemd/system/cadre-node.service
@@ -291,7 +291,7 @@ Edit `/etc/systemd/system/cadre-node.service` to customize resource limits.
 See [docker/README.md](./docker/) for Docker Compose deployment, or use:
 
 ```bash
-cd packages/cadre-cli/docker  # or node_modules/@sereus/cadre-cli/docker
+cd packages/cadre-cli/docker  # or node_modules/@serfab/cadre-cli/docker
 cp env.example .env
 # Edit .env with CADRE_PARTY_ID and CADRE_BOOTSTRAP_NODES
 docker compose up -d
@@ -300,8 +300,8 @@ docker compose up -d
 ## Programmatic Usage
 
 ```typescript
-import { resolveConfig } from '@sereus/cadre-cli';
-import { CadreNode } from '@sereus/cadre-core';
+import { resolveConfig } from '@serfab/cadre-cli';
+import { CadreNode } from '@serfab/cadre-core';
 
 const config = await resolveConfig('cadre.yaml');
 const node = new CadreNode(config);

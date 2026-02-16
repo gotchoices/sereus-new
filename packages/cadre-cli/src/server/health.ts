@@ -1,6 +1,6 @@
 import http from 'node:http';
 import debug from 'debug';
-import type { CadreNode } from '@sereus/cadre-core';
+import type { CadreNode } from '@serfab/cadre-core';
 
 const log = debug('cadre:cli:health');
 

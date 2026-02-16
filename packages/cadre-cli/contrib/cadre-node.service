@@ -23,7 +23,7 @@ Environment="NODE_OPTIONS=--max-old-space-size=4096"
 # Environment="DEBUG=sereus:*"
 
 # Start command
-ExecStart=/usr/bin/node /opt/cadre/node_modules/@sereus/cadre-cli/dist/bin/cadre.js start -c ${CADRE_CONFIG}
+ExecStart=/usr/bin/node /opt/cadre/node_modules/@serfab/cadre-cli/dist/bin/cadre.js start -c ${CADRE_CONFIG}
 
 # Restart policy
 Restart=on-failure

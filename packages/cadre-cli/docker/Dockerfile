@@ -27,8 +27,8 @@ COPY packages/cadre-cli/src packages/cadre-cli/src
 COPY packages/cadre-cli/tsconfig.json packages/cadre-cli/tsconfig.build.json packages/cadre-cli/
 
 # Build packages
-RUN npm run build -w @sereus/cadre-core
-RUN npm run build -w @sereus/cadre-cli
+RUN npm run build -w @serfab/cadre-core
+RUN npm run build -w @serfab/cadre-cli
 
 # ============================================================================
 # Stage 2: Production

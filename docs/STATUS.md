@@ -73,7 +73,7 @@ Conventions:
   - [x] `sereus/ops/docs/keys.md`
 - [ ] If yes: propose target layout (one of):
   - [ ] `sereus/ops/node-apps/{relay,bootstrap,bootstrap-relay}` + `sereus/ops/node-apps/lib/` for shared utilities
-  - [ ] `sereus/packages/@sereus/libp2p-infra` (publishable) + thin wrappers in `ops/*`
+  - [ ] `sereus/packages/@serfab/libp2p-infra` (publishable) + thin wrappers in `ops/*`
 - [ ] Identify what should be shared vs per-role:
   - [ ] key persistence + Peer ID printing
   - [ ] listen/announce address handling
@@ -135,10 +135,10 @@ Conventions:
 
 ### Packages scaffold
 - [x] Create `sereus/packages/` and `sereus/packages/README.md`
-- [x] Move `sereus/bootstrap/` → `sereus/packages/strand-proto/` and rename npm package to `@sereus/strand-proto`
+- [x] Move `sereus/bootstrap/` → `sereus/packages/strand-proto/` and rename npm package to `@serfab/strand-proto`
 - [x] Update docs that referenced the old path (`sereus/docs/strand-proto.md`, manual test README)
 
-## libp2p Strand Bootstrap Library (`@sereus/strand-proto`)
+## libp2p Strand Bootstrap Library (`@serfab/strand-proto`)
 
 - [x] Keep protocol id default `'/sereus/bootstrap/1.0.0'` with override options
 - [ ] Add diagrams to `sereus/docs/strand-proto.md`
@@ -182,7 +182,7 @@ Goal: define and implement how a **cohort** (all nodes belonging to a strand) is
 
 ## Testing / CI
 
-- [ ] Wire `@sereus/strand-proto` tests into workspace CI
+- [ ] Wire `@serfab/strand-proto` tests into workspace CI
 - [ ] Add root-level scripts for running package tests consistently (Yarn workspace)
 
 

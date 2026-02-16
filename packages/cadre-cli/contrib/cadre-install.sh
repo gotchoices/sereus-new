@@ -32,12 +32,12 @@ chmod 755 "$CONFIG_DIR"
 echo "Installing Node.js packages..."
 cd "$INSTALL_DIR"
 npm init -y
-npm install @sereus/cadre-cli @sereus/cadre-core
+npm install @serfab/cadre-cli @serfab/cadre-core
 
 # Copy example config if none exists
 if [ ! -f "$CONFIG_DIR/cadre.yaml" ]; then
     echo "Creating example configuration..."
-    cp "$INSTALL_DIR/node_modules/@sereus/cadre-cli/example.cadre.yaml" "$CONFIG_DIR/cadre.yaml"
+    cp "$INSTALL_DIR/node_modules/@serfab/cadre-cli/example.cadre.yaml" "$CONFIG_DIR/cadre.yaml"
     
     # Update paths in config
     sed -i 's|path: ./data|path: /var/lib/cadre|g' "$CONFIG_DIR/cadre.yaml"
@@ -49,7 +49,7 @@ fi
 
 # Install systemd service
 echo "Installing systemd service..."
-cp "$INSTALL_DIR/node_modules/@sereus/cadre-cli/contrib/cadre-node.service" /etc/systemd/system/
+cp "$INSTALL_DIR/node_modules/@serfab/cadre-cli/contrib/cadre-node.service" /etc/systemd/system/
 systemctl daemon-reload
 
 echo ""

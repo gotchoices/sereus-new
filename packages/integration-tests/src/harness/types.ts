@@ -4,7 +4,7 @@
 
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
-import type { ControlDatabase } from '@sereus/cadre-core';
+import type { ControlDatabase } from '@serfab/cadre-core';
 
 /**
  * Represents a party (person/organization) in the Sereus network.

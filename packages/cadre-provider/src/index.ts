@@ -1,12 +1,12 @@
 /**
- * @sereus/cadre-provider - Reference provider service for hosting Sereus cadre nodes.
+ * @serfab/cadre-provider - Reference provider service for hosting Sereus cadre nodes.
  *
  * This package provides a production-ready provider API that can be deployed
  * independently or embedded in existing applications.
  *
  * @example
  * ```typescript
- * import { createProviderServer, loadConfig } from '@sereus/cadre-provider';
+ * import { createProviderServer, loadConfig } from '@serfab/cadre-provider';
  *
  * const config = loadConfig({ overrides: { server: { port: 8080 } } });
  * const server = await createProviderServer({ config });
@@ -16,7 +16,7 @@
  * @example
  * ```typescript
  * // With custom authentication
- * import { createProviderServer, loadConfig, type AuthHooks } from '@sereus/cadre-provider';
+ * import { createProviderServer, loadConfig, type AuthHooks } from '@serfab/cadre-provider';
  *
  * const authHooks: AuthHooks = {
  *   async validateJwt(token) {

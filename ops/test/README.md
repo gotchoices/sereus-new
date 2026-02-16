@@ -12,21 +12,21 @@ These scripts are meant for ops validation of:
 From the repo root:
 
 ```bash
-yarn workspace @sereus/ops-test check-node -- --target /dnsaddr/relay.sereus.org --relay
-yarn workspace @sereus/ops-test check-node -- --target /dnsaddr/bootstrap.sereus.org --dht
-yarn workspace @sereus/ops-test check-node -- --target /dnsaddr/bootstrap.sereus.org --dht --all
+yarn workspace @serfab/ops-test check-node -- --target /dnsaddr/relay.sereus.org --relay
+yarn workspace @serfab/ops-test check-node -- --target /dnsaddr/bootstrap.sereus.org --dht
+yarn workspace @serfab/ops-test check-node -- --target /dnsaddr/bootstrap.sereus.org --dht --all
 ```
 
 If your local DNS resolver can’t see the `_dnsaddr` record yet (propagation/caching), force DoH:
 
 ```bash
-yarn workspace @sereus/ops-test check-node -- --target /dnsaddr/relay.sereus.org --relay --dns-mode doh
+yarn workspace @serfab/ops-test check-node -- --target /dnsaddr/relay.sereus.org --relay --dns-mode doh
 ```
 
 You can also pass a concrete multiaddr (must include `/p2p/<peerId>`), e.g.:
 
 ```bash
-yarn workspace @sereus/ops-test check-node -- --target /ip4/203.0.113.10/tcp/4001/p2p/12D3KooW...
+yarn workspace @serfab/ops-test check-node -- --target /ip4/203.0.113.10/tcp/4001/p2p/12D3KooW...
 ```
 
 ### What it checks
@@ -56,12 +56,12 @@ Run (on two devices):
 
 ```bash
 # Listener machine
-yarn workspace @sereus/ops-test pair:listen -- \
+yarn workspace @serfab/ops-test pair:listen -- \
   --relay /dnsaddr/relay.sereus.org \
   --bootstrap /dnsaddr/bootstrap.sereus.org
 
 # Dialer machine (after copying printed PEER_ID from listener)
-yarn workspace @sereus/ops-test pair:dial -- \
+yarn workspace @serfab/ops-test pair:dial -- \
   --bootstrap /dnsaddr/bootstrap.sereus.org \
   --peer <LISTENER_PEER_ID>
 ```
@@ -74,7 +74,7 @@ Start simple, then add discovery:
 - Dialer:
 
 ```bash
-yarn workspace @sereus/ops-test pair:dial -- \
+yarn workspace @serfab/ops-test pair:dial -- \
   --bootstrap /dnsaddr/bootstrap.sereus.org \
   --dial-addr "<PASTE_FROM_LISTENER>"
 ```
@@ -82,7 +82,7 @@ yarn workspace @sereus/ops-test pair:dial -- \
 2) **Relay synthesis fallback** (still no DHT discovery, but less copy/paste)
 
 ```bash
-yarn workspace @sereus/ops-test pair:dial -- \
+yarn workspace @serfab/ops-test pair:dial -- \
   --bootstrap /dnsaddr/bootstrap.sereus.org \
   --peer <LISTENER_PEER_ID> \
   --relay /dnsaddr/relay.sereus.org

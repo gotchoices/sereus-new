@@ -185,7 +185,7 @@ packages/reference-app-rn/
 
 | Package | Source | Purpose |
 |---------|--------|---------|
-| `@sereus/cadre-core` | `workspace:^` | CadreNode, seed bootstrap, strand management |
+| `@serfab/cadre-core` | `workspace:^` | CadreNode, seed bootstrap, strand management |
 | `@optimystic/db-p2p` | npm | libp2p node creation (Metro resolves RN entrypoint) |
 | `@optimystic/db-p2p-storage-rn` | npm | MMKV-backed `IRawStorage` |
 | `@quereus/quereus` | npm | SQL engine for sApp schema |

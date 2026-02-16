@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import debug from 'debug';
-import type { StrandFilter } from '@sereus/cadre-core';
+import type { StrandFilter } from '@serfab/cadre-core';
 import { CliConfigFile, ResolvedConfig, ENV_MAPPINGS } from './types.js';
 
 const log = debug('cadre:cli:config');

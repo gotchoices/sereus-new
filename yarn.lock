@@ -5373,13 +5373,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sereus/cadre-cli@workspace:packages/cadre-cli":
+"@serfab/cadre-cli@workspace:packages/cadre-cli":
   version: 0.0.0-use.local
-  resolution: "@sereus/cadre-cli@workspace:packages/cadre-cli"
+  resolution: "@serfab/cadre-cli@workspace:packages/cadre-cli"
   dependencies:
     "@optimystic/db-p2p": "npm:^0.2.1"
     "@optimystic/db-p2p-storage-fs": "npm:^0.2.1"
-    "@sereus/cadre-core": "workspace:^"
+    "@serfab/cadre-core": "workspace:^"
     "@types/debug": "npm:^4.1.12"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^25.0.10"
@@ -5396,9 +5396,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/cadre-core@workspace:*, @sereus/cadre-core@workspace:^, @sereus/cadre-core@workspace:packages/cadre-core":
+"@serfab/cadre-core@workspace:*, @serfab/cadre-core@workspace:^, @serfab/cadre-core@workspace:packages/cadre-core":
   version: 0.0.0-use.local
-  resolution: "@sereus/cadre-core@workspace:packages/cadre-core"
+  resolution: "@serfab/cadre-core@workspace:packages/cadre-core"
   dependencies:
     "@chainsafe/libp2p-noise": "npm:^17.0.0"
     "@chainsafe/libp2p-yamux": "npm:^8.0.1"
@@ -5412,7 +5412,7 @@ __metadata:
     "@optimystic/quereus-plugin-crypto": "npm:^0.4.1"
     "@optimystic/quereus-plugin-optimystic": "npm:^0.4.1"
     "@quereus/quereus": "npm:^0.16.3"
-    "@sereus/strand-proto": "workspace:^"
+    "@serfab/strand-proto": "workspace:^"
     "@types/debug": "npm:^4.1.12"
     "@types/node": "npm:^25.0.10"
     aegir: "npm:^45.2.1"
@@ -5425,12 +5425,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/cadre-provider@workspace:packages/cadre-provider":
+"@serfab/cadre-provider@workspace:packages/cadre-provider":
   version: 0.0.0-use.local
-  resolution: "@sereus/cadre-provider@workspace:packages/cadre-provider"
+  resolution: "@serfab/cadre-provider@workspace:packages/cadre-provider"
   dependencies:
     "@fastify/cors": "npm:^11.2.0"
-    "@sereus/cadre-core": "workspace:^"
+    "@serfab/cadre-core": "workspace:^"
     "@types/debug": "npm:^4.1.12"
     "@types/dockerode": "npm:^3.3.31"
     "@types/js-yaml": "npm:^4.0.9"
@@ -5450,9 +5450,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/integration-tests@workspace:packages/integration-tests":
+"@serfab/integration-tests@workspace:packages/integration-tests":
   version: 0.0.0-use.local
-  resolution: "@sereus/integration-tests@workspace:packages/integration-tests"
+  resolution: "@serfab/integration-tests@workspace:packages/integration-tests"
   dependencies:
     "@chainsafe/libp2p-noise": "npm:^17.0.0"
     "@chainsafe/libp2p-yamux": "npm:^8.0.1"
@@ -5468,7 +5468,7 @@ __metadata:
     "@optimystic/quereus-plugin-crypto": "npm:^0.4.1"
     "@optimystic/quereus-plugin-optimystic": "npm:^0.4.1"
     "@quereus/quereus": "npm:^0.16.0"
-    "@sereus/cadre-core": "workspace:*"
+    "@serfab/cadre-core": "workspace:*"
     "@types/debug": "npm:^4.1.12"
     "@types/node": "npm:^25.0.10"
     debug: "npm:^4.4.3"
@@ -5480,16 +5480,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/reference-app-rn@workspace:packages/reference-app-rn":
+"@serfab/reference-app-rn@workspace:packages/reference-app-rn":
   version: 0.0.0-use.local
-  resolution: "@sereus/reference-app-rn@workspace:packages/reference-app-rn"
+  resolution: "@serfab/reference-app-rn@workspace:packages/reference-app-rn"
   dependencies:
     "@libp2p/circuit-relay-v2": "npm:^4.1.3"
     "@libp2p/websockets": "npm:^10.1.3"
     "@optimystic/db-p2p": "npm:^0.2.1"
     "@optimystic/db-p2p-storage-rn": "npm:^0.2.1"
     "@quereus/quereus": "npm:^0.16.3"
-    "@sereus/cadre-core": "workspace:^"
+    "@serfab/cadre-core": "workspace:^"
     "@types/react": "npm:~19.0.10"
     expo: "npm:~53.0.0"
     expo-constants: "npm:~17.1.8"
@@ -5506,9 +5506,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@sereus/strand-proto@workspace:^, @sereus/strand-proto@workspace:packages/strand-proto":
+"@serfab/strand-proto@workspace:^, @serfab/strand-proto@workspace:packages/strand-proto":
   version: 0.0.0-use.local
-  resolution: "@sereus/strand-proto@workspace:packages/strand-proto"
+  resolution: "@serfab/strand-proto@workspace:packages/strand-proto"
   dependencies:
     "@chainsafe/libp2p-noise": "npm:^17.0.0"
     "@chainsafe/libp2p-yamux": "npm:^8.0.1"

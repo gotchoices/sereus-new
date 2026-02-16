@@ -59,7 +59,7 @@ Each strand is an independent Optimystic network with its own:
 
 ### Cadre Node
 
-A cadre node is a running instance of the `@sereus/cadre-core` library. Each node:
+A cadre node is a running instance of the `@serfab/cadre-core` library. Each node:
 
 1. **Connects to the control network** using its PeerId and authorized bootstrap addresses
 2. **Watches the `Strand` table** for changes (reactive pattern - which is a TODO for Optimystic so we'll have to poll for now)
@@ -586,14 +586,14 @@ The cadre system is implemented across several packages:
 
 ```mermaid
 graph TD
-    CC["<b>@sereus/cadre-core</b><br/>Core library, platform-agnostic<br/>CadreNode, control network, strand lifecycle,<br/>enrollment API, seed bootstrap, profiles"]
-    CLI["<b>@sereus/cadre-cli</b><br/>CLI wrapper for servers"]
+    CC["<b>@serfab/cadre-core</b><br/>Core library, platform-agnostic<br/>CadreNode, control network, strand lifecycle,<br/>enrollment API, seed bootstrap, profiles"]
+    CLI["<b>@serfab/cadre-cli</b><br/>CLI wrapper for servers"]
     MOB["<b>Mobile integration</b><br/>React Native / NativeScript"]
     CTR["<b>Container runtime</b><br/>Docker entrypoint, health checks,<br/>provider enrollment"]
     CC --> CLI
     CC --> MOB
     CC --> CTR
-    CC -.->|depends on| DEP["@optimystic/db-p2p · @quereus/quereus<br/>@optimystic/fret · @sereus/strand-proto"]
+    CC -.->|depends on| DEP["@optimystic/db-p2p · @quereus/quereus<br/>@optimystic/fret · @serfab/strand-proto"]
 ```
 
 ## Key Data Structures
@@ -685,7 +685,7 @@ The storage provider pattern decouples cadre-core from any specific storage back
 #### Node.js (Servers, CLI)
 
 ```typescript
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
 
 const node = new CadreNode({
@@ -700,7 +700,7 @@ const node = new CadreNode({
 #### React Native (Mobile)
 
 ```typescript
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import { RNRawStorage } from '@optimystic/db-p2p-storage-rn';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
@@ -722,7 +722,7 @@ const node = new CadreNode({
 #### In-Memory (Testing)
 
 ```typescript
-import { CadreNode } from '@sereus/cadre-core';
+import { CadreNode } from '@serfab/cadre-core';
 import { MemoryRawStorage } from '@optimystic/db-p2p';
 
 const node = new CadreNode({
@@ -770,7 +770,7 @@ The `provider` field accepts either an `IRawStorage` instance (shared across all
 
 ## Implementation Status
 
-### `@sereus/cadre-core` (Complete)
+### `@serfab/cadre-core` (Complete)
 
 - **CadreNode**: Main entry point with `start()`/`stop()` lifecycle, event emission, control network management
 - **StrandWatcher**: Poll-based monitoring of `Strand` table with configurable filters (`all`, `sAppId`, `strandId`, `none`)
@@ -782,7 +782,7 @@ The `provider` field accepts either an `IRawStorage` instance (shared across all
 - **Hibernation**: Activity-based lifecycle with latency hints (`realtime`, `interactive`, `background`, `archive`), configurable timeouts, exponential backoff check-in
 - **Profile Configuration**: Transaction vs storage mode with FRET profile mapping
 
-### `@sereus/cadre-cli` (Complete)
+### `@serfab/cadre-cli` (Complete)
 
 - CLI commands: `cadre start`, `cadre status`, `cadre enroll`, `cadre strands`
 - YAML/JSON config with environment variable overrides
@@ -795,7 +795,7 @@ The `provider` field accepts either an `IRawStorage` instance (shared across all
 - Provider integration: enrollment token, status reporting, metrics, seed delivery
 - Docker Compose template with volume and network configuration
 
-### `@sereus/cadre-provider` (Complete)
+### `@serfab/cadre-provider` (Complete)
 
 - Provider API: container CRUD, billing plans/status, seed delivery, peer info
 - Billing integration: usage metering, Stripe-ready hooks, quota enforcement
@@ -872,7 +872,7 @@ Storage nodes should enforce capacity limits.
 | **7 - Low** | Ring/quota enforcement | Blocked on Arachnode anyway |
 
 
-### Phase 2: CLI Wrapper (`@sereus/cadre-cli`)
+### Phase 2: CLI Wrapper (`@serfab/cadre-cli`)
 
 **Status**: Complete.
 
@@ -880,7 +880,7 @@ Storage nodes should enforce capacity limits.
 
 **Status**: Complete.
 
-### Phase 4: Provider Service (`@sereus/cadre-provider`)
+### Phase 4: Provider Service (`@serfab/cadre-provider`)
 
 **Status**: Core functionality complete. Remaining items are optional enhancements.
 

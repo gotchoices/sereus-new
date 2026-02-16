@@ -6,7 +6,7 @@
  * DDL in `declare schema App { … }; apply schema App;`).
  */
 
-import type { StrandInstance } from '@sereus/cadre-core';
+import type { StrandInstance } from '@serfab/cadre-core';
 import type { Database } from '@quereus/quereus';
 
 // ── Types ────────────────────────────────────────────────────────────────────

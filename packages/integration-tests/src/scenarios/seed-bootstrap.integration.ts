@@ -13,7 +13,7 @@ import { generateKeyPair } from '@libp2p/crypto/keys';
 import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 import { toString as uint8ArrayToString } from 'uint8arrays';
 import { TestCadreNetwork } from '../harness/index.js';
-import { SeedBootstrapService } from '@sereus/cadre-core';
+import { SeedBootstrapService } from '@serfab/cadre-core';
 
 /**
  * Extract raw Ed25519 private key from libp2p protobuf format and encode as base64url.

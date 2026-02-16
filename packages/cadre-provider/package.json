@@ -1,5 +1,5 @@
 {
-  "name": "@sereus/cadre-provider",
+  "name": "@serfab/cadre-provider",
   "version": "0.0.1",
   "type": "module",
   "description": "Reference provider service for hosting Sereus cadre nodes on behalf of users",
@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
-    "@sereus/cadre-core": "workspace:^",
+    "@serfab/cadre-core": "workspace:^",
     "commander": "^14.0.2",
     "debug": "^4.4.3",
     "dockerode": "^4.0.9",
