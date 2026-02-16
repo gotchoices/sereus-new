@@ -99,6 +99,17 @@ export class StrandDatabase {
     );
     log('Registered libp2p node with collection factory');
 
+    // Set optimystic as the default virtual table module so that
+    // `declare schema` tables (which omit USING) are backed by optimystic
+    // instead of the built-in memory module.
+    this.db.setDefaultVtabName('optimystic');
+    this.db.setDefaultVtabArgs({
+      networkName,
+      transactor: 'network',
+      keyNetwork: 'libp2p',
+    });
+    log('Set default vtab to optimystic (networkName=%s)', networkName);
+
     // Execute the sApp schema DDL
     await this.executeSchema();
 

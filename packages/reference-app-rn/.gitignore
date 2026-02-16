@@ -1,0 +1,11 @@
+# Native build artifacts (use EAS Build for cloud compilation)
+android/
+ios/
+
+# Expo
+.expo/
+dist/
+
+# Node
+node_modules/
+

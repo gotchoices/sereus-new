@@ -83,7 +83,8 @@ export async function insertMessage(
   content: string,
 ): Promise<ChatMessage> {
   const db = getDb(strand);
-  const now = new Date().toISOString();
+  // Quereus DATETIME expects 'YYYY-MM-DD HH:MM:SS', not ISO 8601 with 'T' / 'Z'.
+  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
 
   // Auto-incrementing Id via subquery; other values use parameterized bindings
   await db.exec(

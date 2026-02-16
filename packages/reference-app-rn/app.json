@@ -6,7 +6,10 @@
     "orientation": "portrait",
     "scheme": "sereus-chat",
     "newArchEnabled": true,
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "bundleIdentifier": "org.gotchoices.sereus.chat",
       "supportsTablet": true
@@ -19,7 +22,12 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "38138c9f-4bdd-435e-b043-b48ad02c0e92"
+      }
+    }
   }
 }
-
