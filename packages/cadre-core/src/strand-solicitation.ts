@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { toString as uint8ArrayToString } from 'uint8arrays';
 import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
 import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 import type { Libp2p } from '@libp2p/interface';
@@ -181,7 +182,7 @@ export class StrandSolicitationService {
     const privateKeyBytes = privateKeyToProtobuf(privateKey);
 
     const memberKey = peerId.toString();
-    const invitePrivateKey = Buffer.from(privateKeyBytes).toString('base64');
+    const invitePrivateKey = uint8ArrayToString(privateKeyBytes, 'base64');
 
     log('Generated member key: %s', memberKey);
 

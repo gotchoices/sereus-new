@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { toString as uint8ArrayToString } from 'uint8arrays';
 import { Database, registerPlugin } from '@quereus/quereus';
 import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
 import optimysticPlugin from '@optimystic/quereus-plugin-optimystic/plugin';
@@ -132,7 +133,7 @@ function generateStampId(peerId: string): string {
   combined.set(randomPart, 16);
 
   // Convert to base64url
-  return Buffer.from(combined).toString('base64url');
+  return uint8ArrayToString(combined, 'base64url');
 }
 
 /**

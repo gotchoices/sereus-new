@@ -11,5 +11,6 @@ You are focused on the Sereus monorepo, but have access to ../quereus and ../opt
 - Use yarn
 - Don't be lazy with typing; avoid `any` unless dynamic
 - No half-baked janky parsers; use a full-fledged parser or better, brainstorm with the dev for another way
+* We want to be platform agnostic (browser, node, RN, etc.) unless we're explicitly building something platform specific
 
-Start with docs/cadre-architecture.md to come up to speed, then read and maintain these and other docs (in docs/) along with the work. 
+Start with docs\cadre-architecture.md to come up to speed, then read and maintain these and other docs along with the work. 
