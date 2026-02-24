@@ -142,19 +142,29 @@ No signature verification, no invite flow, no authorization constraints. This ke
 
 ## cadre-core React Native Compatibility
 
-### Current State
+### Validated (2026-02-23)
 
 `cadre-core` imports `createLibp2pNode` from `@optimystic/db-p2p`. That package's `exports` field includes a `react-native` condition pointing to `rn.js`, so Metro automatically selects the RN-safe entrypoint (no TCP import). Transport injection in `createControlNode()` and `StrandInstanceManager` already works.
 
-### Remaining Gap
+**cadre-core** now declares a `react-native` export condition in its `package.json`. Source audit confirmed only one Node-only import (`require('path')` in `getStrandStoragePath`), which is runtime-guarded behind `process.versions?.node` and deprecated in favor of the storage provider factory pattern.
 
-`cadre-core` itself does not declare a `react-native` export condition in its `package.json`. While transitive resolution of `db-p2p` works via Metro, `cadre-core` may still have imports or dependencies that don't resolve cleanly in RN. Specifically:
+**Quereus** has no Node-only imports. BigInt is supported in Hermes since RN 0.70. Only `TextEncoder` is used (built-in to Hermes); `TextDecoder` is not required by Quereus. However, `@optimystic/db-p2p` uses `TextDecoder` in its cluster, protocol, and repo services — this is covered by Expo SDK 52+'s built-in `TextDecoder` global (UTF-8 only).
 
-- Verify all transitive dependencies are RN-safe (no `fs`, `net`, `path` in hot paths)
-- The `ControlDatabase` and `StrandDatabase` classes use Quereus—confirm Quereus bundles cleanly under Hermes
-- If issues surface, add a `react-native` export condition to `cadre-core` with an RN-specific entrypoint
+**Metro bundle** succeeds with 2790 modules (cadre-core, Quereus, db-p2p, libp2p, and all transitive deps). The only warnings are cosmetic: `multiformats` subpath export fallbacks that resolve correctly via file-based resolution.
 
-This is a **validation task**, not necessarily a code change. The reference app will surface any incompatibilities.
+### Polyfills
+
+| Polyfill | Target | Source |
+|----------|--------|--------|
+| `polyfills/node-os.js` | `os`, `node:os` | Custom shim for libp2p (networkInterfaces, platform, type, hostname) |
+| `readable-stream` | `stream`, `node:stream` | npm, via Metro `extraNodeModules` |
+| `buffer` | `buffer`, `node:buffer` | npm, via Metro `extraNodeModules` |
+| TextEncoder | Global | Built-in to Hermes |
+| TextDecoder | Global | Built-in to Expo SDK 52+ (UTF-8 only) |
+
+### Bundle Smoke Test
+
+`yarn test:bundle` runs `react-native bundle --platform android` as a dry-run to catch import resolution failures without an EAS Build. This is suitable for CI.
 
 ## Package Structure
 
@@ -413,84 +423,4 @@ The reference app needs a way to script multi-party scenarios. The approach:
 - **Orchestrator**: A test script (Node.js) that spawns drone processes, generates seeds, feeds invitations between parties, and asserts convergence — similar in spirit to the `TestCadreNetwork` harness in `packages/integration-tests`
 
 ---
-
-## Phased Implementation TODOs
-
-### Phase 1: Validate cadre-core on RN (prerequisite)
-
-- [ ] **Audit cadre-core transitive dependencies for RN compatibility** — bundle cadre-core with Metro and verify no Node-only modules are pulled in. Check: `fs`, `net`, `path`, `crypto` (Node built-in), `child_process`. Fix any issues with Metro resolver aliases or conditional imports.
-- [ ] **Verify Quereus under Hermes** — Quereus is the SQL engine; confirm it runs correctly under Hermes (RN's JS engine). Key concerns: BigInt support, `TextEncoder`/`TextDecoder` polyfills, any V8-specific paths.
-- [ ] **Test MMKV storage round-trip** — create a minimal Expo app that instantiates `MMKVRawStorage`, writes, reads, and deletes. Confirms native module linkage via EAS Build.
-
-### Phase 2: Simplified chat schema
-
-- [x] **Create `schemas/chat-simple.qsql`** — permissionless Member + Message tables, no signature verification, no invite flow.
-- [x] **Register as a test sApp in cadre-core** — embedded as `CHAT_SCHEMA` constant in `src/chat-strand.ts`; `getChatSAppConfig()` returns the sApp config with id, version, and schema.
-
-### Phase 3: Build the reference app
-
-- [x] **Scaffold Expo project** — `packages/reference-app-rn` with `package.json`, `app.json` (SDK 53), `tsconfig.json`, `metro.config.js` (workspace symlink resolution), `eas.json`.
-- [x] **Implement `cadre-phone.ts`** — CadreNode singleton with WebSocket + circuit relay transports, MMKV storage factory (`MMKVRawStorage` per strand), transaction profile, no listen addresses.
-- [x] **Implement `chat-strand.ts`** — `createChatStrand()` / `joinChatStrand()` with embedded schema. Returns `StrandConfig` for `CadreNode.addStrand()`.
-- [x] **Implement `chat-operations.ts`** — parameterized Quereus queries for `insertMember`, `queryMembers`, `insertMessage`, `queryMessages`. All SQL uses `App.*` namespace and `?` placeholders.
-- [x] **Implement React hooks** — `useCadre()` for node lifecycle, seed application, strand creation; `useChat()` for polling-based message list and send.
-- [x] **Build UI screens** — `app/index.tsx` (chat screen with FlatList, composer, status banner), `app/settings.tsx` (connect/disconnect, seed paste, strand management), `app/_layout.tsx` (tab navigator).
-- [x] **Type-check passes** — yarn install succeeds, `tsc --noEmit` exits 0 with zero errors.
-
-### Phase 4: Drone configuration
-
-- [x] **Create `drone.cadre.yaml` example config** — cadre-cli config with TCP + WebSocket listener, relay enabled, storage profile, file system storage.
-- [x] **Document the two-node startup sequence** — step-by-step: start drone → get its multiaddr → phone creates cadre → generates seed → drone applies seed → connection established → create strand → chat.
-- [x] **Add `--ws-port` convenience flag to cadre-cli** — or document manual `listenAddrs` config with `/ip4/0.0.0.0/tcp/<port>/ws`.
-
-### Phase 5: EAS Build & CI
-
-- [x] **Configure EAS Build** — eas.json with development (dev client) and preview (standalone) profiles.
-- [ ] **First successful build** — trigger EAS Build, install on device, verify app launches and Metro connects.
-- [ ] **CI pipeline** — GitHub Actions workflow: build drone, start drone, trigger Maestro Cloud test against a preview build.
-
-### Phase 6: Automated testing
-
-- [ ] **Maestro flow: seed + send message** — Maestro script that pastes a pre-generated seed, waits for connection, types a message, sends, verifies it appears in the list.
-- [ ] **Maestro flow: bidirectional sync** — drone sends a message (via cadre-cli or test script), verify it appears on the phone.
-- [ ] **Convergence stress test** — rapid concurrent inserts from both nodes, verify final message counts match.
-
-### Phase 7: Multi-party strand workflows
-
-Spawn a second phone/drone pair (Party B) alongside the existing Party A pair from earlier phases. Test both private and public strand formation between independent parties.
-
-#### Setup
-
-- [ ] **Spawn Party B cadre** — second `cadre-cli` drone process with its own config (`drone-b.yaml`), second RN app instance (or headless cadre-core driver for CI). Party B generates its own authority key and seed independently of Party A.
-- [ ] **Test orchestrator script** — Node.js script that starts both drones, generates seeds for both parties, and coordinates invitation exchange. Modeled on `TestCadreNetwork` from `packages/integration-tests` but driving real processes and RN app(s).
-
-#### Private (closed) strand workflow
-
-- [ ] **Party A creates closed strand** — insert a strand with `Type = 'c'` into A's control network, applying the simplified chat schema.
-- [ ] **Party A creates invitation** — `createOpenInvitation(sAppId, expirationMs)` produces a token + bootstrap addrs. Invitation is serialized as JSON.
-- [ ] **Party B accepts invitation** — `formStrand(invitation)` dials Party A's cadre via `strand-proto`, negotiates strand creation, and B is added as a member.
-- [ ] **Cross-party messaging** — Party A sends a message → verify it appears on Party B's phone/drone. Party B replies → verify it appears on Party A. Full bidirectional replication across two independent cadres.
-- [ ] **Membership enforcement** — verify that an uninvited Party C cannot read or write to the closed strand.
-
-#### Public (open) strand workflow
-
-- [ ] **Party A creates open strand** — insert a strand with `Type = 'o'`, publish strand ID or join token.
-- [ ] **Party B joins open strand** — Party B joins without an invitation signature flow. Both cadres participate in the shared strand network.
-- [ ] **Open replication** — verify messages replicate between A and B. Verify that any additional party can join without authorization.
-
-#### Cross-party convergence
-
-- [ ] **Concurrent cross-party writes** — both parties insert messages simultaneously into the shared strand. Verify Optimystic convergence: both parties see the same final state.
-- [ ] **Disconnect / reconnect** — temporarily kill one party's drone, continue writing on the other party, restart drone, verify sync catches up across the party boundary.
-
-### Phase 8: Scale testing (en masse)
-
-Spawn many phone/drone pairs to stress-test strand formation, replication fan-out, and convergence under load.
-
-- [ ] **Parameterized party spawner** — script that creates N cadre pairs (drone + headless cadre-core phone), each with its own identity and seed. Configurable N (start with 5, target 20+).
-- [ ] **Fan-out open strand** — one party creates an open strand, all N parties join. Each party inserts a message. Verify all N×1 messages converge on every participant. Measure time-to-convergence as a function of N.
-- [ ] **Pairwise closed strands** — create closed strands between random pairs of parties. Verify invitation flow completes for each pair. Measure strand formation throughput (strands/second).
-- [ ] **Multi-strand per party** — each party participates in multiple strands simultaneously (e.g., 3–5 strands each). Verify that `StrandInstanceManager` correctly manages concurrent strand networks without interference.
-- [ ] **Churn test** — randomly start/stop drone processes during active replication. Verify that surviving nodes continue operating and restarted nodes catch up.
-- [ ] **Metrics collection** — instrument the test orchestrator to capture: strand formation latency, message propagation latency (insert → visible on remote), peak connection count per node, memory/CPU on drones.
 
