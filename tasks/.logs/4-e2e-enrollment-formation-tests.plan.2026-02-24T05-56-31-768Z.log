@@ -1,0 +1,424 @@
+Task: 4-e2e-enrollment-formation-tests.md
+Stage: plan → implement
+Priority: 4
+Agent: claude
+Started: 2026-02-24T05:56:31.770Z
+════════════════════════════════════════════════════════════════════════
+[session ef286a75-c264-4278-b217-f536994d294a]
+
+[TOOL:TodoWrite] {"todos":[{"content":"Survey existing integration test harness and fixtures","status":"in_progress","activeForm":"Surveying existing integration test harness and fixtures"},{"content":"Design test sce
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1771916400,"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false},"uuid":"f2689b28-3b68-4d93-a997-b0d1be5f3824","session_id":"ef286a75-c264-4278-b217-f536994d294a"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\docs\\cadre-architecture.md"}
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+
+[TOOL:Task] {"description":"Explore integration test harness","prompt":"Explore the packages/integration-tests directory thoroughly. I need to understand:\n1. The existing test harness (TestCadreNetwork or simila
+{"type":"system","subtype":"task_started","task_id":"ad84e19f5ce1ede9e","tool_use_id":"toolu_01WfQ2xzRVEbPxykfgwL3f1t","description":"Explore integration test harness","task_type":"local_agent","uuid":"8c7882a8-fe6e-4153-8c19-dfc067fae5ab","session_id":"ef286a75-c264-4278-b217-f536994d294a"}
+
+[USER]
+Explore the packages/integration-tests directory thoroughly. I need to understand:
+1. The existing test harness (TestCadreNetwork or similar)
+2. All existing test files and what they test
+3. How libp2p nodes are set up in tests
+4. What fixtures/helpers exist
+5. How enrollment and strand formation are tested currently (if at all)
+
+Also check packages/cadre-core/src for enrollment-related code and packages/strand-proto for strand formation protocol code.
+
+Read all test files, harness files, and relevant source files. Give me a comprehensive summary of:
+- Test infrastructure (helpers, fixtures, harness classes)
+- Current test coverage (what flows are tested)
+- Key APIs and types used in enrollment and strand formation
+- The libp2p protocols involved (especially /sereus/seed/1.0.0 and strand-related protocols)
+
+[TOOL:Bash] {"command":"find /c/projects/sereus -type f -name \"*.ts\" -o -name \"*.js\" | grep -E \"(test|spec)\" | head -20"}
+  ✓ /c/projects/sereus/node_modules/yaml/dist/test-events.d.ts
+/c/projects/sereus/node_modules/yaml/dist/test-events.js
+/c/projects/sereus/packages/cadre-cli/node_modules/@babel/traverse/lib/path/introspe
+
+[TOOL:Bash] {"command":"ls -la /c/projects/sereus/packages/integration-tests 2>/dev/null || echo \"Directory not found, checking packages:\""}
+  ✓ total 66
+drwxr-xr-x 1 n8ers 197610    0 Feb 16 11:58 .
+drwxr-xr-x 1 n8ers 197610    0 Feb 13 07:50 ..
+drwxr-xr-x 1 n8ers 197610    0 Feb 16 11:58 dist
+drwxr-xr-x 1 n8ers 197610    0 Jan 17 15:52 fixtu
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/integration-tests/src -type f -name \"*.ts\" -o -name \"*.js\" | sort"}
+  ✓ /c/projects/sereus/packages/integration-tests/src/fixtures/index.ts
+/c/projects/sereus/packages/integration-tests/src/harness/index.ts
+/c/projects/sereus/packages/integration-tests/src/harness/port-al
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/integration-tests/fixtures -type f | sort"}
+  ✓ /c/projects/sereus/packages/integration-tests/fixtures/simple-sapp.qsql
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/index.ts"}
+  ✓      1→/**
+     2→ * Integration test harness exports
+     3→ */
+     4→
+     5→export * from './types.js';
+     6→export * from './port-allocator.js';
+     7→export * from './wait-utils.js';
+     8→e
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/types.ts"}
+  ✓      1→/**
+     2→ * Types for integration test harness
+     3→ */
+     4→
+     5→import type { Libp2p } from '@libp2p/interface';
+     6→import type { IRepo } from '@optimystic/db-core';
+     7→impor
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/test-network.ts"}
+  ✓      1→/**
+     2→ * TestCadreNetwork - orchestrator for multi-party integration tests.
+     3→ *
+     4→ * Manages multiple parties, their cadres, strand creation, invitations,
+     5→ * and provides
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/test-party.ts"}
+  ✓      1→/**
+     2→ * TestParty factory for integration tests.
+     3→ *
+     4→ * Creates parties with authority nodes and optional drone nodes,
+     5→ * all using real libp2p networking and real Con
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/port-allocator.ts"}
+  ✓      1→/**
+     2→ * Port allocator for integration tests.
+     3→ * 
+     4→ * Ensures each test gets unique ports to avoid conflicts,
+     5→ * even when tests run in sequence or parallel.
+     6→ *
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/harness/wait-utils.ts"}
+  ✓      1→/**
+     2→ * Wait utilities for integration tests.
+     3→ * 
+     4→ * Instead of arbitrary delays, these wait for specific conditions.
+     5→ * FRET makes convergence fast, so waits should 
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/fixtures/index.ts"}
+  ✓      1→/**
+     2→ * Test fixtures for integration tests
+     3→ */
+     4→
+     5→import { readFile } from 'node:fs/promises';
+     6→import { fileURLToPath } from 'node:url';
+     7→import { dirname
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/fixtures/simple-sapp.qsql"}
+  ✓      1→-- Simple sApp for integration testing
+     2→-- A shared key-value store where members can add/update their own items
+     3→-- NOTE: This is just the app logic - the runtime wraps it in decla
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/basic-connectivity.integration.ts"}
+  ✓      1→/**
+     2→ * Basic connectivity integration test.
+     3→ * 
+     4→ * Verifies that the test harness can:
+     5→ * - Create parties with real libp2p nodes
+     6→ * - Nodes can connect to ea
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/happy-path.integration.ts"}
+  ✓      1→/**
+     2→ * Full happy path integration test.
+     3→ * 
+     4→ * End-to-end test that exercises the complete flow:
+     5→ * 1. Create two parties with cadres
+     6→ * 2. Party A creates a
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/seed-bootstrap.integration.ts"}
+  ✓      1→/**
+     2→ * Seed Bootstrap integration test.
+     3→ * 
+     4→ * Verifies the seed bootstrap flow for adding new nodes to a cadre:
+     5→ * 1. Authority creates and initializes SeedBootstra
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/strand-creation.integration.ts"}
+  ✓      1→/**
+     2→ * Strand creation integration test.
+     3→ * 
+     4→ * Tests creating strands in a party's control network and verifying
+     5→ * they sync across the cadre's nodes.
+     6→ */
+ 
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/multi-party-sync.integration.ts"}
+  ✓      1→/**
+     2→ * Multi-party synchronization integration test.
+     3→ * 
+     4→ * Tests that data written by one party syncs to other parties
+     5→ * in a shared strand via FRET.
+     6→ */
+  
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/src/scenarios/websocket-chat.integration.ts"}
+  ✓      1→/**
+     2→ * WebSocket Chat smoke test.
+     3→ *
+     4→ * Two CadreNode instances in one process:
+     5→ *   • Drone  — storage profile, WebSocket listener on 127.0.0.1
+     6→ *   • Phone 
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-core/src -type f -name \"*.ts\" | sort"}
+  ✓ /c/projects/sereus/packages/cadre-core/src/arachnode-stub.ts
+/c/projects/sereus/packages/cadre-core/src/cadre-node.ts
+/c/projects/sereus/packages/cadre-core/src/control-database.ts
+/c/projects/sereus/
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/types.ts"}
+  ✓      1→import type { Libp2p, PeerId } from '@libp2p/interface';
+     2→import type { IRawStorage, Libp2pTransports } from '@optimystic/db-p2p';
+     3→import type { StrandDatabase } from './strand-dat
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/control-database.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString } from 'uint8arrays';
+     3→import { Database, registerPlugin } from '@quereus/quereus';
+     4→import cryptoPlugin fr
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/enrollment.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
+     3→import { peerIdFromPrivateKey } from '@libp2p/peer-id';
+     4→import type 
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/seed-bootstrap.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import { digest, sign, verify, getPublicKey } from '@o
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-formation-manager.ts","limit":100}
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import {
+     4→  SessionManager,
+     5→  createBootstrapManager,
+     6→  DEFAULT_PROTOCOL_ID,
+     7
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-solicitation.ts","limit":100}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString } from 'uint8arrays';
+     3→import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
+     4→import
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/strand-proto/src -type f -name \"*.ts\" 2>/dev/null | head -20"}
+  ✓ /c/projects/sereus/packages/strand-proto/src/bootstrap.ts
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/strand-proto/src -type f -name \"*.ts\" 2>/dev/null | sort"}
+  ✓ /c/projects/sereus/packages/strand-proto/src/bootstrap.ts
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/strand-proto/src/bootstrap.ts","limit":150}
+  ✓      1→/*
+     2→ * Sereus Bootstrap Session Manager
+     3→ *
+     4→ * Generic invitation-based bootstrap over libp2p to provision a shared strand (DB).
+     5→ * Protocol string is configurable; de
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/cadre-node.ts","limit":150}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import type { Libp2p, PeerId } from '@libp2p/interface
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/package.json"}
+  ✓      1→{
+     2→  "name": "@serfab/integration-tests",
+     3→  "version": "0.0.1",
+     4→  "type": "module",
+     5→  "private": true,
+     6→  "description": "Integration tests for Sereus cadre sys
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/integration-tests/vitest.config.ts"}
+  ✓      1→import { defineConfig } from 'vitest/config'
+     2→
+     3→export default defineConfig({
+     4→  test: {
+     5→    globals: true,
+     6→    environment: 'node',
+     7→    include: ['src/**
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/index.ts"}
+  ✓      1→// Core types
+     2→export * from './types.js';
+     3→
+     4→// Main CadreNode class
+     5→export { CadreNode } from './cadre-node.js';
+     6→
+     7→// Control database
+     8→export { Co
+  ✓ Perfect! Now I have comprehensive information. Let me create a detailed summary report.
+
+## Comprehensive Summary: Integration Test Infrastructure & Enrollment/Strand Formation
+
+### 1. TEST INFRASTRUC
+
+[ASSISTANT]
+Good, I have a comprehensive picture. Let me read the key source files for the strand formation APIs to nail down the exact interfaces.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Survey existing integration test harness and fixtures","status":"completed","activeForm":"Surveying existing integration test harness and fixtures"},{"content":"Design test scena
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-solicitation.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString } from 'uint8arrays';
+     3→import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
+     4→import
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-formation-manager.ts"}
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import {
+     4→  SessionManager,
+     5→  createBootstrapManager,
+     6→  DEFAULT_PROTOCOL_ID,
+     7
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\seed-bootstrap.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import { digest, sign, verify, getPublicKey } from '@o
+
+[ASSISTANT]
+Now let me check the existing happy-path and harness to understand the test patterns.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\happy-path.integration.ts"}
+  ✓      1→/**
+     2→ * Full happy path integration test.
+     3→ * 
+     4→ * End-to-end test that exercises the complete flow:
+     5→ * 1. Create two parties with cadres
+     6→ * 2. Party A creates a
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\test-network.ts"}
+  ✓      1→/**
+     2→ * TestCadreNetwork - orchestrator for multi-party integration tests.
+     3→ *
+     4→ * Manages multiple parties, their cadres, strand creation, invitations,
+     5→ * and provides
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\types.ts"}
+  ✓      1→/**
+     2→ * Types for integration test harness
+     3→ */
+     4→
+     5→import type { Libp2p } from '@libp2p/interface';
+     6→import type { IRepo } from '@optimystic/db-core';
+     7→impor
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\test-party.ts"}
+  ✓      1→/**
+     2→ * TestParty factory for integration tests.
+     3→ *
+     4→ * Creates parties with authority nodes and optional drone nodes,
+     5→ * all using real libp2p networking and real Con
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\seed-bootstrap.integration.ts"}
+  ✓      1→/**
+     2→ * Seed Bootstrap integration test.
+     3→ * 
+     4→ * Verifies the seed bootstrap flow for adding new nodes to a cadre:
+     5→ * 1. Authority creates and initializes SeedBootstra
+
+[TOOL:Glob] {"pattern":"packages/strand-proto/src/**/*.ts"}
+  ✓ C:\projects\sereus\packages\strand-proto\src\bootstrap.ts
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\strand-proto\\src\\bootstrap.ts"}
+  ✓      1→/*
+     2→ * Sereus Bootstrap Session Manager
+     3→ *
+     4→ * Generic invitation-based bootstrap over libp2p to provision a shared strand (DB).
+     5→ * Protocol string is configurable; de
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\websocket-chat.integration.ts"}
+  ✓      1→/**
+     2→ * WebSocket Chat smoke test.
+     3→ *
+     4→ * Two CadreNode instances in one process:
+     5→ *   • Drone  — storage profile, WebSocket listener on 127.0.0.1
+     6→ *   • Phone 
+
+[ASSISTANT]
+Now I have a complete understanding. Let me check the CadreNode API for the key methods we'll use in the tests.
+
+[TOOL:Grep] {"pattern":"async (addStrand|formStrand|createOpenInvitation|getControlNode|start|stop)\\b","path":"C:\\projects\\sereus\\packages\\cadre-core\\src","output_mode":"content","glob":"cadre-node.ts","-C"
+  ✓ C:\projects\sereus\packages\cadre-core\src\cadre-node.ts-134-   * Start the cadre node
+C:\projects\sereus\packages\cadre-core\src\cadre-node.ts-135-   */
+C:\projects\sereus\packages\cadre-core\src\cad
+
+[ASSISTANT]
+Good. Now I have everything needed. Let me design the test scenarios and write the implement tasks.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Survey existing integration test harness and fixtures","status":"completed","activeForm":"Surveying existing integration test harness and fixtures"},{"content":"Design test scena
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Now I'll write the implement tasks. The natural split is: (1) enrollment E2E tests, (2) strand formation E2E tests. Let me also check the existing tasks folder structure.
+
+[TOOL:Bash] {"command":"ls /c/projects/sereus/tasks/implement/ 2>/dev/null || echo \"(empty or missing)\"","description":"List existing implement tasks"}
+  ✓ 
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\4-e2e-enrollment-tests.md","content":"priority: 4\ndescription: Implement E2E enrollment tests exercising seed bootstrap over real libp2p\ndepende
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\4-e2e-enrollment-tests.md
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\4-e2e-strand-formation-tests.md","content":"priority: 4\ndescription: Implement E2E strand formation tests exercising strand-proto bootstrap over 
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\4-e2e-strand-formation-tests.md
+
+[ASSISTANT]
+Now delete the source plan task.
+
+[TOOL:Bash] {"command":"rm /c/projects/sereus/tasks/plan/4-e2e-enrollment-formation-tests.md","description":"Delete source plan task"}
+  ✓ 
+
+[TOOL:TodoWrite] {"todos":[{"content":"Survey existing integration test harness and fixtures","status":"completed","activeForm":"Surveying existing integration test harness and fixtures"},{"content":"Design test scena
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Now commit.
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git status","description":"Show working tree status"}
+  ✓ On branch master
+Your branch is ahead of 'origin/master' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git add tasks/implement/4-e2e-enrollment-tests.md tasks/implement/4-e2e-strand-formation-tests.md && git commit -m \"$(cat <<'EOF'\ntask(plan): E2E enrollment and 
+  ✓ [master 1d4747b] task(plan): E2E enrollment and strand formation test design → implement tasks
+ 2 files changed, 201 insertions(+)
+ create mode 100644 tasks/implement/4-e2e-enrollment-tests.md
+ create
+
+[ASSISTANT]
+Done. The plan task has been split into two implement tasks:
+
+1. **`4-e2e-enrollment-tests.md`** — 5 test scenarios exercising seed delivery over `/sereus/seed/1.0.0`, the `addDrone` helper, invite flow (server→phone), multi-node enrollment, and negative validation cases.
+
+2. **`4-e2e-strand-formation-tests.md`** — 6 test scenarios in two phases: Phase 1 tests the `/sereus/bootstrap/1.0.0` protocol directly (open formation, token validation, disclosure validation); Phase 2 tests full CadreNode-level lifecycle (cross-party formation + strand instances + data replication, multi-strand, three-party).
+
+Key findings from the survey:
+- `TestCadreNetwork.joinStrand()` is a stub — doesn't execute the real formation protocol
+- Existing seed tests cover unit-level (create/encode/validate) but not protocol delivery
+- The `websocket-chat` test shows the CadreNode-level pattern for strand instances but bypasses formation entirely
+- All harness infrastructure (ephemeral ports, real libp2p, ControlDatabase, wait utilities) is ready for these E2E tests
+
+[RESULT ✓ DONE | 265.4s | cost $1.3292]
+Done. The plan task has been split into two implement tasks:
+
+1. **`4-e2e-enrollment-tests.md`** — 5 test scenarios exercising seed delivery over `/sereus/seed/1.0.0`, the `addDrone` helper, invite flow (server→phone), multi-node enrollment, and negative validation cases.
+
+2. **`4-e2e-strand-formation-tests.md`** — 6 test scenarios in two phases: Phase 1 tests the `/sereus/bootstrap/1.0.0` protocol directly (open formation, token validation, disclosure validation); Phase 2 tests full CadreNode-level lifecycle (cross-party formation + strand instances + data replication, multi-strand, three-party).
+
+Key findings from the survey:
+- `TestCadreNetwork.joinStrand()` is a stub — doesn't execute the real formation protocol
+- Existing seed tests cover unit-level (create/encode/validate) but not protocol delivery
+- The `websocket-chat` test shows the CadreNode-level pattern for strand instances but bypasses formation entirely
+- All harness infrastructure (ephemeral ports, real libp2p, ControlDatabase, wait utilities) is ready for these E2E tests
+
+[runner] Agent exited with code 0

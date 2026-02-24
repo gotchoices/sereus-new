@@ -13,8 +13,8 @@ import {
   stopPhoneNode,
   getPhoneNode,
   type PhoneNodeOptions,
-} from './cadre-phone.js';
-import { createChatStrand } from './chat-strand.js';
+} from './cadre-phone';
+import { createChatStrand } from './chat-strand';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

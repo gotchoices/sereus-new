@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useCadre } from '../src/use-cadre.js';
+import { useCadre } from '../src/use-cadre';
 
 /** Generate a simple random UUID (good enough for demo). */
 function uuid(): string {

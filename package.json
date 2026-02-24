@@ -28,8 +28,8 @@
     "pub:cadre-cli": "cd packages/cadre-cli && yarn clean && npx bumpp --no-push --no-commit --no-tag --no-git-check -y && yarn build && yarn npm publish --access public",
     "pub:cadre-core": "cd packages/cadre-core && yarn clean && npx bumpp --no-push --no-commit --no-tag --no-git-check -y && yarn build && yarn npm publish --access public",
     "pub:cadre-provider": "cd packages/cadre-provider && yarn clean && npx bumpp --no-push --no-commit --no-tag --no-git-check -y && yarn build && yarn npm publish --access public",
-    "upgrade:optimystic": "ncu -u --workspaces --filter '/@optimystic\/.*/'",
-    "upgrade:quereus": "ncu -u --workspaces --filter '/@quereus\/.*/'"
+    "upgrade:optimystic": "ncu -u --workspaces --filter '/@optimystic/.*/'",
+    "upgrade:quereus": "ncu -u --workspaces --filter '/@quereus/.*/'"
   },
   "devDependencies": {
     "bumpp": "^10.4.0",

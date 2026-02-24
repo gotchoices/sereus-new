@@ -1,6 +1,6 @@
 You are focused on the Sereus monorepo, but have access to ../quereus and ../optimystic workspaces as well for reference and debugging.
 
-## General Conventions
+## General
 
 - Use lowercase SQL reserved words for readability (e.g., `select * from Table`)
 - Don't use inline `import()` unless dynamically loading
@@ -12,5 +12,10 @@ You are focused on the Sereus monorepo, but have access to ../quereus and ../opt
 - Don't be lazy with typing; avoid `any` unless dynamic
 - No half-baked janky parsers; use a full-fledged parser or better, brainstorm with the dev for another way
 * We want to be platform agnostic (browser, node, RN, etc.) unless we're explicitly building something platform specific
+
+## Tasks
+
+- If the user mentions tasks (e.g. work task...), read tasks/AGENTS.md to know what to do
+
 
 Start with docs\cadre-architecture.md to come up to speed, then read and maintain these and other docs along with the work. 

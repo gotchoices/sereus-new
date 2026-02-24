@@ -8,12 +8,34 @@ const config = getDefaultConfig(__dirname);
 
 // Resolve workspace root for symlinked packages
 const workspaceRoot = path.resolve(__dirname, '../..');
-config.watchFolders = [...(config.watchFolders ?? []), workspaceRoot];
+const optimysticRoot = path.resolve(__dirname, '../../../optimystic');
+const quereusRoot = path.resolve(__dirname, '../../../quereus');
+
+config.watchFolders = [
+  ...(config.watchFolders ?? []),
+  workspaceRoot,
+  optimysticRoot,
+  quereusRoot,
+];
+
 config.resolver.nodeModulesPaths = [
   ...(config.resolver.nodeModulesPaths ?? []),
   path.resolve(__dirname, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(optimysticRoot, 'node_modules'),
+  path.resolve(quereusRoot, 'node_modules'),
 ];
+
+// Polyfill Node.js built-ins for React Native
+config.resolver.extraNodeModules = {
+  ...(config.resolver.extraNodeModules ?? {}),
+  'node:os': path.resolve(__dirname, 'polyfills/node-os.js'),
+  'node:stream': require.resolve('readable-stream'),
+  'node:buffer': require.resolve('buffer'),
+  os: path.resolve(__dirname, 'polyfills/node-os.js'),
+  stream: require.resolve('readable-stream'),
+  buffer: require.resolve('buffer'),
+};
 
 module.exports = config;
 

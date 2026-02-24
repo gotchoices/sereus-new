@@ -14,7 +14,7 @@ import {
   queryMembers,
   type ChatMessage,
   type ChatMember,
-} from './chat-operations.js';
+} from './chat-operations';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

@@ -13,9 +13,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useCadre } from '../src/use-cadre.js';
-import { useChat } from '../src/use-chat.js';
-import type { ChatMessage } from '../src/chat-operations.js';
+import { useCadre } from '../src/use-cadre';
+import { useChat } from '../src/use-chat';
+import type { ChatMessage } from '../src/chat-operations';
 
 export default function ChatScreen() {
   const cadre = useCadre();

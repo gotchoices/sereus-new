@@ -1,0 +1,861 @@
+Task: 3-automated-testing.md
+Stage: plan → implement
+Priority: 3
+Agent: claude
+Started: 2026-02-24T06:15:00.209Z
+════════════════════════════════════════════════════════════════════════
+[session 38ffaf9f-d5d1-4767-a50f-ab2c50b5af4a]
+
+[ASSISTANT]
+I'll research the codebase to plan the automated UI testing approach. Let me start by understanding the project structure and reference app.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\docs\\cadre-architecture.md"}
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+
+[TOOL:Task] {"subagent_type":"Explore","description":"Explore reference app structure","prompt":"Explore the reference app at packages/reference-app-rn/ thoroughly. I need to understand:\n1. The app's UI structur
+{"type":"system","subtype":"task_started","task_id":"a9a2f7bf82ca29b7f","tool_use_id":"toolu_01S8J9cTExwqoPEzsmvhUwJw","description":"Explore reference app structure","task_type":"local_agent","uuid":"a5d74287-eec6-49bd-8988-a49141b6b5ca","session_id":"38ffaf9f-d5d1-4767-a50f-ab2c50b5af4a"}
+
+[USER]
+Explore the reference app at packages/reference-app-rn/ thoroughly. I need to understand:
+1. The app's UI structure (screens, components, navigation)
+2. How seeds are applied (paste/scan)
+3. How messages are sent and displayed
+4. How the cadre/drone connection works
+5. The app's package.json (dependencies, scripts)
+6. Any existing test infrastructure
+
+Read app/index.tsx, app/settings.tsx, src/use-cadre.ts, src/use-chat.ts, app/_layout.tsx, and package.json at minimum. Also check for any existing test files or test configuration.
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1771916400,"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false},"uuid":"79759615-4f72-4651-aff5-9d0f7de56746","session_id":"38ffaf9f-d5d1-4767-a50f-ab2c50b5af4a"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\package.json"}
+  ✓      1→{
+     2→  "name": "@serfab/reference-app-rn",
+     3→  "version": "0.0.1",
+     4→  "private": true,
+     5→  "main": "expo-router/entry",
+     6→  "scripts": {
+     7→    "eas-build-pre-insta
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app\\index.tsx"}
+  ✓      1→/**
+     2→ * Chat screen — flat list of messages + text input + connection indicator.
+     3→ */
+     4→
+     5→import { useRef, useState } from 'react';
+     6→import {
+     7→  FlatList,
+   
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app\\settings.tsx"}
+  ✓      1→/**
+     2→ * Settings screen — connect to cadre, apply seed, create strand.
+     3→ */
+     4→
+     5→import { useState } from 'react';
+     6→import {
+     7→  Alert,
+     8→  Pressable,
+    
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\use-cadre.ts"}
+  ✓      1→/**
+     2→ * use-cadre.ts — React hook for CadreNode lifecycle management.
+     3→ *
+     4→ * Manages the singleton phone node, exposes connection status, and provides
+     5→ * methods for s
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\use-chat.ts"}
+  ✓      1→/**
+     2→ * use-chat.ts — React hook for the chat message list and send/receive.
+     3→ *
+     4→ * Because Optimystic doesn't yet expose reactive subscriptions, this hook
+     5→ * polls th
+
+[TOOL:Task] {"subagent_type":"Explore","description":"Explore cadre-cli drone","prompt":"Explore the cadre-cli package to understand how the drone works. Look for:\n1. How to start a drone programmatically or via
+{"type":"system","subtype":"task_started","task_id":"a5f8d543c23620738","tool_use_id":"toolu_012Cza236N7AaZhpEpWk8eEY","description":"Explore cadre-cli drone","task_type":"local_agent","uuid":"26e35b6f-5048-48f6-bfc0-d91bb1903cad","session_id":"38ffaf9f-d5d1-4767-a50f-ab2c50b5af4a"}
+
+[USER]
+Explore the cadre-cli package to understand how the drone works. Look for:
+1. How to start a drone programmatically or via CLI
+2. How seeds are generated
+3. How messages can be inserted programmatically
+4. The drone's API/interface for test fixtures
+
+Search for cadre-cli in the monorepo, check packages/cadre-cli/ or similar. Also look at packages/cadre-core/ for understanding the cadre/drone model. Read relevant source files.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app\\_layout.tsx"}
+  ✓      1→/**
+     2→ * Root layout — Expo Router tab navigator.
+     3→ *
+     4→ * Two tabs: Chat (index) and Settings.
+     5→ */
+     6→
+     7→import { Tabs } from 'expo-router';
+     8→import { Sta
+
+[TOOL:Glob] {"pattern":"C:\\projects\\sereus\\packages\\reference-app-rn/**/*.ts*"}
+
+[TOOL:Glob] {"pattern":"C:\\projects\\sereus\\packages\\reference-app-rn/**/*.test.*"}
+
+[TOOL:Glob] {"pattern":"C:\\projects\\sereus\\packages\\reference-app-rn/**/jest.config.*"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus -type f -name \"*.md\" | grep -E \"(cadre|architecture)\" | head -20"}
+
+[TOOL:Task] {"subagent_type":"Explore","description":"Check CI and test setup","prompt":"Look for existing CI configuration and test infrastructure in this monorepo:\n1. Check for .github/workflows/, .circleci/, 
+{"type":"system","subtype":"task_started","task_id":"a01a031eaeae2b6ac","tool_use_id":"toolu_01NvRkTkKRNRjJ5hqGf5omKd","description":"Check CI and test setup","task_type":"local_agent","uuid":"e9185e6d-8bf8-400a-8018-75f2900345cd","session_id":"38ffaf9f-d5d1-4767-a50f-ab2c50b5af4a"}
+
+[USER]
+Look for existing CI configuration and test infrastructure in this monorepo:
+1. Check for .github/workflows/, .circleci/, or similar CI config
+2. Check for any Maestro files (.maestro/, *.yaml flows)
+3. Check for any Detox config
+4. Check for EAS config (eas.json, app.json)
+5. Check the root package.json for test scripts
+6. Look at tasks/implement/ for any related testing tasks already planned
+7. Check tasks/blocked/ and tasks/fix/ for related items
+
+Use glob patterns like **/*.maestro, **/.maestro/**, **/eas.json, **/*.yaml to find relevant files.
+  ✓ C:\projects\sereus\packages\reference-app-rn\node_modules\expo-constants\scripts\jest.config.js
+C:\projects\sereus\packages\reference-app-rn\node_modules\expo-modules-autolinking\jest.config.js
+C:\pro
+  ✓ C:\projects\sereus\packages\reference-app-rn\node_modules\@chainsafe\as-sha256\lib\test\perf\index.test.d.ts.map
+C:\projects\sereus\packages\reference-app-rn\node_modules\@chainsafe\as-sha256\lib\test
+  ✓ C:\projects\sereus\packages\reference-app-rn\node_modules\foreground-child\node_modules\signal-exit\dist\cjs\browser.d.ts.map
+C:\projects\sereus\packages\reference-app-rn\node_modules\foreground-child
+
+[TOOL:Glob] {"pattern":".github/workflows/*"}
+
+[TOOL:Glob] {"pattern":".circleci/*"}
+
+[TOOL:Glob] {"pattern":"**/.maestro/**"}
+
+[TOOL:Glob] {"pattern":"**/*.maestro"}
+
+[TOOL:Glob] {"pattern":"**/eas.json"}
+
+[TOOL:Glob] {"pattern":"**/app.json"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\package.json"}
+  ✓      1→{
+     2→  "name": "sereus-workspace",
+     3→  "version": "0.1.0",
+     4→  "private": true,
+     5→  "packageManager": "yarn@4.12.0",
+     6→  "description": "Sereus monorepo",
+     7→  "work
+
+[TOOL:Bash] {"command":"find \"C:\\projects\\sereus\\packages\\reference-app-rn\\src\" -type f -name \"*.ts\" -o -name \"*.tsx\" 2>/dev/null | head -20","description":"Find TypeScript source files in src director
+
+[TOOL:Bash] {"command":"find \"C:\\projects\\sereus\\packages\\reference-app-rn\\app\" -type f -name \"*.ts\" -o -name \"*.tsx\" 2>/dev/null","description":"Find TypeScript files in app directory"}
+  ✓ C:\projects\sereus\packages\reference-app-rn\src/cadre-phone.ts
+C:\projects\sereus\packages\reference-app-rn\src/chat-operations.ts
+C:\projects\sereus\packages\reference-app-rn\src/chat-strand.ts
+C:\p
+  ✓ /c/projects/sereus/docs/cadre-architecture.md
+/c/projects/sereus/packages/cadre-cli/node_modules/@arr/every/readme.md
+/c/projects/sereus/packages/cadre-cli/node_modules/@babel/code-frame/README.md
+/c/
+  ✓ C:\projects\sereus\packages\reference-app-rn\app/index.tsx
+C:\projects\sereus\packages\reference-app-rn\app/settings.tsx
+C:\projects\sereus\packages\reference-app-rn\app/_layout.tsx
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\cadre-phone.ts"}
+  ✓      1→/**
+     2→ * cadre-phone.ts — CadreNode configured for a React Native phone node.
+     3→ *
+     4→ * - WebSocket + circuit-relay transports (no TCP in RN)
+     5→ * - MMKV-backed storage via 
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\chat-operations.ts"}
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/docs/cadre-architecture.md"}
+  ✓      1→/**
+     2→ * chat-operations.ts — Quereus wrappers for the simplified chat sApp.
+     3→ *
+     4→ * Operates on the StrandDatabase exposed by a StrandInstance.  The schema
+     5→ * tables li
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\chat-strand.ts"}
+  ✓      1→/**
+     2→ * chat-strand.ts — Strand lifecycle for the simplified chat sApp.
+     3→ *
+     4→ * Wraps CadreNode.addStrand() with the chat-simple schema and provides
+     5→ * helpers to creat
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+
+[TOOL:Bash] {"command":"ls -la /c/projects/sereus/packages | grep cadre"}
+  ✓ drwxr-xr-x 1 n8ers 197610   0 Feb 16 16:45 cadre-cli
+drwxr-xr-x 1 n8ers 197610   0 Feb 23 22:52 cadre-core
+drwxr-xr-x 1 n8ers 197610   0 Feb 16 16:45 cadre-provider
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\metro.config.js"}
+  ✓      1→// Metro configuration for workspace symlink resolution.
+     2→// Resolves workspace packages (cadre-core, etc.) and hoisted node_modules.
+     3→
+     4→const { getDefaultConfig } = require('
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\tsconfig.json"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-cli -type f -name \"*.ts\" -o -name \"*.js\" -o -name \"*.json\" | grep -E \"\\.(ts|js|json)$\" | head -30"}
+  ✓      1→{
+     2→  "extends": "expo/tsconfig.base",
+     3→  "compilerOptions": {
+     4→    "strict": true,
+     5→    "paths": {
+     6→      "@/*": [
+     7→        "./src/*"
+     8→      ]
+     9→ 
+
+[TOOL:Bash] {"command":"find \"C:\\projects\\sereus\\packages\\reference-app-rn\" -maxdepth 2 -type f \\( -name \"*.config.js\" -o -name \"*.config.ts\" -o -name \"jest.config.*\" -o -name \".test.*\" \\) 2>/dev/
+  ✓ /c/projects/sereus/packages/cadre-cli/dist/bin/cadre.d.ts
+/c/projects/sereus/packages/cadre-cli/dist/bin/cadre.js
+/c/projects/sereus/packages/cadre-cli/dist/commands/enroll.d.ts
+/c/projects/sereus/pac
+  ✓ C:\projects\sereus\packages\reference-app-rn/metro.config.js
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-cli/src -type f -name \"*.ts\" 2>/dev/null"}
+  ✓ /c/projects/sereus/packages/cadre-cli/src/bin/cadre.ts
+/c/projects/sereus/packages/cadre-cli/src/commands/enroll.ts
+/c/projects/sereus/packages/cadre-cli/src/commands/start.ts
+/c/projects/sereus/packa
+
+[TOOL:Bash] {"command":"ls -la \"C:\\projects\\sereus\\packages\\reference-app-rn\\polyfills\\\" 2>/dev/null","description":"List polyfill files"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-core/src -type f -name \"*.ts\" 2>/dev/null | head -30"}
+  ✓ Exit code 2
+/usr/bin/bash: eval: line 1: unexpected EOF while looking for matching `"'
+
+/usr/bin/bash: eval: line 1: unexpected EOF while looking for matching `"'
+
+[TOOL:Bash] {"command":"find \"C:\\projects\\sereus\\packages\\reference-app-rn\" -maxdepth 3 -type f -name \"*.test.*\" -o -name \"*.spec.*\" 2>/dev/null | head -20","description":"Find test files in reference-a
+  ✓ <tool_use_error>Sibling tool call errored</tool_use_error>
+  ✓ /c/projects/sereus/packages/cadre-core/src/arachnode-stub.ts
+/c/projects/sereus/packages/cadre-core/src/cadre-node.ts
+/c/projects/sereus/packages/cadre-core/src/control-database.ts
+/c/projects/sereus/
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\polyfills"}
+  ✓ <tool_use_error>Sibling tool call errored</tool_use_error>
+  ✓ No files found
+  ✓ No files found
+  ✓ No files found
+  ✓ No files found
+  ✓ C:\projects\sereus\packages\reference-app-rn\app.json
+  ✓ C:\projects\sereus\eas.json
+C:\projects\sereus\packages\reference-app-rn\eas.json
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-cli/src/bin/cadre.ts"}
+
+[TOOL:Bash] {"command":"ls -la C:/projects/sereus/packages/reference-app-rn/polyfills/ 2>/dev/null","description":"List polyfill files"}
+  ✓      1→#!/usr/bin/env node
+     2→
+     3→import { Command } from 'commander';
+     4→import { startCommand } from '../commands/start.js';
+     5→import { statusCommand } from '../commands/status.js';
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-cli/src/commands/start.ts"}
+  ✓      1→import { Command } from 'commander';
+     2→import debug from 'debug';
+     3→import { CadreNode, type CadreNodeConfig, type ControlNetworkSeed, type StorageConfig } from '@serfab/cadre-core';
+
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/cadre-node.ts","limit":150}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import type { Libp2p, PeerId } from '@libp2p/interface
+
+[TOOL:Bash] {"command":"find C:/projects/sereus/packages/reference-app-rn -maxdepth 3 -type f \\( -name \"*.test.*\" -o -name \"*.spec.*\" \\) 2>/dev/null | head -20","description":"Find test files in reference-a
+  ✓ total 5
+drwxr-xr-x 1 n8ers 197610   0 Feb 16 19:24 .
+drwxr-xr-x 1 n8ers 197610   0 Feb 23 22:55 ..
+-rw-r--r-- 1 n8ers 197610 594 Feb 16 19:24 node-os.js
+  ✓ 
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/tasks/implement -type f -name \"*.md\" 2>/dev/null | head -20","description":"List implement task files"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/tasks/blocked -type f -name \"*.md\" 2>/dev/null | head -20","description":"List blocked task files"}
+  ✓ /c/projects/sereus/tasks/implement/3-ci-pipeline-maestro.md
+/c/projects/sereus/tasks/implement/4-e2e-enrollment-tests.md
+/c/projects/sereus/tasks/implement/4-e2e-strand-formation-tests.md
+/c/projects/
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/tasks/fix -type f -name \"*.md\" 2>/dev/null | head -20","description":"List fix task files"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\eas.json"}
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/cadre-node.ts","offset":150,"limit":200}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\polyfills\\node-os.js"}
+  ✓ /c/projects/sereus/tasks/blocked/1-quota-enforcement.md
+/c/projects/sereus/tasks/blocked/1-ring-zulu-storage-rings.md
+  ✓      1→{
+     2→  "cli": {
+     3→    "version": ">= 18.0.1",
+     4→    "appVersionSource": "remote"
+     5→  },
+     6→  "build": {
+     7→    "development": {
+     8→      "developmentClient": true
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\eas.json"}
+  ✓      1→{
+     2→  "cli": {
+     3→    "version": ">= 14.0.0"
+     4→  },
+     5→  "build": {
+     6→    "base": {
+     7→      "node": "22.17.0"
+     8→    },
+     9→    "development": {
+    10→      
+  ✓    150→      const coordinatedRepo = (this.controlNode as any).coordinatedRepo as IRepo;
+   151→      if (!coordinatedRepo) {
+   152→        throw new Error('coordinatedRepo not available on control n
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/seed-bootstrap.ts","limit":200}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import { digest, sign, verify, getPublicKey } from '@o
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app.json"}
+  ✓ /c/projects/sereus/tasks/fix/2-hoist-dynamic-imports-apply-seed.md
+/c/projects/sereus/tasks/fix/4-parameterize-authorize-peer-sql.md
+/c/projects/sereus/tasks/fix/5-seed-authority-validation.md
+  ✓      1→{
+     2→  "expo": {
+     3→    "name": "Sereus P2P Chat",
+     4→    "slug": "sereus-p2p-chat",
+     5→    "version": "0.0.1",
+     6→    "orientation": "portrait",
+     7→    "scheme": "sereu
+  ✓      1→/**
+     2→ * Minimal polyfill for node:os module in React Native.
+     3→ * Only implements the methods that libp2p actually uses.
+     4→ */
+     5→
+     6→import { Platform } from 'react-nat
+
+[TOOL:Bash] {"command":"ls -la C:/projects/sereus/packages/reference-app-rn/ 2>/dev/null | grep -E \"^\\-|^d\" | head -30","description":"List root files in reference-app-rn"}
+  ✓ drwxr-xr-x 1 n8ers 197610    0 Feb 23 22:55 .
+drwxr-xr-x 1 n8ers 197610    0 Feb 13 07:50 ..
+drwxr-xr-x 1 n8ers 197610    0 Feb 16 17:38 .expo
+-rw-r--r-- 1 n8ers 197610  121 Feb 16 09:03 .gitignore
+dr
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/seed-bootstrap.ts","offset":200,"limit":250}
+  ✓    200→      'ed25519',
+   201→      'base64url',
+   202→      'base64url',
+   203→      'base64url'
+   204→    ) as string;
+   205→    
+   206→    const seed: ControlNetworkSeed = {
+   207→      ...s
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\3-ci-pipeline-maestro.md"}
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/types.ts","limit":200}
+  ✓      1→priority: 3
+     2→description: GitHub Actions CI pipeline with EAS Build + Maestro Cloud UI tests
+     3→dependencies: 4-first-eas-build (must succeed first), packages/reference-app-rn, packag
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\4-e2e-enrollment-tests.md"}
+  ✓      1→import type { Libp2p, PeerId } from '@libp2p/interface';
+     2→import type { IRawStorage, Libp2pTransports } from '@optimystic/db-p2p';
+     3→import type { StrandDatabase } from './strand-dat
+  ✓      1→priority: 4
+     2→description: Implement E2E enrollment tests exercising seed bootstrap over real libp2p
+     3→dependencies: packages/integration-tests, packages/cadre-core (SeedBootstrapServ
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\4-e2e-strand-formation-tests.md"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app.json"}
+  ✓      1→{
+     2→  "expo": {
+     3→    "name": "Sereus P2P Chat",
+     4→    "slug": "sereus-p2p-chat",
+     5→    "version": "0.0.1",
+     6→    "orientation": "portrait",
+     7→    "scheme": "sereu
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\eas.json"}
+  ✓      1→priority: 4
+     2→description: Implement E2E strand formation tests exercising strand-proto bootstrap over real libp2p
+     3→dependencies: packages/integration-tests, packages/cadre-core (Str
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\4-first-eas-build.md"}
+  ✓      1→{
+     2→  "cli": {
+     3→    "version": ">= 14.0.0"
+     4→  },
+     5→  "build": {
+     6→    "base": {
+     7→      "node": "22.17.0"
+     8→    },
+     9→    "development": {
+    10→      
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\drone.cadre.yaml"}
+  ✓      1→# Drone node configuration for the Sereus P2P Chat reference app.
+     2→#
+     3→# This file is used with cadre-cli to run the always-on "drone" node that
+     4→# the phone connects to via We
+  ✓      1→priority: 4
+     2→description: Trigger first EAS Build (Android), verify dev client, document troubleshooting
+     3→dependencies: packages/reference-app-rn, eas.json, Expo account with EAS ac
+
+[TOOL:Glob] {"pattern":"**/detox.config.*"}
+
+[TOOL:Glob] {"pattern":"**/.maestro/**"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus -name \"*detox*\" -o -name \"*maestro*\" 2>/dev/null | head -20","description":"Search for detox or maestro config files"}
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/types.ts","offset":200,"limit":300}
+  ✓    200→/**
+   201→ * Strand instance state
+   202→ */
+   203→export interface StrandInstance {
+   204→  strandId: string;
+   205→  status: StrandStatus;
+   206→  sAppInfo?: SAppInfo;
+   207→
+   208→  
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-watcher.ts","limit":100}
+  ✓      1→import debug from 'debug';
+     2→import type { StrandFilter, StrandRow } from './types.js';
+     3→
+     4→const log = debug('sereus:cadre:strand-watcher');
+     5→
+     6→/**
+     7→ * Extend
+
+[TOOL:Bash] {"command":"cd C:/projects/sereus && git diff packages/reference-app-rn/package.json 2>/dev/null | head -100","description":"Show package.json changes"}
+
+[TOOL:Bash] {"command":"cd C:/projects/sereus && git diff packages/reference-app-rn/src/use-cadre.ts 2>/dev/null | head -100","description":"Show use-cadre changes"}
+  ✓ 
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\docs\\cadre-architecture.md"}
+  ✓ No files found
+  ✓ diff --git a/packages/reference-app-rn/src/use-cadre.ts b/packages/reference-app-rn/src/use-cadre.ts
+index 240b311..46aa80d 100644
+--- a/packages/reference-app-rn/src/use-cadre.ts
++++ b/packages/refer
+  ✓ No files found
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-instance-manager.ts","limit":100}
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
+     4→import type { IRepo } f
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-database.ts","limit":150}
+  ✓      1→import debug from 'debug';
+     2→import { Database, registerPlugin } from '@quereus/quereus';
+     3→import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
+     4→import optimyst
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-cli/src/index.ts"}
+  ✓      1→// Configuration
+     2→export * from './config/index.js';
+     3→
+     4→// Server (health/metrics)
+     5→export * from './server/index.js';
+     6→
+     7→// Commands are exported for progra
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/index.ts"}
+
+[TOOL:Bash] {"command":"find C:/projects/sereus/packages/reference-app-rn -maxdepth 2 -type f -name \"*.md\" 2>/dev/null","description":"Find markdown files in reference-app-rn"}
+  ✓      1→// Core types
+     2→export * from './types.js';
+     3→
+     4→// Main CadreNode class
+     5→export { CadreNode } from './cadre-node.js';
+     6→
+     7→// Control database
+     8→export { Co
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-core -name \"*.test.ts\" -o -name \"*.spec.ts\" 2>/dev/null | head -10"}
+  ✓ /c/projects/sereus/tasks/implement/3-ci-pipeline-maestro.md
+
+[TOOL:Bash] {"command":"head -50 C:/projects/sereus/packages/reference-app-rn/.gitignore 2>/dev/null","description":"Show gitignore content"}
+  ✓ C:/projects/sereus/packages/reference-app-rn/.expo/README.md
+  ✓ # Native build artifacts (use EAS Build for cloud compilation)
+android/
+ios/
+
+# Expo
+.expo/
+dist/
+
+# Node
+node_modules/
+  ✓ /c/projects/sereus/packages/cadre-core/node_modules/@pnpm/config.env-replace/env-replace.spec.ts
+/c/projects/sereus/packages/cadre-core/node_modules/@pnpm/network.ca-file/ca-file.spec.ts
+/c/projects/s
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages -name \"package.json\" -type f | xargs grep -l \"test\\|vitest\\|jest\" | head -10","description":"Find packages with test scripts"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/cadre-core -path \"*/node_modules\" -prune -o -name \"*.test.ts\" -o -name \"*.spec.ts\" -type f 2>/dev/null"}
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages -name \"vitest.config.*\" -o -name \"jest.config.*\" 2>/dev/null","description":"Find test configuration files"}
+
+[TOOL:Bash] {"command":"tree -L 2 -I 'node_modules|dist|.expo|android|ios' C:/projects/sereus/packages/reference-app-rn 2>/dev/null || find C:/projects/sereus/packages/reference-app-rn -maxdepth 2 -type f \\( ! -
+  ✓ /c/projects/sereus/packages/cadre-core/node_modules
+/c/projects/sereus/packages/cadre-core/test/cadre-node.spec.ts
+/c/projects/sereus/packages/cadre-core/test/enrollment.spec.ts
+/c/projects/sereus/pac
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages -type d -name \"*test*\" -o -name \"*integration*\" -o -name \"*e2e*\" 2>/dev/null | grep -v node_modules","description":"Find test directories"}
+  ✓ C:/projects/sereus/packages/reference-app-rn/.gitignore
+C:/projects/sereus/packages/reference-app-rn/app.json
+C:/projects/sereus/packages/reference-app-rn/app/_layout.tsx
+C:/projects/sereus/packages/r
+  ✓ /c/projects/sereus/packages/cadre-cli/node_modules/@babel/core/node_modules/semver/package.json
+/c/projects/sereus/packages/cadre-cli/node_modules/@babel/core/package.json
+/c/projects/sereus/packages/
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/test/cadre-node.spec.ts","limit":150}
+  ✓      1→import { describe, it, expect, beforeEach } from 'vitest';
+     2→import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
+     3→import { CadreNode } from '../src/
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/test/seed-bootstrap.spec.ts","limit":150}
+  ✓      1→import { describe, it, expect, beforeEach } from 'vitest';
+     2→import { generatePrivateKey, getPublicKey, digest, sign, verify } from '@optimystic/quereus-plugin-crypto';
+     3→import {
+   
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-cli/src/config/types.ts"}
+  ✓      1→import type { NodeProfile, LatencyHint, StrandFilter } from '@serfab/cadre-core';
+     2→
+     3→/**
+     4→ * CLI configuration file format (YAML/JSON)
+     5→ */
+     6→export interface CliCo
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-cli/src/config/loader.ts","limit":100}
+  ✓      1→import fs from 'node:fs';
+     2→import path from 'node:path';
+     3→import yaml from 'js-yaml';
+     4→import debug from 'debug';
+     5→import type { StrandFilter } from '@serfab/cadre-core'
+  ✓ /c/projects/sereus/packages/cadre-core/test
+/c/projects/sereus/packages/integration-tests
+/c/projects/sereus/packages/integration-tests/dist/scenarios/basic-connectivity.integration.d.ts
+/c/projects/s
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-database.ts","offset":140,"limit":50}
+  ✓ /c/projects/sereus/packages/cadre-cli/node_modules/comment-parser/jest.config.cjs
+/c/projects/sereus/packages/cadre-cli/node_modules/semantic-release-plugin-decorators/jest.config.cjs
+/c/projects/sere
+  ✓    140→   */
+   141→  getDatabase(): Database {
+   142→    this.ensureInitialized();
+   143→    return this.db!;
+   144→  }
+   145→
+   146→  /**
+   147→   * Close the database and cleanup resources
+  
+
+[TOOL:Grep] {"pattern":"exec|insert|query","path":"/c/projects/sereus/packages/cadre-core/test","output_mode":"content","head_limit":50}
+  ✓ C:\projects\sereus\packages\cadre-core\test\strand-watcher-filters.spec.ts:8:      queryStrands: async () => strandsProvider()
+C:\projects\sereus\packages\cadre-core\test\strand-watcher-filters.spec.t
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\vitest.config.ts"}
+  ✓      1→import { defineConfig } from 'vitest/config'
+     2→
+     3→export default defineConfig({
+     4→  test: {
+     5→    globals: true,
+     6→    environment: 'node',
+     7→    include: ['test/*
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\vitest.config.ts"}
+  ✓      1→import { defineConfig } from 'vitest/config'
+     2→
+     3→export default defineConfig({
+     4→  test: {
+     5→    globals: true,
+     6→    environment: 'node',
+     7→    include: ['src/**
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\strand-proto\\vitest.config.ts"}
+  ✓      1→import { defineConfig } from 'vitest/config'
+     2→
+     3→export default defineConfig({
+     4→  test: {
+     5→    environment: 'node',
+     6→    include: ['test/auto/**/*.ts'],
+     7→    
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/cadre-node.ts","offset":350,"limit":250}
+  ✓    350→  }
+   351→
+   352→  private async handleStrandAdded(strand: StrandRow): Promise<void> {
+   353→    log('Handling strand added from control network: %s', strand.Id);
+   354→
+   355→    // Check
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/packages/integration-tests/src -type f -name \"*.ts\" | head -20","description":"List integration test files"}
+  ✓ /c/projects/sereus/packages/integration-tests/src/fixtures/index.ts
+/c/projects/sereus/packages/integration-tests/src/harness/index.ts
+/c/projects/sereus/packages/integration-tests/src/harness/port-al
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/cadre-node.ts","offset":600,"limit":300}
+  ✓    600→
+   601→    this.seedBootstrapService.initialize(this.controlNode, this.controlDatabase);
+   602→    log('Seed bootstrap service initialized');
+   603→  }
+   604→
+   605→  /**
+   606→   * Enabl
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\index.ts"}
+  ✓      1→/**
+     2→ * Integration test harness exports
+     3→ */
+     4→
+     5→export * from './types.js';
+     6→export * from './port-allocator.js';
+     7→export * from './wait-utils.js';
+     8→e
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\test-network.ts"}
+  ✓      1→/**
+     2→ * TestCadreNetwork - orchestrator for multi-party integration tests.
+     3→ *
+     4→ * Manages multiple parties, their cadres, strand creation, invitations,
+     5→ * and provides
+
+[TOOL:Bash] {"command":"ls -la /c/projects/sereus/packages/integration-tests/src/scenarios/","description":"List scenario test files"}
+  ✓ total 44
+drwxr-xr-x 1 n8ers 197610    0 Feb 13 12:30 .
+drwxr-xr-x 1 n8ers 197610    0 Jan 17 15:52 ..
+-rw-r--r-- 1 n8ers 197610 2982 Jan 17 15:52 basic-connectivity.integration.ts
+-rw-r--r-- 1 n8ers 1
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\README.md"}
+  ✓      1→# Task Runner
+     2→
+     3→Processes outstanding tasks through the pipeline by invoking an agentic CLI, one stage at a time.
+     4→
+     5→## Key Design Choices
+     6→
+     7→**Snapshot, no
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\AGENTS.md"}
+  ✓      1→The tasks folder contains fix, plan, implement, review, blocked, and complete subfolders.  Each task is an md file under these folders, having a descriptive filename prefixed with a 1-5 priorit
+
+[TOOL:Bash] {"command":"ls -la /c/projects/sereus/tasks/plan/ 2>/dev/null | head -20","description":"List planned task files"}
+  ✓ total 32
+drwxr-xr-x 1 n8ers 197610    0 Feb 23 23:10 .
+drwxr-xr-x 1 n8ers 197610    0 Feb 23 22:45 ..
+-rw-r--r-- 1 n8ers 197610  875 Feb 23 15:56 1-provider-enhancements.md
+-rw-r--r-- 1 n8ers 197610 1
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\package.json"}
+  ✓      1→{
+     2→  "name": "@serfab/reference-app-rn",
+     3→  "version": "0.0.1",
+     4→  "private": true,
+     5→  "main": "expo-router/entry",
+     6→  "scripts": {
+     7→    "eas-build-pre-insta
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\basic-connectivity.integration.ts"}
+  ✓      1→/**
+     2→ * Basic connectivity integration test.
+     3→ * 
+     4→ * Verifies that the test harness can:
+     5→ * - Create parties with real libp2p nodes
+     6→ * - Nodes can connect to ea
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\websocket-chat.integration.ts","limit":100}
+  ✓      1→/**
+     2→ * WebSocket Chat smoke test.
+     3→ *
+     4→ * Two CadreNode instances in one process:
+     5→ *   • Drone  — storage profile, WebSocket listener on 127.0.0.1
+     6→ *   • Phone 
+  ✓ Perfect! Now let me compile a comprehensive report of my exploration:
+
+## Comprehensive Reference App RN Exploration Report
+
+I've thoroughly explored the `packages/reference-app-rn/` directory and ana
+  ✓ Perfect! Now I have a comprehensive understanding. Let me create a final summary document with all the information gathered.
+
+## Exploration Summary: Cadre-CLI and Cadre-Core Drone Implementation
+
+Bas
+  ✓ Perfect! Now I have a comprehensive view. Let me compile the findings into a clear report.
+
+## Summary: CI Configuration and Test Infrastructure in Sereus Monorepo
+
+Based on my systematic search of th
+
+[ASSISTANT]
+Let me check the existing CI pipeline task and integration test harness for overlap.
+
+[TOOL:Glob] {"pattern":"tasks/implement/*.md"}
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\chat-operations.ts"}
+  ✓      1→/**
+     2→ * chat-operations.ts — Quereus wrappers for the simplified chat sApp.
+     3→ *
+     4→ * Operates on the StrandDatabase exposed by a StrandInstance.  The schema
+     5→ * tables li
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\src\\chat-strand.ts"}
+  ✓      1→/**
+     2→ * chat-strand.ts — Strand lifecycle for the simplified chat sApp.
+     3→ *
+     4→ * Wraps CadreNode.addStrand() with the chat-simple schema and provides
+     5→ * helpers to creat
+  ✓ C:\projects\sereus\tasks\implement\4-e2e-enrollment-tests.md
+C:\projects\sereus\tasks\implement\4-e2e-strand-formation-tests.md
+C:\projects\sereus\tasks\implement\4-first-eas-build.md
+C:\projects\sere
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\3-ci-pipeline-maestro.md"}
+  ✓      1→priority: 3
+     2→description: GitHub Actions CI pipeline with EAS Build + Maestro Cloud UI tests
+     3→dependencies: 4-first-eas-build (must succeed first), packages/reference-app-rn, packag
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app\\index.tsx"}
+  ✓      1→/**
+     2→ * Chat screen — flat list of messages + text input + connection indicator.
+     3→ */
+     4→
+     5→import { useRef, useState } from 'react';
+     6→import {
+     7→  FlatList,
+   
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\app\\settings.tsx"}
+  ✓      1→/**
+     2→ * Settings screen — connect to cadre, apply seed, create strand.
+     3→ */
+     4→
+     5→import { useState } from 'react';
+     6→import {
+     7→  Alert,
+     8→  Pressable,
+    
+
+[ASSISTANT]
+Let me check the existing integration test harness and drone config for patterns to reference.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\reference-app-rn\\drone.cadre.yaml"}
+  ✓      1→# Drone node configuration for the Sereus P2P Chat reference app.
+     2→#
+     3→# This file is used with cadre-cli to run the always-on "drone" node that
+     4→# the phone connects to via We
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\harness\\test-network.ts"}
+  ✓      1→/**
+     2→ * TestCadreNetwork - orchestrator for multi-party integration tests.
+     3→ *
+     4→ * Manages multiple parties, their cadres, strand creation, invitations,
+     5→ * and provides
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\integration-tests\\src\\scenarios\\websocket-chat.integration.ts"}
+  ✓      1→/**
+     2→ * WebSocket Chat smoke test.
+     3→ *
+     4→ * Two CadreNode instances in one process:
+     5→ *   • Drone  — storage profile, WebSocket listener on 127.0.0.1
+     6→ *   • Phone 
+
+[ASSISTANT]
+Now I have a thorough understanding. Let me synthesize the design and create implementation tasks.
+
+Key findings:
+- **CI pipeline task** (`3-ci-pipeline-maestro.md`) already covers basic Maestro smoke tests (app launches, navigate settings) — Phase 1 UI-only
+- **websocket-chat.integration.ts** validates replication at the library level, but not through the actual RN UI
+- The reference app uses **polling** (2s interval) for message display
+- **Maestro Cloud constraint**: drone must be network-accessible to cloud devices — needs a tunnel or self-hosted runner
+- **Bidirectional sync test** needs programmatic drone-side message insertion during a Maestro flow — requires an HTTP sidecar
+
+I'll now create the implementation tasks and delete the plan task.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Write implementation task: drone test fixture with HTTP sidecar","status":"in_progress","activeForm":"Writing drone fixture task"},{"content":"Write implementation task: Maestro 
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\3-drone-test-fixture.md","content":"priority: 3\ndescription: Drone test fixture with HTTP sidecar for automated E2E tests\ndependencies: packages
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\3-drone-test-fixture.md
+
+[TOOL:TodoWrite] {"todos":[{"content":"Write implementation task: drone test fixture with HTTP sidecar","status":"completed","activeForm":"Writing drone fixture task"},{"content":"Write implementation task: Maestro E2
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\3-maestro-e2e-flows.md","content":"priority: 3\ndescription: Maestro E2E flows for seed application, messaging, and bidirectional sync\ndependenci
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\3-maestro-e2e-flows.md
+
+[TOOL:TodoWrite] {"todos":[{"content":"Write implementation task: drone test fixture with HTTP sidecar","status":"completed","activeForm":"Writing drone fixture task"},{"content":"Write implementation task: Maestro E2
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\2-convergence-stress-test.md","content":"priority: 2\ndescription: Convergence stress test for concurrent message inserts across nodes\ndependenci
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\2-convergence-stress-test.md
+
+[ASSISTANT]
+Now delete the plan task and commit.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Write implementation task: drone test fixture with HTTP sidecar","status":"completed","activeForm":"Writing drone fixture task"},{"content":"Write implementation task: Maestro E2
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Bash] {"command":"rm /c/projects/sereus/tasks/plan/3-automated-testing.md","description":"Delete plan task file"}
+  ✓ 
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git status -s tasks/","description":"Check task file changes"}
+  ✓  D tasks/implement/3-app-schema-verification.md
+?? tasks/.logs/
+?? tasks/AGENTS.md
+?? tasks/README.md
+?? tasks/blocked/
+?? tasks/fix/
+?? tasks/implement/2-convergence-stress-test.md
+?? tasks/implement
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git log --oneline -5","description":"Check recent commit style"}
+  ✓ e7858f1 task(implement): sApp schema cryptographic verification on strand join
+65dfede task(plan): sApp schema verification → implement task
+f3ecf97 task(plan): EAS Build + CI pipeline → two implement
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git add tasks/implement/3-drone-test-fixture.md tasks/implement/3-maestro-e2e-flows.md tasks/implement/2-convergence-stress-test.md && git commit -m \"$(cat <<'EOF
+  ✓ [master 932318f] task(plan): automated UI testing → three implement tasks
+ 3 files changed, 400 insertions(+)
+ create mode 100644 tasks/implement/2-convergence-stress-test.md
+ create mode 100644 tasks
+
+[TOOL:TodoWrite] {"todos":[{"content":"Write implementation task: drone test fixture with HTTP sidecar","status":"completed","activeForm":"Writing drone fixture task"},{"content":"Write implementation task: Maestro E2
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Done. Split the automated testing plan into three implementation tasks:
+
+1. **`3-drone-test-fixture.md`** — Drone process with HTTP sidecar exposing `/seed/create`, `/message/insert`, `/messages/:strandId`, etc. for programmatic test control. Writes `test-data.json` with bootstrap addr + seed on startup.
+
+2. **`3-maestro-e2e-flows.md`** — Three Maestro flows: seed application + send message, bidirectional sync (drone inserts via sidecar `runScript`, phone polls and sees it), and round-trip verification. Includes `testID` additions to the app and shared sub-flows.
+
+3. **`2-convergence-stress-test.md`** — Vitest integration test extending the existing `websocket-chat.integration.ts` pattern with concurrent inserts (10+10), interleaved inserts, and burst-after-reconnection scenarios. Better suited as a library-level test than Maestro due to timing control needs.
+
+[RESULT ✓ DONE | 271.1s | cost $1.4665]
+Done. Split the automated testing plan into three implementation tasks:
+
+1. **`3-drone-test-fixture.md`** — Drone process with HTTP sidecar exposing `/seed/create`, `/message/insert`, `/messages/:strandId`, etc. for programmatic test control. Writes `test-data.json` with bootstrap addr + seed on startup.
+
+2. **`3-maestro-e2e-flows.md`** — Three Maestro flows: seed application + send message, bidirectional sync (drone inserts via sidecar `runScript`, phone polls and sees it), and round-trip verification. Includes `testID` additions to the app and shared sub-flows.
+
+3. **`2-convergence-stress-test.md`** — Vitest integration test extending the existing `websocket-chat.integration.ts` pattern with concurrent inserts (10+10), interleaved inserts, and burst-after-reconnection scenarios. Better suited as a library-level test than Maestro due to timing control needs.
+
+[runner] Agent exited with code 0

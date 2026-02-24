@@ -1,0 +1,522 @@
+Task: 3-app-schema-verification.md
+Stage: plan → implement
+Priority: 3
+Agent: claude
+Started: 2026-02-24T06:05:23.043Z
+════════════════════════════════════════════════════════════════════════
+[session e2631d31-8ae7-42ec-827d-6f82fc137d92]
+
+[ASSISTANT]
+
+
+I'll start by reading the architecture docs and understanding the current codebase before planning the schema verification design.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\docs\\cadre-architecture.md"}
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\tasks\\plan\\3-app-schema-verification.md"}
+  ✓      1→priority: 3
+     2→description: Design cryptographic verification of sApp schemas when joining strands
+     3→dependencies: packages/cadre-core, StrandInstanceManager, sApp schema signing
+     
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\CLAUDE.md"}
+  ✓      1→@AGENTS.md
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1771916400,"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false},"uuid":"f45bb723-0fd3-448e-abe3-ea84a6935469","session_id":"e2631d31-8ae7-42ec-827d-6f82fc137d92"}
+
+[TOOL:TodoWrite] {"todos":[{"content":"Research sApp schema types, StrandInstanceManager, and current trust model","status":"in_progress","activeForm":"Researching sApp schema types and current trust model"},{"content
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Let me research the current codebase — the StrandInstanceManager, sApp types, schema signing, and how strands are joined.
+
+[TOOL:Task] {"subagent_type":"Explore","description":"Research sApp schema verification","prompt":"I need to understand how sApp schema verification works (or doesn't yet) in this codebase. Search thoroughly for:
+{"type":"system","subtype":"task_started","task_id":"a60f908f6fa635c70","tool_use_id":"toolu_0129bHaLU1G4n6rp5CSwHdkX","description":"Research sApp schema verification","task_type":"local_agent","uuid":"ba30680e-bb14-42ca-8116-2540fb704783","session_id":"e2631d31-8ae7-42ec-827d-6f82fc137d92"}
+
+[USER]
+I need to understand how sApp schema verification works (or doesn't yet) in this codebase. Search thoroughly for:
+
+1. **StrandInstanceManager** - find the class, read the full implementation. How does it start strands? How does it use sAppInfo?
+2. **sAppInfo** - find the type definition (has Id, Schema, Signature, Version). Where is it defined? Where is it used?
+3. **Schema signing** - search for anything related to signing or verifying sApp schemas. Look for "Signature", "sApp", "author", "sign" in relevant contexts.
+4. **Strand table schema** - find the control.qsql or strand.qsql schema files. What fields does the Strand table have?
+5. **StrandFormationManager** and **StrandProvisioner** - how do they create strands and populate sAppInfo?
+6. **ed25519 / crypto usage** - how is ed25519 used in the codebase? What crypto library? Look for sign/verify functions.
+7. **Trust model** - search for "trust", "TOFU", "pinned", "author" to see if there's any existing trust infrastructure.
+
+Focus on packages/cadre-core/ and packages/strand-proto/. Read all relevant files fully.
+
+Return detailed findings for each area with file paths and line numbers.
+
+[TOOL:Bash] {"command":"find /c/projects/sereus -type f -name \"*.md\" | grep -E \"(cadre|architecture|doc)\" | head -20"}
+  ✓ /c/projects/sereus/docs/api.md
+/c/projects/sereus/docs/cadre-architecture.md
+/c/projects/sereus/docs/reference-app-rn.md
+/c/projects/sereus/docs/schema-guide.md
+/c/projects/sereus/docs/STATUS.md
+/c/pr
+
+[TOOL:Grep] {"pattern":"class StrandInstanceManager","type":"ts"}
+
+[TOOL:Grep] {"pattern":"interface sAppInfo|type sAppInfo","type":"ts"}
+
+[TOOL:Grep] {"pattern":"class StrandFormationManager","type":"ts"}
+
+[TOOL:Grep] {"pattern":"class StrandProvisioner","type":"ts"}
+  ✓ Found 1 file
+packages\cadre-core\src\strand-instance-manager.ts
+  ✓ No files found
+  ✓ Found 1 file
+packages\cadre-core\src\strand-formation-manager.ts
+  ✓ No files found
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/docs/cadre-architecture.md"}
+
+[TOOL:Grep] {"pattern":"sAppInfo","type":"ts"}
+
+[TOOL:Glob] {"pattern":"packages/cadre-core/src/**/*.ts"}
+  ✓      1→# Sereus Cadre Architecture
+     2→
+     3→This document describes the architecture of the Sereus Cadre system—the infrastructure that enables parties to control sets of nodes participating in 
+  ✓ Found 5 files
+packages\cadre-cli\src\commands\strands.ts
+packages\cadre-core\src\strand-instance-manager.ts
+packages\cadre-core\src\types.ts
+packages\cadre-core\test\strand-instance-manager.spec.ts
+pa
+  ✓ C:\projects\sereus\packages\cadre-core\src\strand-watcher.ts
+C:\projects\sereus\packages\cadre-core\src\hibernation-manager.ts
+C:\projects\sereus\packages\cadre-core\src\arachnode-stub.ts
+C:\projects\
+
+[TOOL:Grep] {"pattern":"Signature|sign|ed25519|crypto","type":"ts","path":"/c/projects/sereus/packages/cadre-core/src","output_mode":"files_with_matches"}
+
+[TOOL:Grep] {"pattern":"control\\.qsql|strand\\.qsql"}
+
+[TOOL:Glob] {"pattern":"**/*.qsql"}
+  ✓ Found 9 files
+packages\cadre-core\src\strand-solicitation.ts
+packages\cadre-core\src\control-database.ts
+packages\cadre-core\src\strand-database.ts
+packages\cadre-core\src\strand-instance-manager.ts
+p
+  ✓ Found 2 files
+tasks\.logs\3-app-schema-verification.plan.2026-02-24T06-05-23-042Z.log
+docs\cadre-architecture.md
+  ✓ C:\projects\sereus\schemas\chat.qsql
+C:\projects\sereus\packages\integration-tests\fixtures\simple-sapp.qsql
+C:\projects\sereus\schemas\strand.qsql
+C:\projects\sereus\schemas\control.qsql
+C:\projects\
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/types.ts"}
+  ✓      1→import type { Libp2p, PeerId } from '@libp2p/interface';
+     2→import type { IRawStorage, Libp2pTransports } from '@optimystic/db-p2p';
+     3→import type { StrandDatabase } from './strand-dat
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-instance-manager.ts"}
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
+     4→import type { IRepo } f
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-formation-manager.ts"}
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import {
+     4→  SessionManager,
+     5→  createBootstrapManager,
+     6→  DEFAULT_PROTOCOL_ID,
+     7
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/schemas/control.qsql"}
+  ✓      1→-- This manages a Sereus party's cadre, or set of nodes, and their participation in strands (networks)
+     2→declare schema CadreControl {
+     3→    -- A key that can authorize various contro
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/schemas/strand.qsql"}
+  ✓      1→-- A strand schema is present in all Sereus strands (distributed database instances)
+     2→declare schema Strand {
+     3→    table Header (
+     4→        Id text,    -- UUID of this network 
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-database.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { Database, registerPlugin } from '@quereus/quereus';
+     3→import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
+     4→import optimyst
+
+[TOOL:Grep] {"pattern":"verify|sign|ed25519","type":"ts","path":"/c/projects/sereus/packages/cadre-core/src","output_mode":"content","head_limit":80}
+
+[TOOL:Grep] {"pattern":"trust|TOFU|pinned|author","type":"ts","output_mode":"content"}
+  ✓ C:\projects\sereus\packages\cadre-core\src\hibernation-manager.ts:28: *   hibernating → active (on wake signal or check-in with pending activity)
+C:\projects\sereus\packages\cadre-core\src\types.ts:19
+  ✓ <persisted-output>
+Output too large (29.2KB). Full output saved to: C:\Users\n8ers\.claude\projects\C--projects-sereus\e2631d31-8ae7-42ec-827d-6f82fc137d92\tool-results\toolu_01M3vWfe2HcSXMnkp7qZ1zCq.
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/seed-bootstrap.ts"}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
+     3→import { digest, sign, verify, getPublicKey } from '@o
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/control-database.ts","limit":100}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString } from 'uint8arrays';
+     3→import { Database, registerPlugin } from '@quereus/quereus';
+     4→import cryptoPlugin fr
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-solicitation.ts","limit":150}
+  ✓      1→import debug from 'debug';
+     2→import { toString as uint8ArrayToString } from 'uint8arrays';
+     3→import { generateKeyPair, privateKeyToProtobuf } from '@libp2p/crypto/keys';
+     4→import
+
+[TOOL:Bash] {"command":"find /c/projects/sereus -type f -name \"*.ts\" | xargs grep -l \"StrandProvisioner\\|DisclosureValidator\" | head -10"}
+  ✓ /c/projects/sereus/packages/cadre-core/dist/index.d.ts
+/c/projects/sereus/packages/cadre-core/dist/strand-formation-manager.d.ts
+/c/projects/sereus/packages/cadre-core/dist/strand-solicitation.d.ts
+/c
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/src/strand-solicitation.ts","offset":150}
+  ✓    150→  /**
+   151→   * Unregister as a responder from a libp2p node.
+   152→   */
+   153→  unregisterResponder(node: Libp2p): void {
+   154→    this.getFormationManager().unregisterResponder(node);
+
+
+[TOOL:Grep] {"pattern":"schema verification|sApp.*Signature|verify.*schema","type":"ts"}
+  ✓ No files found
+
+[TOOL:Bash] {"command":"find /c/projects/sereus/tasks -name \"*schema*\" -o -name \"*verify*\" 2>/dev/null | head -20"}
+  ✓ /c/projects/sereus/tasks/.logs/3-app-schema-verification.plan.2026-02-24T06-05-23-042Z.log
+/c/projects/sereus/tasks/.logs/3-app-schema-verification.plan.2026-02-24T06-05-23-042Z.prompt.md
+/c/projects/
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/tasks/plan/3-app-schema-verification.md"}
+  ✓      1→priority: 3
+     2→description: Design cryptographic verification of sApp schemas when joining strands
+     3→dependencies: packages/cadre-core, StrandInstanceManager, sApp schema signing
+     
+
+[TOOL:Bash] {"command":"find /c/projects/strand-proto -type f -name \"*.ts\" 2>/dev/null | head -15"}
+  ✓ 
+
+[TOOL:Bash] {"command":"grep -r \"quereus-plugin-crypto\\|@optimystic/crypto\" /c/projects/sereus/packages --include=\"*.ts\" --include=\"package.json\" | head -20"}
+  ✓ /c/projects/sereus/packages/cadre-core/package.json:    "@optimystic/quereus-plugin-crypto": "^0.4.3",
+/c/projects/sereus/packages/cadre-core/src/control-database.ts:import cryptoPlugin from '@optimys
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/test/seed-bootstrap.spec.ts","limit":100}
+  ✓      1→import { describe, it, expect, beforeEach } from 'vitest';
+     2→import { generatePrivateKey, getPublicKey, digest, sign, verify } from '@optimystic/quereus-plugin-crypto';
+     3→import {
+   
+
+[TOOL:Grep] {"pattern":"TODO|FIXME|XXX|verify.*signature|sApp.*verify","type":"ts","path":"/c/projects/sereus/packages/cadre-core/src","output_mode":"content","head_limit":60}
+  ✓ C:\projects\sereus\packages\cadre-core\src\cadre-node.ts:340:    // TODO: This requires signing the update to satisfy the AuthorizedUpdate constraint
+C:\projects\sereus\packages\cadre-core\src\control
+
+[TOOL:Bash] {"command":"grep -n -i \"trust\\|TOFU\\|pinned\\|author\\|verify\" /c/projects/sereus/docs/cadre-architecture.md | head -40"}
+  ✓ 12:- **Key-based authorization**: Cryptographic authority delegation without central servers
+34:| `AuthorityKey` | Keys authorized to make control changes |
+64:1. **Connects to the control network** u
+
+[TOOL:Read] {"file_path":"/c/projects/sereus/packages/cadre-core/package.json"}
+  ✓      1→{
+     2→  "name": "@serfab/cadre-core",
+     3→  "version": "0.0.2",
+     4→  "type": "module",
+     5→  "description": "Core library for Sereus cadre nodes - manages control networks and stra
+
+[TOOL:Bash] {"command":"grep -A5 \"sAppInfo\\|StrandInstance\" /c/projects/sereus/packages/cadre-core/src/cadre-node.ts | head -30"}
+  ✓   StrandInstance,
+  StrandRow,
+  StrandConfig,
+  SAppConfig,
+  CadreNodeEvents,
+  ControlNetworkSeed,
+--
+import { StrandInstanceManager } from './strand-instance-manager.js';
+import { EnrollmentServic
+  ✓ Now let me compile my comprehensive findings report:
+
+## Detailed Findings Report: sApp Schema Verification in Sereus
+
+Based on my thorough search of the codebase, here are the detailed findings:
+
+---
+
+[ASSISTANT]
+Good, thorough research complete. Now let me verify a few key details before writing the design.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-instance-manager.ts","limit":60}
+  ✓      1→import debug from 'debug';
+     2→import type { Libp2p } from '@libp2p/interface';
+     3→import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
+     4→import type { IRepo } f
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\types.ts","offset":180,"limit":100}
+  ✓    180→ */
+   181→export type StrandStatus = 
+   182→  | 'starting' 
+   183→  | 'active' 
+   184→  | 'idle' 
+   185→  | 'hibernating' 
+   186→  | 'stopping' 
+   187→  | 'stopped' 
+   188→  | 'error';
+
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\seed-bootstrap.ts","offset":370,"limit":50}
+  ✓    370→    // Find a circuit relay address
+   371→    const relayAddr = addrs.find(addr => addr.toString().includes('/p2p-circuit/'));
+   372→
+   373→    return relayAddr?.toString() ?? null;
+   374→ 
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-instance-manager.ts","offset":120,"limit":120}
+  ✓    120→    return this.instances.has(strandId);
+   121→  }
+   122→
+   123→  /**
+   124→   * Start a new strand instance
+   125→   */
+   126→  async startStrand(config: StartStrandConfig): Promise<Stra
+
+[ASSISTANT]
+Now let me check the existing test patterns for StrandInstanceManager.
+
+[TOOL:Glob] {"pattern":"packages/cadre-core/test/**/*strand*"}
+  ✓ C:\projects\sereus\packages\cadre-core\test\strand-watcher.spec.ts
+C:\projects\sereus\packages\cadre-core\test\strand-instance-manager.spec.ts
+C:\projects\sereus\packages\cadre-core\test\strand-watche
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\strand-instance-manager.spec.ts"}
+  ✓      1→import { describe, it, expect } from 'vitest';
+     2→import { StrandInstanceManager, getStrandStoragePath } from '../src/strand-instance-manager.js';
+     3→import type { StrandRow, SAppConfig
+
+[TOOL:TodoWrite] {"todos":[{"content":"Research sApp schema types, StrandInstanceManager, and current trust model","status":"completed","activeForm":"Researching sApp schema types and current trust model"},{"content":
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Research is complete. I now have a thorough understanding of the codebase. Let me design and write the implement task.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Research sApp schema types, StrandInstanceManager, and current trust model","status":"completed","activeForm":"Researching sApp schema types and current trust model"},{"content":
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Bash] {"command":"ls C:/projects/sereus/tasks/implement/","description":"List existing implement tasks"}
+  ✓ 3-ci-pipeline-maestro.md
+4-e2e-enrollment-tests.md
+4-e2e-strand-formation-tests.md
+4-first-eas-build.md
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\implement\\3-app-schema-verification.md","content":"priority: 3\ndescription: Implement cryptographic verification of sApp schemas on strand join\ndependenci
+  ✓ File created successfully at: C:\projects\sereus\tasks\implement\3-app-schema-verification.md
+
+[ASSISTANT]
+Now delete the plan task and commit.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Research sApp schema types, StrandInstanceManager, and current trust model","status":"completed","activeForm":"Researching sApp schema types and current trust model"},{"content":
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && rm tasks/plan/3-app-schema-verification.md","description":"Delete the plan task file"}
+  ✓ 
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git status","description":"Show working tree status"}
+  ✓ On branch master
+Your branch is ahead of 'origin/master' by 3 commits.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will b
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git diff -- tasks/","description":"Show diff in tasks directory"}
+  ✓ 
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git log --oneline -5","description":"Show recent commits"}
+  ✓ f3ecf97 task(plan): EAS Build + CI pipeline → two implement tasks
+1d4747b task(plan): E2E enrollment and strand formation test design → implement tasks
+7a07edd task(plan→review): RN platform validatio
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git add tasks/implement/3-app-schema-verification.md && git commit -m \"$(cat <<'EOF'\ntask(plan): sApp schema verification → implement task\n\nCo-Authored-By: Cla
+  ✓ [master 65dfede] task(plan): sApp schema verification → implement task
+ 1 file changed, 124 insertions(+)
+ create mode 100644 tasks/implement/3-app-schema-verification.md
+
+[TOOL:TodoWrite] {"todos":[{"content":"Research sApp schema types, StrandInstanceManager, and current trust model","status":"completed","activeForm":"Researching sApp schema types and current trust model"},{"content":
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+The plan is concrete and fresh context remains, so I'll proceed directly to implementation.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\index.ts"}
+  ✓      1→// Core types
+     2→export * from './types.js';
+     3→
+     4→// Main CadreNode class
+     5→export { CadreNode } from './cadre-node.js';
+     6→
+     7→// Control database
+     8→export { Co
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"in_progress","activeForm":"Creating schema-verification.ts"},{"content":"Integrate a
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Let me check the exact import path and function signatures of the crypto library.
+
+[TOOL:Grep] {"pattern":"from '@optimystic/quereus-plugin-crypto'","path":"C:\\projects\\sereus\\packages\\cadre-core","output_mode":"content"}
+  ✓ C:\projects\sereus\packages\cadre-core\test\seed-bootstrap.spec.ts:2:import { generatePrivateKey, getPublicKey, digest, sign, verify } from '@optimystic/quereus-plugin-crypto';
+C:\projects\sereus\pack
+
+[TOOL:Grep] {"pattern":"generatePrivateKey","path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\seed-bootstrap.spec.ts","output_mode":"content","-C":3}
+  ✓ 1-import { describe, it, expect, beforeEach } from 'vitest';
+2:import { generatePrivateKey, getPublicKey, digest, sign, verify } from '@optimystic/quereus-plugin-crypto';
+3-import {
+4-  SeedBootstrapS
+
+[ASSISTANT]
+Good, I have all the patterns. Now let me create the implementation files.
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\schema-verification.ts","content":"import debug from 'debug';\nimport { digest, sign, verify } from '@optimystic/quereus-plugin-crypto';\
+  ✓ File created successfully at: C:\projects\sereus\packages\cadre-core\src\schema-verification.ts
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"completed","activeForm":"Creating schema-verification.ts"},{"content":"Integrate ass
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Now integrate into `StrandInstanceManager.startStrand()`:
+
+[TOOL:Edit] {"replace_all":false,"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-instance-manager.ts","old_string":"import { StrandDatabase } from './strand-database.js';\nimport type {","new
+  ✓ The file C:\projects\sereus\packages\cadre-core\src\strand-instance-manager.ts has been updated successfully.
+
+[TOOL:Edit] {"replace_all":false,"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\strand-instance-manager.ts","old_string":"    log('Starting strand instance: %s (sApp: %s v%s)', strandId, sAppConfig
+  ✓ The file C:\projects\sereus\packages\cadre-core\src\strand-instance-manager.ts has been updated successfully.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"completed","activeForm":"Creating schema-verification.ts"},{"content":"Integrate ass
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Now create the test file for schema verification:
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\schema-verification.spec.ts","content":"import { describe, it, expect, beforeEach } from 'vitest';\nimport { generatePrivateKey, getPubl
+  ✓ File created successfully at: C:\projects\sereus\packages\cadre-core\test\schema-verification.spec.ts
+
+[ASSISTANT]
+Now update the strand-instance-manager test to use real signatures:
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\strand-instance-manager.spec.ts"}
+  ✓      1→import { describe, it, expect } from 'vitest';
+     2→import { StrandInstanceManager, getStrandStoragePath } from '../src/strand-instance-manager.js';
+     3→import type { StrandRow, SAppConfig
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\strand-instance-manager.spec.ts","content":"import { describe, it, expect, beforeEach } from 'vitest';\nimport { generatePrivateKey, get
+  ✓ The file C:\projects\sereus\packages\cadre-core\test\strand-instance-manager.spec.ts has been updated successfully.
+
+[ASSISTANT]
+Now update the exports in index.ts:
+
+[TOOL:Edit] {"replace_all":false,"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\src\\index.ts","old_string":"// Strand Formation (strand-proto integration)","new_string":"// Schema Verification\nexport 
+  ✓ The file C:\projects\sereus\packages\cadre-core\src\index.ts has been updated successfully.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"completed","activeForm":"Creating schema-verification.ts"},{"content":"Integrate ass
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Now let's build and run tests.
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && yarn workspace @serfab/cadre-core build 2>&1","description":"Build cadre-core package","timeout":60000}
+  ✓ 
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && yarn workspace @serfab/cadre-core test 2>&1","description":"Run cadre-core tests","timeout":120000}
+  ✓ Exit code 1
+
+[1m[46m RUN [49m[22m [36mv4.0.17 [39m[90mC:/projects/sereus/packages/cadre-core[39m
+
+ [32m✓[39m test/strand-watcher.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22
+
+[ASSISTANT]
+Good — 3 failures in `cadre-node.spec.ts` which also uses fake signatures. Let me fix that test file.
+
+[TOOL:Read] {"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\cadre-node.spec.ts"}
+  ✓      1→import { describe, it, expect } from 'vitest';
+     2→import { CadreNode } from '../src/cadre-node.js';
+     3→import type { CadreNodeConfig, StrandRow, StrandConfig, SAppConfig } from '../src/
+
+[ASSISTANT]
+I need to update the `cadre-node.spec.ts` to use real signatures too:
+
+[TOOL:Edit] {"replace_all":false,"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\cadre-node.spec.ts","old_string":"import { describe, it, expect } from 'vitest';\nimport { CadreNode } from '../src/
+  ✓ The file C:\projects\sereus\packages\cadre-core\test\cadre-node.spec.ts has been updated successfully.
+
+[ASSISTANT]
+Now I need to update the assertions that check for `'test-app'` since the id is now the real public key:
+
+[TOOL:Edit] {"replace_all":false,"file_path":"C:\\projects\\sereus\\packages\\cadre-core\\test\\cadre-node.spec.ts","old_string":"      expect(instance.sAppInfo?.id).toBe('test-app');\n      expect(node.getStrand
+  ✓ The file C:\projects\sereus\packages\cadre-core\test\cadre-node.spec.ts has been updated successfully.
+
+[ASSISTANT]
+Now rebuild and re-run tests:
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && yarn workspace @serfab/cadre-core build 2>&1 && yarn workspace @serfab/cadre-core test 2>&1","description":"Build and run cadre-core tests","timeout":120000}
+  ✓ [1m[46m RUN [49m[22m [36mv4.0.17 [39m[90mC:/projects/sereus/packages/cadre-core[39m
+
+ [32m✓[39m test/strand-watcher.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m
+
+[ASSISTANT]
+All 117 tests passing. Now transition the task to review/ and commit.
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"completed","activeForm":"Creating schema-verification.ts"},{"content":"Integrate ass
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Write the review task file:
+
+[TOOL:Write] {"file_path":"C:\\projects\\sereus\\tasks\\review\\3-app-schema-verification.md","content":"priority: 3\ndescription: Cryptographic verification of sApp schemas on strand join\nfiles:\n  - packages/ca
+  ✓ File created successfully at: C:\projects\sereus\tasks\review\3-app-schema-verification.md
+
+[ASSISTANT]
+Now delete the implement task and commit everything:
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && rm tasks/implement/3-app-schema-verification.md","description":"Delete implement task file"}
+  ✓ 
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git add packages/cadre-core/src/schema-verification.ts packages/cadre-core/src/strand-instance-manager.ts packages/cadre-core/src/index.ts packages/cadre-core/test
+  ✓ warning: in the working copy of 'packages/cadre-core/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'packages/cadre-core/src/strand-instance-ma
+
+[TOOL:Bash] {"command":"cd /c/projects/sereus && git commit -m \"$(cat <<'EOF'\ntask(implement): sApp schema cryptographic verification on strand join\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nE
+  ✓ [master e7858f1] task(implement): sApp schema cryptographic verification on strand join
+ 7 files changed, 353 insertions(+), 20 deletions(-)
+ create mode 100644 packages/cadre-core/src/schema-verifica
+
+[TOOL:TodoWrite] {"todos":[{"content":"Create schema-verification.ts with signSchema, verifySchema, assertSchemaSignature","status":"completed","activeForm":"Creating schema-verification.ts"},{"content":"Integrate ass
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+
+[ASSISTANT]
+Done. Task transitioned from `plan/` through `implement/` to `review/`.
+
+**Summary of what was built:**
+
+- **`schema-verification.ts`** — `signSchema()`, `verifySchema()`, `assertSchemaSignature()`, and `SchemaVerificationError`. Uses ed25519 via `@optimystic/quereus-plugin-crypto`, signing `digest(JSON.stringify({schema, version}), 'sha256')`.
+
+- **`StrandInstanceManager.startStrand()`** — now calls `assertSchemaSignature(sAppConfig)` before creating any libp2p node or database. Invalid signatures prevent strand start entirely.
+
+- **13 new tests** across `schema-verification.spec.ts` (11) and `strand-instance-manager.spec.ts` (2). Updated all existing test helpers in `strand-instance-manager.spec.ts` and `cadre-node.spec.ts` to use real ed25519 signatures. All 117 tests pass.
+
+[RESULT ✓ DONE | 575.2s | cost $2.2142]
+Done. Task transitioned from `plan/` through `implement/` to `review/`.
+
+**Summary of what was built:**
+
+- **`schema-verification.ts`** — `signSchema()`, `verifySchema()`, `assertSchemaSignature()`, and `SchemaVerificationError`. Uses ed25519 via `@optimystic/quereus-plugin-crypto`, signing `digest(JSON.stringify({schema, version}), 'sha256')`.
+
+- **`StrandInstanceManager.startStrand()`** — now calls `assertSchemaSignature(sAppConfig)` before creating any libp2p node or database. Invalid signatures prevent strand start entirely.
+
+- **13 new tests** across `schema-verification.spec.ts` (11) and `strand-instance-manager.spec.ts` (2). Updated all existing test helpers in `strand-instance-manager.spec.ts` and `cadre-node.spec.ts` to use real ed25519 signatures. All 117 tests pass.
+
+[runner] Agent exited with code 0
