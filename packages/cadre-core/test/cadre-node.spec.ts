@@ -1,8 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
 import { CadreNode } from '../src/cadre-node.js';
+import { signSchema } from '../src/schema-verification.js';
 import type { CadreNodeConfig, StrandRow, StrandConfig, SAppConfig } from '../src/types.js';
 
 describe('CadreNode', () => {
+  let authorPrivateKey: string;
+  let authorPublicKey: string;
+
+  const testSchema = 'create table Test (id text primary key);';
+  const testVersion = '1.0.0';
+
+  beforeEach(() => {
+    authorPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+    authorPublicKey = getPublicKey(authorPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+  });
+
   // Helper to create test config
   function createConfig(overrides?: Partial<CadreNodeConfig>): CadreNodeConfig {
     return {
@@ -20,21 +33,21 @@ describe('CadreNode', () => {
     return { Id: id, MemberPrivateKey: null, Type: 'o' };
   }
 
-  // Helper to create test sApp config
-  function createSAppConfig(id: string = 'test-app'): SAppConfig {
+  // Helper to create test sApp config with real signature
+  function createSAppConfig(): SAppConfig {
     return {
-      id,
-      version: '1.0.0',
-      schema: 'create table Test (id text primary key);',
-      signature: 'test-signature'
+      id: authorPublicKey,
+      version: testVersion,
+      schema: testSchema,
+      signature: signSchema(testSchema, testVersion, authorPrivateKey)
     };
   }
 
   // Helper to create full strand config
-  function createStrandConfig(strandId: string, sAppId: string = 'test-app'): StrandConfig {
+  function createStrandConfig(strandId: string): StrandConfig {
     return {
       strandRow: createStrandRow(strandId),
-      sAppConfig: createSAppConfig(sAppId)
+      sAppConfig: createSAppConfig()
     };
   }
 
@@ -113,13 +126,13 @@ describe('CadreNode', () => {
 
       expect(instance.strandId).toBe('manual-strand');
       expect(instance.sAppInfo).toBeDefined();
-      expect(instance.sAppInfo?.id).toBe('test-app');
+      expect(instance.sAppInfo?.id).toBe(authorPublicKey);
       expect(node.getStrand('manual-strand')).toBeDefined();
       expect(node.getStrands().size).toBe(1);
 
       // Should be able to get sApp config
       expect(node.getSAppConfig('manual-strand')).toBeDefined();
-      expect(node.getSAppId('manual-strand')).toBe('test-app');
+      expect(node.getSAppId('manual-strand')).toBe(authorPublicKey);
 
       await node.removeStrand('manual-strand');
 

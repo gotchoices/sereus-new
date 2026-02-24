@@ -62,6 +62,14 @@ export {
   type SeedEventCallbacks
 } from './seed-bootstrap.js';
 
+// Schema Verification
+export {
+  signSchema,
+  verifySchema,
+  assertSchemaSignature,
+  SchemaVerificationError
+} from './schema-verification.js';
+
 // Strand Formation (strand-proto integration)
 export {
   StrandFormationManager,

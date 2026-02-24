@@ -3,6 +3,7 @@ import type { Libp2p } from '@libp2p/interface';
 import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
 import type { IRepo } from '@optimystic/db-core';
 import { StrandDatabase } from './strand-database.js';
+import { assertSchemaSignature } from './schema-verification.js';
 import type {
   StrandInstance,
   StrandRow,
@@ -137,6 +138,10 @@ export class StrandInstanceManager {
     }
 
     log('Starting strand instance: %s (sApp: %s v%s)', strandId, sAppConfig.id, sAppConfig.version);
+
+    // Verify schema signature before proceeding
+    assertSchemaSignature(sAppConfig);
+    log('Strand %s sApp schema signature verified (author: %s)', strandId, sAppConfig.id);
 
     // Convert SAppConfig to SAppInfo for the instance
     const sAppInfo: SAppInfo = {

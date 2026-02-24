@@ -1,9 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
 import { StrandInstanceManager, getStrandStoragePath } from '../src/strand-instance-manager.js';
+import { signSchema, SchemaVerificationError } from '../src/schema-verification.js';
 import type { StrandRow, SAppConfig } from '../src/types.js';
 import type { StartStrandConfig } from '../src/strand-instance-manager.js';
 
 describe('StrandInstanceManager', () => {
+  let authorPrivateKey: string;
+  let authorPublicKey: string;
+
+  beforeEach(() => {
+    authorPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+    authorPublicKey = getPublicKey(authorPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+  });
+
+  const testSchema = 'create table Test (id text primary key);';
+  const testVersion = '1.0.0';
+
   // Helper to create test strand rows
   function createStrandRow(id: string, type: 'o' | 'c' = 'o'): StrandRow {
     return {
@@ -13,13 +26,14 @@ describe('StrandInstanceManager', () => {
     };
   }
 
-  // Helper to create test sApp config
-  function createSAppConfig(id: string = 'test-app'): SAppConfig {
+  // Helper to create test sApp config with a real signature
+  function createSAppConfig(id?: string): SAppConfig {
+    const pubKey = id ?? authorPublicKey;
     return {
-      id,
-      version: '1.0.0',
-      schema: 'create table Test (id text primary key);',
-      signature: 'test-signature'
+      id: pubKey,
+      version: testVersion,
+      schema: testSchema,
+      signature: signSchema(testSchema, testVersion, authorPrivateKey)
     };
   }
 
@@ -65,7 +79,7 @@ describe('StrandInstanceManager', () => {
       expect(instance.status).toBe('active');
       expect(instance.latencyHint).toBe('interactive');
       expect(instance.sAppInfo).toBeDefined();
-      expect(instance.sAppInfo?.id).toBe('test-app');
+      expect(instance.sAppInfo?.id).toBe(authorPublicKey);
       expect(instance.sAppInfo?.version).toBe('1.0.0');
       expect(manager.hasStrand('test-strand-1')).toBe(true);
 
@@ -112,6 +126,38 @@ describe('StrandInstanceManager', () => {
 
       await manager.stopAll();
     }, 30000);
+
+    it('should reject config with invalid signature', async () => {
+      const manager = new StrandInstanceManager();
+      const config = createStartConfig('bad-sig-strand', {
+        sAppConfig: {
+          id: authorPublicKey,
+          version: testVersion,
+          schema: testSchema,
+          signature: 'invalid-signature'
+        }
+      });
+
+      await expect(manager.startStrand(config)).rejects.toThrow(SchemaVerificationError);
+      // Instance should be cleaned up or in error state
+      const instance = manager.getInstance('bad-sig-strand');
+      expect(instance).toBeUndefined();
+    });
+
+    it('should reject config with tampered schema', async () => {
+      const manager = new StrandInstanceManager();
+      const goodSig = signSchema(testSchema, testVersion, authorPrivateKey);
+      const config = createStartConfig('tampered-strand', {
+        sAppConfig: {
+          id: authorPublicKey,
+          version: testVersion,
+          schema: testSchema + ' -- injected',
+          signature: goodSig
+        }
+      });
+
+      await expect(manager.startStrand(config)).rejects.toThrow(SchemaVerificationError);
+    });
   });
 
   describe('stopStrand', () => {
@@ -182,4 +228,3 @@ describe('StrandInstanceManager', () => {
     });
   });
 });
-
