@@ -7,13 +7,13 @@ import type { Multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
 
 /**
- * Minimal libp2p stream interface for cross-platform compatibility.
- * This abstraction works across different libp2p versions and environments.
+ * Minimal libp2p stream surface compatible with libp2p 3.x.
+ * In libp2p 3.x, streams are AsyncIterable for reading and use send() for writing.
  */
-interface LibP2PStream {
-  source: AsyncIterable<Uint8Array>;
-  sink(source: AsyncIterable<Uint8Array>): Promise<void>;
+interface LibP2PStream extends AsyncIterable<Uint8Array> {
+  send(data: Uint8Array): boolean;
   close(): Promise<void>;
+  closeWrite?(): Promise<void>;
 }
 
 /**
@@ -155,7 +155,8 @@ export class SeedBootstrapService {
     
     // Insert into CadrePeer table with authority context
     const db = this.controlDatabase.getDatabase();
-    const multiaddrStr = multiaddrs?.join(',') ?? null;
+    // CadrePeer.Multiaddr is NOT NULL; use empty string when no addrs provided
+    const multiaddrStr = multiaddrs?.length ? multiaddrs.join(',') : '';
 
     await db.exec(`
       insert into CadreControl.CadrePeer (PeerId, Multiaddr)
@@ -322,19 +323,23 @@ export class SeedBootstrapService {
 
       const messageBytes = new TextEncoder().encode(JSON.stringify(message));
 
-      // Write length-prefixed message
+      // Write length-prefixed message using libp2p 3.x send() API
       const lengthBytes = new Uint8Array(4);
       new DataView(lengthBytes.buffer).setUint32(0, messageBytes.length, false);
 
-      async function* sinkData() { yield lengthBytes; yield messageBytes; }
-      await stream.sink(sinkData());
+      stream.send(lengthBytes);
+      stream.send(messageBytes);
 
-      // Read the acknowledgment
+      // Signal that we're done writing so the receiver sees EOF
+      if (stream.closeWrite) {
+        await stream.closeWrite();
+      }
+
+      // Read the acknowledgment (stream is AsyncIterable in libp2p 3.x)
       const chunks: Uint8Array[] = [];
-      for await (const chunk of stream.source) {
-        chunks.push((chunk as Uint8Array).subarray());
-        // Read until we have the length prefix
-        if (chunks.reduce((sum, c) => sum + c.length, 0) >= 4) break;
+      for await (const chunk of stream) {
+        const bytes = chunk instanceof Uint8Array ? chunk : (chunk as { subarray(): Uint8Array }).subarray();
+        chunks.push(bytes);
       }
 
       const responseData = new Uint8Array(chunks.reduce((sum, c) => sum + c.length, 0));
@@ -344,8 +349,8 @@ export class SeedBootstrapService {
         offset += chunk.length;
       }
 
-      // Parse length and read remaining data if needed
-      const responseLength = new DataView(responseData.buffer).getUint32(0, false);
+      // Parse length-prefixed response
+      const responseLength = new DataView(responseData.buffer, responseData.byteOffset).getUint32(0, false);
       const responseJson = new TextDecoder().decode(responseData.slice(4, 4 + responseLength));
       const ack = JSON.parse(responseJson) as SeedAckMessage;
 
@@ -452,13 +457,14 @@ export class SeedBootstrapService {
       log('Incoming seed delivery from: %s', remotePeerId);
 
       try {
-        // Read the seed message
+        // Read the seed message (stream is AsyncIterable in libp2p 3.x)
         const chunks: Uint8Array[] = [];
         let totalLength = 0;
 
-        for await (const chunk of stream.source) {
-          chunks.push((chunk as Uint8Array).subarray());
-          totalLength += (chunk as Uint8Array).length;
+        for await (const chunk of stream) {
+          const bytes = chunk instanceof Uint8Array ? chunk : (chunk as { subarray(): Uint8Array }).subarray();
+          chunks.push(bytes);
+          totalLength += bytes.length;
           if (totalLength > MAX_SEED_SIZE) {
             throw new Error('Seed message too large');
           }
@@ -472,7 +478,7 @@ export class SeedBootstrapService {
         }
 
         // Parse length-prefixed message
-        const messageLength = new DataView(data.buffer).getUint32(0, false);
+        const messageLength = new DataView(data.buffer, data.byteOffset).getUint32(0, false);
         const messageJson = new TextDecoder().decode(data.slice(4, 4 + messageLength));
         const message = JSON.parse(messageJson) as SeedMessage;
 
@@ -497,7 +503,7 @@ export class SeedBootstrapService {
           this.eventCallbacks.onSeedError?.(seed.partyId, result.error ?? 'Unknown error');
         }
 
-        // Send acknowledgment
+        // Send acknowledgment using libp2p 3.x send() API
         const ack: SeedAckMessage = {
           accepted: result.success,
           reason: result.error,
@@ -507,8 +513,8 @@ export class SeedBootstrapService {
         const lengthBytes = new Uint8Array(4);
         new DataView(lengthBytes.buffer).setUint32(0, ackBytes.length, false);
 
-        async function* sinkAck() { yield lengthBytes; yield ackBytes; }
-        await stream.sink(sinkAck());
+        stream.send(lengthBytes);
+        stream.send(ackBytes);
 
       } catch (error) {
         log('Error handling seed delivery: %o', error);
@@ -528,10 +534,10 @@ export class SeedBootstrapService {
         new DataView(lengthBytes.buffer).setUint32(0, ackBytes.length, false);
 
         try {
-          async function* sinkError() { yield lengthBytes; yield ackBytes; }
-          await stream.sink(sinkError());
+          stream.send(lengthBytes);
+          stream.send(ackBytes);
         } catch {
-          // Ignore sink errors
+          // Ignore send errors
         }
       } finally {
         await stream.close();
