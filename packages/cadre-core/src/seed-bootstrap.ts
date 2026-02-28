@@ -156,13 +156,12 @@ export class SeedBootstrapService {
     // Insert into CadrePeer table with authority context
     const db = this.controlDatabase.getDatabase();
     const multiaddrStr = multiaddrs?.join(',') ?? null;
-    const multiaddrValue = multiaddrStr ? `'${multiaddrStr}'` : 'null';
-    
+
     await db.exec(`
       insert into CadreControl.CadrePeer (PeerId, Multiaddr)
-        with context AuthorityKey = '${this.authorityPublicKey}', Signature = '${signature}'
-        values ('${peerId}', ${multiaddrValue})
-    `);
+        with context AuthorityKey = ?, Signature = ?
+        values (?, ?)
+    `, [this.authorityPublicKey, signature, peerId, multiaddrStr]);
     
     log('Peer %s authorized successfully', peerId);
   }

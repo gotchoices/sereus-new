@@ -307,8 +307,8 @@ export class ControlDatabase {
     await this.db!.exec(`
       insert into CadreControl.AuthorityKey (Key)
         with context AuthorityKey = null, Signature = null, StampId = StampId()
-        values ('${key}')
-    `);
+        values (?)
+    `, [key]);
     log('Authority key inserted');
   }
 
@@ -332,8 +332,6 @@ export class ControlDatabase {
     this.ensureInitialized();
     log('Inserting strand: %s (type: %s)', strandId, type);
 
-    const memberKeyValue = memberPrivateKey ? `'${memberPrivateKey}'` : 'null';
-
     // Generate a unique stamp ID using the peer ID for distributed uniqueness
     const peerId = this.config.libp2pNode.peerId.toString();
     const stampId = generateStampId(peerId);
@@ -344,9 +342,9 @@ export class ControlDatabase {
     // Insert with the signed stamp ID
     await this.db!.exec(`
       insert into CadreControl.Strand (Id, Type, MemberPrivateKey)
-        with context AuthorityKey = '${authorityKey}', Signature = '${signature}', StampId = '${stampId}'
-        values ('${strandId}', '${type}', ${memberKeyValue})
-    `);
+        with context AuthorityKey = ?, Signature = ?, StampId = ?
+        values (?, ?, ?)
+    `, [authorityKey, signature, stampId, strandId, type, memberPrivateKey ?? null]);
 
     log('Strand inserted: %s', strandId);
   }
