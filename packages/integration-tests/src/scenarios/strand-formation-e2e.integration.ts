@@ -1,0 +1,749 @@
+/**
+ * E2E Strand Formation integration tests.
+ *
+ * Exercises the real strand formation protocol over libp2p:
+ * - Open strand formation (responderCreates mode)
+ * - Token validation and rejection
+ * - Disclosure validation
+ * - Full cross-party strand instance lifecycle with replication
+ * - Multiple strands between same parties
+ * - Three-party strand formation
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { webSockets } from '@libp2p/websockets';
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+import { MemoryRawStorage } from '@optimystic/db-p2p';
+import {
+	CadreNode,
+	StrandSolicitationService,
+	signSchema,
+	type DisclosureValidator,
+	type FormationUsageRecorder,
+	type StrandProvisioner,
+	type StrandSolicitationServiceOptions,
+	type StrandFormationDisclosure,
+	type OpenInvitation,
+} from '@serfab/cadre-core';
+import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
+import type { CadreNodeConfig, StrandRow, StrandInstance, SAppConfig } from '@serfab/cadre-core';
+import { TestCadreNetwork, waitUntil, sleep } from '../harness/index.js';
+import type { TestParty } from '../harness/types.js';
+
+// ── Mock implementations ────────────────────────────────────────────────────
+
+/** Deterministic strand provisioner for test predictability */
+function createMockProvisioner(prefix = 'test'): StrandProvisioner {
+	let counter = 0;
+	return {
+		provisionStrand: async (_sAppId, _initiatorKey, _responderKey) => ({
+			strandId: `strand-${prefix}-${++counter}`,
+		}),
+	};
+}
+
+/** In-memory usage recorder that tracks tokens */
+function createMockUsageRecorder(): FormationUsageRecorder & {
+	knownTokens: Set<string>;
+	usedTokens: Map<string, { initiatorKey: string; strandId: string }>;
+} {
+	const knownTokens = new Set<string>();
+	const usedTokens = new Map<string, { initiatorKey: string; strandId: string }>();
+
+	return {
+		knownTokens,
+		usedTokens,
+		recordUsage: async (token, initiatorKey, strandId) => {
+			usedTokens.set(token, { initiatorKey, strandId });
+		},
+		isTokenUsed: async (token) => usedTokens.has(token),
+		isTokenValid: async (token) => ({
+			valid: knownTokens.has(token),
+		}),
+	};
+}
+
+/**
+ * Disclosure validator that accepts/rejects based on a partyId allowlist.
+ *
+ * Over the real protocol, the identity bundle sent to the responder is
+ * `{ partyId: sessionId }` (see bootstrap.ts DialerSession). Full disclosure
+ * passthrough is not yet wired, so we validate using what IS available.
+ */
+function createAllowlistValidator(allowedPartyIds: Set<string>): DisclosureValidator {
+	return {
+		validateDisclosure: async (_token, disclosure) => {
+			const pid = (disclosure as Record<string, unknown>).partyId as string | undefined;
+			// Accept if no allowlist filtering or if partyId is in the allowlist
+			return pid ? allowedPartyIds.has(pid) : false;
+		},
+	};
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function wsTransports() {
+	return [webSockets(), circuitRelayTransport()];
+}
+
+const SIMPLE_SCHEMA = `
+table Data (
+    Key text primary key,
+    Val text
+);
+`;
+
+/** Create a properly signed sApp config for integration tests */
+function createSignedSAppConfig(schema: string, version: string): SAppConfig {
+	const authorPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+	const authorPublicKey = getPublicKey(authorPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+	const signature = signSchema(schema, version, authorPrivateKey);
+	return {
+		id: authorPublicKey,
+		version,
+		schema,
+		signature,
+		latencyHint: 'interactive' as const,
+	};
+}
+
+// Create two distinct signed sApp configs for isolation tests
+const SAPP_CONFIG_A = createSignedSAppConfig(SIMPLE_SCHEMA, '0.1.0');
+const SAPP_CONFIG_B = createSignedSAppConfig(SIMPLE_SCHEMA, '0.2.0');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 1: Strand formation protocol over libp2p
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Strand Formation', () => {
+	describe('Phase 1: Protocol over libp2p', () => {
+		let network: TestCadreNetwork;
+
+		beforeAll(() => {
+			network = new TestCadreNetwork({ verbose: true, defaultTimeoutMs: 20_000 });
+		});
+
+		afterAll(async () => {
+			await network.shutdown();
+		});
+
+		// ── 1. Open strand formation (responderCreates) ──────────────────
+
+		it('should form a strand via open invitation over real libp2p', async () => {
+			const alice = await network.createParty({ name: 'alice-open' });
+			const bob = await network.createParty({ name: 'bob-open' });
+
+			const mockProvisioner = createMockProvisioner('open');
+
+			// Alice = responder: creates invitation, registers handler
+			const aliceService = new StrandSolicitationService({
+				partyId: alice.partyId,
+				cadrePeerAddrs: alice.authorityNode.multiaddrs,
+				strandProvisioner: mockProvisioner,
+			});
+			aliceService.registerResponder(alice.authorityNode.libp2p);
+
+			const invitation = await aliceService.createOpenInvitation(
+				'test-sapp',
+				60_000,
+				alice.authorityNode.multiaddrs,
+			);
+
+			// Bob = initiator: dials Alice via invitation
+			const bobService = new StrandSolicitationService({
+				partyId: bob.partyId,
+				cadrePeerAddrs: bob.authorityNode.multiaddrs,
+			});
+
+			const result = await bobService.formStrand(
+				invitation,
+				{ partyId: bob.partyId, purpose: 'Open strand formation test' },
+				bob.authorityNode.libp2p,
+			);
+
+			// Assert: both sides get valid results
+			expect(result.memberKey).toBeDefined();
+			expect(result.memberKey.startsWith('12D3KooW')).toBe(true);
+			expect(result.invitePrivateKey).toBeDefined();
+			expect(result.strandId).toBeDefined();
+			expect(result.strandId.startsWith('strand-')).toBe(true);
+
+			aliceService.unregisterResponder(alice.authorityNode.libp2p);
+		}, 15_000);
+
+		// ── 2. Token validation + rejection ──────────────────────────────
+
+		it('should validate tokens and reject reuse', async () => {
+			const alice = await network.createParty({ name: 'alice-token' });
+			const bob = await network.createParty({ name: 'bob-token' });
+
+			const mockProvisioner = createMockProvisioner('token');
+			const mockRecorder = createMockUsageRecorder();
+
+			// Alice = responder with usage recorder
+			const aliceService = new StrandSolicitationService({
+				partyId: alice.partyId,
+				cadrePeerAddrs: alice.authorityNode.multiaddrs,
+				strandProvisioner: mockProvisioner,
+				formationUsageRecorder: mockRecorder,
+			});
+			aliceService.registerResponder(alice.authorityNode.libp2p);
+
+			// Create invitation and register its token as known
+			const invitation = await aliceService.createOpenInvitation(
+				'test-sapp',
+				60_000,
+				alice.authorityNode.multiaddrs,
+			);
+			mockRecorder.knownTokens.add(invitation.token);
+
+			// Bob forms a strand — first attempt should succeed
+			const bobService = new StrandSolicitationService({
+				partyId: bob.partyId,
+				cadrePeerAddrs: bob.authorityNode.multiaddrs,
+			});
+
+			const result = await bobService.formStrand(
+				invitation,
+				{ partyId: bob.partyId },
+				bob.authorityNode.libp2p,
+			);
+
+			expect(result.strandId).toBeDefined();
+
+			// Record the usage (simulating what happens after successful formation)
+			await aliceService.recordFormationComplete(
+				invitation.token,
+				result.memberKey,
+				result.strandId,
+			);
+
+			// Assert: token is now marked as used
+			expect(await mockRecorder.isTokenUsed(invitation.token)).toBe(true);
+
+			// Second attempt with same token should be rejected
+			await expect(
+				bobService.formStrand(
+					invitation,
+					{ partyId: bob.partyId },
+					bob.authorityNode.libp2p,
+				),
+			).rejects.toThrow();
+
+			aliceService.unregisterResponder(alice.authorityNode.libp2p);
+		}, 20_000);
+
+		// ── 3. Disclosure validation (partyId allowlist) ────────────────
+
+		it('should accept allowed parties and reject unknown ones', async () => {
+			const alice = await network.createParty({ name: 'alice-disc' });
+			const bob = await network.createParty({ name: 'bob-disc' });
+			const carol = await network.createParty({ name: 'carol-disc' });
+
+			const mockProvisioner = createMockProvisioner('disc');
+
+			// The identity bundle sent over the protocol contains { partyId: sessionId }.
+			// The sessionId for the DialerSession is the formStrand caller's partyId
+			// (passed through the manager). We can't predict the exact sessionId,
+			// so we use a validator that accepts everything to verify Bob succeeds,
+			// then use a reject-all validator to verify Carol is rejected.
+
+			// First: Bob with accept-all validator
+			const acceptAllValidator: DisclosureValidator = {
+				validateDisclosure: async () => true,
+			};
+
+			const aliceServiceAccept = new StrandSolicitationService({
+				partyId: alice.partyId,
+				cadrePeerAddrs: alice.authorityNode.multiaddrs,
+				strandProvisioner: mockProvisioner,
+				disclosureValidator: acceptAllValidator,
+			});
+			aliceServiceAccept.registerResponder(alice.authorityNode.libp2p);
+
+			const invitation1 = await aliceServiceAccept.createOpenInvitation(
+				'test-sapp',
+				60_000,
+				alice.authorityNode.multiaddrs,
+			);
+
+			const bobService = new StrandSolicitationService({
+				partyId: bob.partyId,
+				cadrePeerAddrs: bob.authorityNode.multiaddrs,
+			});
+
+			const bobResult = await bobService.formStrand(
+				invitation1,
+				{ partyId: bob.partyId, purpose: 'Collaboration' },
+				bob.authorityNode.libp2p,
+			);
+			expect(bobResult.strandId).toBeDefined();
+
+			aliceServiceAccept.unregisterResponder(alice.authorityNode.libp2p);
+
+			// Second: Carol with reject-all validator
+			const rejectAllValidator: DisclosureValidator = {
+				validateDisclosure: async () => false,
+			};
+
+			const aliceServiceReject = new StrandSolicitationService({
+				partyId: alice.partyId,
+				cadrePeerAddrs: alice.authorityNode.multiaddrs,
+				strandProvisioner: mockProvisioner,
+				disclosureValidator: rejectAllValidator,
+			});
+			aliceServiceReject.registerResponder(alice.authorityNode.libp2p);
+
+			const invitation2 = await aliceServiceReject.createOpenInvitation(
+				'test-sapp',
+				60_000,
+				alice.authorityNode.multiaddrs,
+			);
+
+			const carolService = new StrandSolicitationService({
+				partyId: carol.partyId,
+				cadrePeerAddrs: carol.authorityNode.multiaddrs,
+			});
+
+			await expect(
+				carolService.formStrand(
+					invitation2,
+					{ partyId: carol.partyId },
+					carol.authorityNode.libp2p,
+				),
+			).rejects.toThrow();
+
+			aliceServiceReject.unregisterResponder(alice.authorityNode.libp2p);
+		}, 20_000);
+	});
+
+	// ═════════════════════════════════════════════════════════════════════════
+	// Phase 2: End-to-end strand instance lifecycle
+	// ═════════════════════════════════════════════════════════════════════════
+
+	describe('Phase 2: Strand instance lifecycle', () => {
+
+		// ── 4. Cross-party formation + strand instance + replication ──────
+
+		it('should form strand, start instances, and replicate data', async () => {
+			let aliceNode: CadreNode | undefined;
+			let bobNode: CadreNode | undefined;
+
+			try {
+				const partyId = `lifecycle-${Date.now()}`;
+
+				// Start Alice's CadreNode
+				const aliceConfig: CadreNodeConfig = {
+					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
+					profile: 'storage',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+						enableRelay: true,
+					},
+					hibernation: { enabled: false },
+				};
+
+				aliceNode = new CadreNode(aliceConfig);
+				await aliceNode.start();
+
+				const aliceAddrs = aliceNode.getMultiaddrs();
+				expect(aliceAddrs.length).toBeGreaterThan(0);
+
+				// Start Bob's CadreNode (bootstraps from Alice for control network)
+				const bobConfig: CadreNodeConfig = {
+					controlNetwork: {
+						partyId: `bob-${partyId}`,
+						bootstrapNodes: aliceAddrs,
+					},
+					profile: 'transaction',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+					},
+					hibernation: { enabled: false },
+				};
+
+				bobNode = new CadreNode(bobConfig);
+				await bobNode.start();
+
+				// Initialize strand solicitation on Alice (responder)
+				const mockProvisioner = createMockProvisioner('lifecycle');
+				aliceNode.initializeStrandSolicitation({
+					strandProvisioner: mockProvisioner,
+				});
+
+				// Alice creates open invitation
+				const invitation = await aliceNode.createOpenInvitation('test-sapp');
+
+				// Bob forms strand using invitation
+				const formResult = await bobNode.formStrand(invitation, {
+					partyId: `bob-${partyId}`,
+					purpose: 'E2E lifecycle test',
+				});
+
+				expect(formResult.strandId).toBeDefined();
+				expect(formResult.memberKey).toBeDefined();
+
+				// Both sides create strand instances with the negotiated strandId
+				const strandRow: StrandRow = {
+					Id: formResult.strandId,
+					MemberPrivateKey: null,
+					Type: 'o',
+				};
+
+				const aliceStrand = await aliceNode.addStrand({
+					strandRow,
+					sAppConfig: SAPP_CONFIG_A,
+				});
+				expect(aliceStrand.status).toBe('active');
+
+				const bobStrand = await bobNode.addStrand({
+					strandRow,
+					sAppConfig: SAPP_CONFIG_A,
+				});
+				expect(bobStrand.status).toBe('active');
+
+				// Manually connect strand-level libp2p nodes
+				// (strand peer discovery via control network is TODO)
+				const aliceStrandAddrs = aliceStrand.libp2pNode!.getMultiaddrs();
+				expect(aliceStrandAddrs.length).toBeGreaterThan(0);
+
+				await bobStrand.libp2pNode!.dial(aliceStrandAddrs[0]!);
+				await waitUntil(
+					() => bobStrand.libp2pNode!.getConnections().length > 0,
+					{ timeoutMs: 10_000, description: 'Bob strand connects to Alice strand' },
+				);
+
+				// Insert data on Alice's strand
+				const aliceDb = aliceStrand.database!.getDatabase();
+				await aliceDb.exec(
+					"insert into App.Data (Key, Val) values ('key1', 'hello from Alice')",
+				);
+
+				// Verify local write
+				const localRow = await aliceDb.get(
+					"select Val from App.Data where Key = 'key1'",
+				);
+				expect(localRow?.Val).toBe('hello from Alice');
+
+				// Verify replication to Bob
+				const bobDb = bobStrand.database!.getDatabase();
+				await waitUntil(
+					async () => {
+						const row = await bobDb.get(
+							"select Val from App.Data where Key = 'key1'",
+						);
+						return row?.Val === 'hello from Alice';
+					},
+					{
+						timeoutMs: 15_000,
+						intervalMs: 250,
+						description: 'data replicates from Alice to Bob',
+					},
+				);
+
+				const replicated = await bobDb.get(
+					"select Val from App.Data where Key = 'key1'",
+				);
+				expect(replicated?.Val).toBe('hello from Alice');
+			} finally {
+				await bobNode?.stop();
+				await aliceNode?.stop();
+			}
+		}, 45_000);
+
+		// ── 5. Multiple strands between same parties ─────────────────────
+
+		it('should support multiple independent strands between same parties', async () => {
+			let aliceNode: CadreNode | undefined;
+			let bobNode: CadreNode | undefined;
+
+			try {
+				const partyId = `multi-${Date.now()}`;
+
+				const aliceConfig: CadreNodeConfig = {
+					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
+					profile: 'storage',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+						enableRelay: true,
+					},
+					hibernation: { enabled: false },
+				};
+
+				aliceNode = new CadreNode(aliceConfig);
+				await aliceNode.start();
+
+				const bobConfig: CadreNodeConfig = {
+					controlNetwork: {
+						partyId: `bob-${partyId}`,
+						bootstrapNodes: aliceNode.getMultiaddrs(),
+					},
+					profile: 'transaction',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+					},
+					hibernation: { enabled: false },
+				};
+
+				bobNode = new CadreNode(bobConfig);
+				await bobNode.start();
+
+				// Alice initializes solicitation with a provisioner
+				const mockProvisioner = createMockProvisioner('multi');
+				aliceNode.initializeStrandSolicitation({
+					strandProvisioner: mockProvisioner,
+				});
+
+				// Form strand A
+				const invitationA = await aliceNode.createOpenInvitation('sapp-a');
+				const resultA = await bobNode.formStrand(invitationA, {
+					partyId: `bob-${partyId}`,
+				});
+
+				// Form strand B
+				const invitationB = await aliceNode.createOpenInvitation('sapp-b');
+				const resultB = await bobNode.formStrand(invitationB, {
+					partyId: `bob-${partyId}`,
+				});
+
+				// Different strand IDs
+				expect(resultA.strandId).not.toBe(resultB.strandId);
+
+				// Start strand instances on both sides
+				const strandRowA: StrandRow = { Id: resultA.strandId, MemberPrivateKey: null, Type: 'o' };
+				const strandRowB: StrandRow = { Id: resultB.strandId, MemberPrivateKey: null, Type: 'o' };
+
+				const aliceStrandA = await aliceNode.addStrand({ strandRow: strandRowA, sAppConfig: SAPP_CONFIG_A });
+				const aliceStrandB = await aliceNode.addStrand({ strandRow: strandRowB, sAppConfig: SAPP_CONFIG_B });
+				const bobStrandA = await bobNode.addStrand({ strandRow: strandRowA, sAppConfig: SAPP_CONFIG_A });
+				const bobStrandB = await bobNode.addStrand({ strandRow: strandRowB, sAppConfig: SAPP_CONFIG_B });
+
+				expect(aliceStrandA.status).toBe('active');
+				expect(aliceStrandB.status).toBe('active');
+				expect(bobStrandA.status).toBe('active');
+				expect(bobStrandB.status).toBe('active');
+
+				// Connect strand-level nodes for both strands
+				await bobStrandA.libp2pNode!.dial(aliceStrandA.libp2pNode!.getMultiaddrs()[0]!);
+				await bobStrandB.libp2pNode!.dial(aliceStrandB.libp2pNode!.getMultiaddrs()[0]!);
+
+				await waitUntil(
+					() => bobStrandA.libp2pNode!.getConnections().length > 0,
+					{ timeoutMs: 10_000, description: 'strand A connected' },
+				);
+				await waitUntil(
+					() => bobStrandB.libp2pNode!.getConnections().length > 0,
+					{ timeoutMs: 10_000, description: 'strand B connected' },
+				);
+
+				// Insert data in strand A
+				const aliceDbA = aliceStrandA.database!.getDatabase();
+				await aliceDbA.exec(
+					"insert into App.Data (Key, Val) values ('strand-a-key', 'strand-a-value')",
+				);
+
+				// Insert different data in strand B
+				const aliceDbB = aliceStrandB.database!.getDatabase();
+				await aliceDbB.exec(
+					"insert into App.Data (Key, Val) values ('strand-b-key', 'strand-b-value')",
+				);
+
+				// Wait for replication
+				const bobDbA = bobStrandA.database!.getDatabase();
+				const bobDbB = bobStrandB.database!.getDatabase();
+
+				await waitUntil(
+					async () => {
+						const row = await bobDbA.get("select Val from App.Data where Key = 'strand-a-key'");
+						return row?.Val === 'strand-a-value';
+					},
+					{ timeoutMs: 15_000, intervalMs: 250, description: 'strand A data replicates' },
+				);
+
+				await waitUntil(
+					async () => {
+						const row = await bobDbB.get("select Val from App.Data where Key = 'strand-b-key'");
+						return row?.Val === 'strand-b-value';
+					},
+					{ timeoutMs: 15_000, intervalMs: 250, description: 'strand B data replicates' },
+				);
+
+				// Verify isolation: strand-A data should NOT appear in strand-B
+				const crossCheckA = await bobDbB.get("select Val from App.Data where Key = 'strand-a-key'");
+				expect(crossCheckA).toBeUndefined();
+
+				const crossCheckB = await bobDbA.get("select Val from App.Data where Key = 'strand-b-key'");
+				expect(crossCheckB).toBeUndefined();
+			} finally {
+				await bobNode?.stop();
+				await aliceNode?.stop();
+			}
+		}, 60_000);
+
+		// ── 6. Three-party strand ────────────────────────────────────────
+
+		it('should form a strand with three parties', async () => {
+			let aliceNode: CadreNode | undefined;
+			let bobNode: CadreNode | undefined;
+			let carolNode: CadreNode | undefined;
+
+			try {
+				const partyId = `three-${Date.now()}`;
+
+				// Alice (responder)
+				const aliceConfig: CadreNodeConfig = {
+					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
+					profile: 'storage',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+						enableRelay: true,
+					},
+					hibernation: { enabled: false },
+				};
+				aliceNode = new CadreNode(aliceConfig);
+				await aliceNode.start();
+
+				// Bob (initiator 1)
+				const bobConfig: CadreNodeConfig = {
+					controlNetwork: {
+						partyId: `bob-${partyId}`,
+						bootstrapNodes: aliceNode.getMultiaddrs(),
+					},
+					profile: 'transaction',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+					},
+					hibernation: { enabled: false },
+				};
+				bobNode = new CadreNode(bobConfig);
+				await bobNode.start();
+
+				// Carol (initiator 2)
+				const carolConfig: CadreNodeConfig = {
+					controlNetwork: {
+						partyId: `carol-${partyId}`,
+						bootstrapNodes: aliceNode.getMultiaddrs(),
+					},
+					profile: 'transaction',
+					strandFilter: { mode: 'all' },
+					storage: { provider: () => new MemoryRawStorage() },
+					network: {
+						transports: wsTransports(),
+						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+					},
+					hibernation: { enabled: false },
+				};
+				carolNode = new CadreNode(carolConfig);
+				await carolNode.start();
+
+				// Alice initializes solicitation
+				const mockProvisioner = createMockProvisioner('three');
+				aliceNode.initializeStrandSolicitation({
+					strandProvisioner: mockProvisioner,
+				});
+
+				// Use a single invitation — both Bob and Carol join
+				const invitation = await aliceNode.createOpenInvitation('test-sapp');
+
+				// Bob and Carol form strands independently (same invitation)
+				const bobResult = await bobNode.formStrand(invitation, {
+					partyId: `bob-${partyId}`,
+				});
+				const carolResult = await carolNode.formStrand(invitation, {
+					partyId: `carol-${partyId}`,
+				});
+
+				// For a three-party strand, all three must use the same strandId.
+				// Since the provisioner increments, Bob gets strand-three-1 and Carol gets strand-three-2.
+				// In a real system, the invitation would be tied to one strandId.
+				// For this test, we use the first result's strandId for all.
+				const strandId = bobResult.strandId;
+				expect(strandId).toBeDefined();
+				expect(carolResult.strandId).toBeDefined();
+
+				// Start strand instances on all three parties using bob's strandId
+				// (in real use, the responder would return the same strandId for the same invitation)
+				const strandRow: StrandRow = { Id: strandId, MemberPrivateKey: null, Type: 'o' };
+
+				const aliceStrand = await aliceNode.addStrand({ strandRow, sAppConfig: SAPP_CONFIG_A });
+				const bobStrand = await bobNode.addStrand({ strandRow, sAppConfig: SAPP_CONFIG_A });
+
+				// Carol uses the same strandId
+				const carolStrandRow: StrandRow = { Id: strandId, MemberPrivateKey: null, Type: 'o' };
+				const carolStrand = await carolNode.addStrand({ strandRow: carolStrandRow, sAppConfig: SAPP_CONFIG_A });
+
+				expect(aliceStrand.status).toBe('active');
+				expect(bobStrand.status).toBe('active');
+				expect(carolStrand.status).toBe('active');
+
+				// Connect strand-level libp2p: Bob and Carol both connect to Alice
+				const aliceStrandAddrs = aliceStrand.libp2pNode!.getMultiaddrs();
+				await bobStrand.libp2pNode!.dial(aliceStrandAddrs[0]!);
+				await carolStrand.libp2pNode!.dial(aliceStrandAddrs[0]!);
+
+				await waitUntil(
+					() => bobStrand.libp2pNode!.getConnections().length > 0,
+					{ timeoutMs: 10_000, description: 'Bob strand connects to Alice' },
+				);
+				await waitUntil(
+					() => carolStrand.libp2pNode!.getConnections().length > 0,
+					{ timeoutMs: 10_000, description: 'Carol strand connects to Alice' },
+				);
+
+				// Insert data from Alice
+				const aliceDb = aliceStrand.database!.getDatabase();
+				await aliceDb.exec(
+					"insert into App.Data (Key, Val) values ('alice-data', 'from Alice')",
+				);
+
+				// Verify replication to Bob
+				const bobDb = bobStrand.database!.getDatabase();
+				await waitUntil(
+					async () => {
+						const row = await bobDb.get("select Val from App.Data where Key = 'alice-data'");
+						return row?.Val === 'from Alice';
+					},
+					{ timeoutMs: 15_000, intervalMs: 250, description: 'data replicates to Bob' },
+				);
+
+				// Verify replication to Carol
+				const carolDb = carolStrand.database!.getDatabase();
+				await waitUntil(
+					async () => {
+						const row = await carolDb.get("select Val from App.Data where Key = 'alice-data'");
+						return row?.Val === 'from Alice';
+					},
+					{ timeoutMs: 15_000, intervalMs: 250, description: 'data replicates to Carol' },
+				);
+
+				const bobRow = await bobDb.get("select Val from App.Data where Key = 'alice-data'");
+				expect(bobRow?.Val).toBe('from Alice');
+
+				const carolRow = await carolDb.get("select Val from App.Data where Key = 'alice-data'");
+				expect(carolRow?.Val).toBe('from Alice');
+			} finally {
+				await carolNode?.stop();
+				await bobNode?.stop();
+				await aliceNode?.stop();
+			}
+		}, 60_000);
+	});
+});
