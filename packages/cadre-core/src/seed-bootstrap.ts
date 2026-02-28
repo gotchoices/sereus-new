@@ -229,10 +229,12 @@ export class SeedBootstrapService {
       return { success: false, peersAdded: 0, error: 'Invalid seed signature' };
     }
 
-    // Verify the signer is an authority in the seed's peer list
-    const signerPeer = seed.peers.find(p => p.isAuthority);
-    if (!signerPeer) {
-      return { success: false, peersAdded: 0, error: 'No authority peer in seed' };
+    // Verify the signer's key matches an authority peer's public key
+    const signerIsAuthority = seed.peers.some(
+      p => p.isAuthority && p.publicKey === seed.signerKey
+    );
+    if (!signerIsAuthority) {
+      return { success: false, peersAdded: 0, error: 'Signer key does not match any authority peer' };
     }
 
     let peersAdded = 0;
@@ -425,15 +427,14 @@ export class SeedBootstrapService {
       const peerId = row.PeerId as string;
       const multiaddr = row.Multiaddr as string | null;
 
-      // Check if this peer's public key is an authority
-      // Note: Authority keys are base64url public keys, not peer IDs
-      // For now, we mark the peer as authority if it matches the service's authority key
+      // Mark peer as authority if it matches the service's own peer ID
       const isAuthority = peerId === this.libp2pNode?.peerId.toString();
 
       peers.push({
         peerId,
         multiaddrs: multiaddr ? multiaddr.split(',') : [],
         isAuthority,
+        ...(isAuthority && this.authorityPublicKey ? { publicKey: this.authorityPublicKey } : {}),
       });
     }
 

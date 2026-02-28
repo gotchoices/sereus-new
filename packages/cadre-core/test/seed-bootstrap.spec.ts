@@ -334,6 +334,139 @@ describe('Seed Types', () => {
   });
 });
 
+describe('Seed authority validation', () => {
+	let authorityPrivateKey: string;
+	let authorityPublicKey: string;
+	let attackerPrivateKey: string;
+	let attackerPublicKey: string;
+	const partyId = 'test-party-vuln';
+
+	beforeEach(() => {
+		authorityPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+		authorityPublicKey = getPublicKey(authorityPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+		attackerPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+		attackerPublicKey = getPublicKey(attackerPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+	});
+
+	function createSignedSeed(
+		privateKey: string,
+		publicKey: string,
+		peers: SeedPeer[]
+	): ControlNetworkSeed {
+		const seedData = { partyId, peers };
+		const seedJson = JSON.stringify(seedData);
+		const seedDigest = digest(seedJson, 'sha256', 'utf8', 'base64url') as string;
+		const signature = sign(
+			seedDigest,
+			privateKey,
+			'ed25519',
+			'base64url',
+			'base64url',
+			'base64url'
+		) as string;
+		return { ...seedData, signature, signerKey: publicKey };
+	}
+
+	function createMockLibp2p() {
+		return {
+			peerStore: {
+				merge: async () => {},
+			},
+			dial: async () => {},
+		};
+	}
+
+	it('should accept seed signed by authority key with matching publicKey', async () => {
+		const service = new SeedBootstrapService({ partyId });
+		(service as any).libp2pNode = createMockLibp2p();
+
+		const peers: SeedPeer[] = [
+			{
+				peerId: '12D3KooWAuthority',
+				multiaddrs: ['/ip4/1.2.3.4/tcp/4001'],
+				isAuthority: true,
+				publicKey: authorityPublicKey,
+			},
+		];
+
+		const seed = createSignedSeed(authorityPrivateKey, authorityPublicKey, peers);
+		const result = await service.applySeed(seed);
+
+		expect(result.success).toBe(true);
+	});
+
+	it('should reject seed signed by non-authority key', async () => {
+		const service = new SeedBootstrapService({ partyId });
+		(service as any).libp2pNode = createMockLibp2p();
+
+		const peers: SeedPeer[] = [
+			{
+				peerId: '12D3KooWAuthority',
+				multiaddrs: ['/ip4/1.2.3.4/tcp/4001'],
+				isAuthority: true,
+				publicKey: authorityPublicKey,  // Real authority's key
+			},
+		];
+
+		// Attacker signs with their own key — signerKey won't match authority publicKey
+		const forgedSeed = createSignedSeed(attackerPrivateKey, attackerPublicKey, peers);
+		const result = await service.applySeed(forgedSeed);
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe('Signer key does not match any authority peer');
+	});
+
+	it('should reject seed when authority peer has no publicKey', async () => {
+		const service = new SeedBootstrapService({ partyId });
+		(service as any).libp2pNode = createMockLibp2p();
+
+		const peers: SeedPeer[] = [
+			{
+				peerId: '12D3KooWAuthority',
+				multiaddrs: ['/ip4/1.2.3.4/tcp/4001'],
+				isAuthority: true,
+				// No publicKey — can't verify signerKey
+			},
+		];
+
+		const seed = createSignedSeed(authorityPrivateKey, authorityPublicKey, peers);
+		const result = await service.applySeed(seed);
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe('Signer key does not match any authority peer');
+	});
+
+	it('should reject seed with no authority peers', async () => {
+		const service = new SeedBootstrapService({ partyId });
+		(service as any).libp2pNode = createMockLibp2p();
+
+		const peers: SeedPeer[] = [
+			{
+				peerId: '12D3KooWRegularPeer',
+				multiaddrs: ['/ip4/1.2.3.4/tcp/4001'],
+				isAuthority: false,
+			},
+		];
+
+		const seed = createSignedSeed(authorityPrivateKey, authorityPublicKey, peers);
+		const result = await service.applySeed(seed);
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe('Signer key does not match any authority peer');
+	});
+
+	it('SeedPeer should support publicKey field for authority peers', () => {
+		const peer: SeedPeer = {
+			peerId: '12D3KooWTestPeer',
+			multiaddrs: [],
+			isAuthority: true,
+			publicKey: authorityPublicKey,
+		};
+
+		expect(peer.publicKey).toBe(authorityPublicKey);
+	});
+});
+
 describe('SeedBootstrapService Helper Methods', () => {
   let authorityPrivateKey: string;
   let authorityPublicKey: string;

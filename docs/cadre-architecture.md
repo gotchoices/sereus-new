@@ -147,7 +147,8 @@ interface ControlNetworkSeed {
 interface SeedPeer {
   peerId: string;           // libp2p peer ID
   multiaddrs: string[];     // Dial hints (may be empty if NAT'd)
-  isAuthority: boolean;     // Hint: an authority-hosting peer to prefer dialing (authority signing is represented by `signerKey`)
+  isAuthority: boolean;     // Hint: an authority-hosting peer to prefer dialing
+  publicKey?: string;       // ed25519 public key (base64url) — present on authority peers for signerKey verification
 }
 ```
 
@@ -288,8 +289,8 @@ interface SeedAckMessage {
 
 **Validation**:
 - New node verifies `signature` using `signerKey` (ed25519)
+- `signerKey` must match the `publicKey` of a peer with `isAuthority: true` in the seed's peer list — this ensures only actual authority holders can produce valid seeds
 - TODO: enforce a trust policy for `signerKey` (e.g. pinned authority keys per party, or TOFU with explicit user confirmation)
-- Note: current implementation additionally requires that the seed contains *some* peer with `isAuthority: true`, but it does not verify that the signing key corresponds to that peer
 - For additional security, seeds can include `transactions[]` with signed Optimystic entries
 
 **Alternative Delivery Mechanisms**:

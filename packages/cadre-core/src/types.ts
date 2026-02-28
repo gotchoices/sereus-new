@@ -402,6 +402,8 @@ export interface SeedPeer {
   multiaddrs: string[];
   /** Whether this peer holds an authority key */
   isAuthority: boolean;
+  /** ed25519 public key (base64url) — present on authority peers for signerKey verification */
+  publicKey?: string;
 }
 
 /**
