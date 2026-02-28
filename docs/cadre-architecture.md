@@ -774,7 +774,8 @@ The `provider` field accepts either an `IRawStorage` instance (shared across all
 
 - **CadreNode**: Main entry point with `start()`/`stop()` lifecycle, event emission, control network management
 - **StrandWatcher**: Poll-based monitoring of `Strand` table with configurable filters (`all`, `sAppId`, `strandId`, `none`)
-- **StrandInstanceManager**: Per-strand libp2p node creation with isolated storage paths and sApp schema application
+- **StrandInstanceManager**: Per-strand libp2p node creation with isolated storage paths, sApp schema application, and ed25519 schema signature verification on strand start
+- **Schema Verification**: `signSchema()`, `verifySchema()`, `assertSchemaSignature()` — ed25519 signature verification of sApp schemas gating strand join
 - **EnrollmentService**: `createCadrePeer()` for Ed25519 keypair generation
 - **Seed Bootstrap API**: `createSeed()`, `applySeed()`, `deliverSeed()`, `encodeSeed()`/`decodeSeed()`, helper functions (`addDrone`, `createInvite`, `acceptPhone`, `addPhoneWithRelay`)
 - **Member Registration API**: `registerMember()`, `validateMemberRegistration()` with pluggable verifier/registry interfaces
@@ -801,8 +802,8 @@ The `provider` field accepts either an `IRawStorage` instance (shared across all
 - Billing integration: usage metering, Stripe-ready hooks, quota enforcement
 - Orchestration: Docker orchestrator, mock orchestrator, pluggable interface
 
-### Testing (104 tests passing)
+### Testing (117 tests passing)
 
-- Unit tests: CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, StrandSolicitationService, types
+- Unit tests: CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, StrandSolicitationService, SchemaVerification, types
 - Integration tests: Seed bootstrap, strand formation protocol
 
