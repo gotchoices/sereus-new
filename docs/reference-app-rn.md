@@ -146,7 +146,7 @@ No signature verification, no invite flow, no authorization constraints. This ke
 
 `cadre-core` imports `createLibp2pNode` from `@optimystic/db-p2p`. That package's `exports` field includes a `react-native` condition pointing to `rn.js`, so Metro automatically selects the RN-safe entrypoint (no TCP import). Transport injection in `createControlNode()` and `StrandInstanceManager` already works.
 
-**cadre-core** now declares a `react-native` export condition in its `package.json`. Source audit confirmed only one Node-only import (`require('path')` in `getStrandStoragePath`), which is runtime-guarded behind `process.versions?.node` and deprecated in favor of the storage provider factory pattern.
+**cadre-core** now declares a `react-native` export condition in its `package.json`. Source audit confirmed two Node-only dynamic imports — `require('path')` in `getStrandStoragePath` and `require('fs/promises')` in `ControlDatabase.loadSchema` — both runtime-guarded behind `process.versions?.node` checks and restricted to Node-only code paths.
 
 **Quereus** has no Node-only imports. BigInt is supported in Hermes since RN 0.70. Only `TextEncoder` is used (built-in to Hermes); `TextDecoder` is not required by Quereus. However, `@optimystic/db-p2p` uses `TextDecoder` in its cluster, protocol, and repo services — this is covered by Expo SDK 52+'s built-in `TextDecoder` global (UTF-8 only).
 
@@ -164,7 +164,7 @@ No signature verification, no invite flow, no authorization constraints. This ke
 
 ### Bundle Smoke Test
 
-`yarn test:bundle` runs `react-native bundle --platform android` as a dry-run to catch import resolution failures without an EAS Build. This is suitable for CI.
+`yarn test:bundle` runs `expo export --platform android` as a dry-run to catch import resolution failures without an EAS Build, then cleans up the output. This is suitable for CI.
 
 ## Package Structure
 
