@@ -21,14 +21,10 @@ import {
 	type DisclosureValidator,
 	type FormationUsageRecorder,
 	type StrandProvisioner,
-	type StrandSolicitationServiceOptions,
-	type StrandFormationDisclosure,
-	type OpenInvitation,
 } from '@serfab/cadre-core';
 import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
-import type { CadreNodeConfig, StrandRow, StrandInstance, SAppConfig } from '@serfab/cadre-core';
-import { TestCadreNetwork, waitUntil, sleep } from '../harness/index.js';
-import type { TestParty } from '../harness/types.js';
+import type { CadreNodeConfig, StrandRow, SAppConfig } from '@serfab/cadre-core';
+import { TestCadreNetwork, waitUntil } from '../harness/index.js';
 
 // ── Mock implementations ────────────────────────────────────────────────────
 
@@ -63,23 +59,6 @@ function createMockUsageRecorder(): FormationUsageRecorder & {
 	};
 }
 
-/**
- * Disclosure validator that accepts/rejects based on a partyId allowlist.
- *
- * Over the real protocol, the identity bundle sent to the responder is
- * `{ partyId: sessionId }` (see bootstrap.ts DialerSession). Full disclosure
- * passthrough is not yet wired, so we validate using what IS available.
- */
-function createAllowlistValidator(allowedPartyIds: Set<string>): DisclosureValidator {
-	return {
-		validateDisclosure: async (_token, disclosure) => {
-			const pid = (disclosure as Record<string, unknown>).partyId as string | undefined;
-			// Accept if no allowlist filtering or if partyId is in the allowlist
-			return pid ? allowedPartyIds.has(pid) : false;
-		},
-	};
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function wsTransports() {
@@ -110,6 +89,25 @@ function createSignedSAppConfig(schema: string, version: string): SAppConfig {
 // Create two distinct signed sApp configs for isolation tests
 const SAPP_CONFIG_A = createSignedSAppConfig(SIMPLE_SCHEMA, '0.1.0');
 const SAPP_CONFIG_B = createSignedSAppConfig(SIMPLE_SCHEMA, '0.2.0');
+
+/** Create a CadreNodeConfig for Phase 2 tests */
+function createTestNodeConfig(
+	partyId: string,
+	opts: { bootstrapNodes?: string[]; profile?: 'storage' | 'transaction'; enableRelay?: boolean } = {},
+): CadreNodeConfig {
+	return {
+		controlNetwork: { partyId, bootstrapNodes: opts.bootstrapNodes ?? [] },
+		profile: opts.profile ?? 'transaction',
+		strandFilter: { mode: 'all' },
+		storage: { provider: () => new MemoryRawStorage() },
+		network: {
+			transports: wsTransports(),
+			listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
+			...(opts.enableRelay ? { enableRelay: true } : {}),
+		},
+		hibernation: { enabled: false },
+	};
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Phase 1: Strand formation protocol over libp2p
@@ -332,43 +330,13 @@ describe('E2E Strand Formation', () => {
 			try {
 				const partyId = `lifecycle-${Date.now()}`;
 
-				// Start Alice's CadreNode
-				const aliceConfig: CadreNodeConfig = {
-					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
-					profile: 'storage',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-						enableRelay: true,
-					},
-					hibernation: { enabled: false },
-				};
-
-				aliceNode = new CadreNode(aliceConfig);
+				aliceNode = new CadreNode(createTestNodeConfig(`alice-${partyId}`, { profile: 'storage', enableRelay: true }));
 				await aliceNode.start();
 
 				const aliceAddrs = aliceNode.getMultiaddrs();
 				expect(aliceAddrs.length).toBeGreaterThan(0);
 
-				// Start Bob's CadreNode (bootstraps from Alice for control network)
-				const bobConfig: CadreNodeConfig = {
-					controlNetwork: {
-						partyId: `bob-${partyId}`,
-						bootstrapNodes: aliceAddrs,
-					},
-					profile: 'transaction',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-					},
-					hibernation: { enabled: false },
-				};
-
-				bobNode = new CadreNode(bobConfig);
+				bobNode = new CadreNode(createTestNodeConfig(`bob-${partyId}`, { bootstrapNodes: aliceAddrs }));
 				await bobNode.start();
 
 				// Initialize strand solicitation on Alice (responder)
@@ -466,38 +434,10 @@ describe('E2E Strand Formation', () => {
 			try {
 				const partyId = `multi-${Date.now()}`;
 
-				const aliceConfig: CadreNodeConfig = {
-					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
-					profile: 'storage',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-						enableRelay: true,
-					},
-					hibernation: { enabled: false },
-				};
-
-				aliceNode = new CadreNode(aliceConfig);
+				aliceNode = new CadreNode(createTestNodeConfig(`alice-${partyId}`, { profile: 'storage', enableRelay: true }));
 				await aliceNode.start();
 
-				const bobConfig: CadreNodeConfig = {
-					controlNetwork: {
-						partyId: `bob-${partyId}`,
-						bootstrapNodes: aliceNode.getMultiaddrs(),
-					},
-					profile: 'transaction',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-					},
-					hibernation: { enabled: false },
-				};
-
-				bobNode = new CadreNode(bobConfig);
+				bobNode = new CadreNode(createTestNodeConfig(`bob-${partyId}`, { bootstrapNodes: aliceNode.getMultiaddrs() }));
 				await bobNode.start();
 
 				// Alice initializes solicitation with a provisioner
@@ -603,55 +543,17 @@ describe('E2E Strand Formation', () => {
 				const partyId = `three-${Date.now()}`;
 
 				// Alice (responder)
-				const aliceConfig: CadreNodeConfig = {
-					controlNetwork: { partyId: `alice-${partyId}`, bootstrapNodes: [] },
-					profile: 'storage',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-						enableRelay: true,
-					},
-					hibernation: { enabled: false },
-				};
-				aliceNode = new CadreNode(aliceConfig);
+				aliceNode = new CadreNode(createTestNodeConfig(`alice-${partyId}`, { profile: 'storage', enableRelay: true }));
 				await aliceNode.start();
 
+				const aliceAddrs = aliceNode.getMultiaddrs();
+
 				// Bob (initiator 1)
-				const bobConfig: CadreNodeConfig = {
-					controlNetwork: {
-						partyId: `bob-${partyId}`,
-						bootstrapNodes: aliceNode.getMultiaddrs(),
-					},
-					profile: 'transaction',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-					},
-					hibernation: { enabled: false },
-				};
-				bobNode = new CadreNode(bobConfig);
+				bobNode = new CadreNode(createTestNodeConfig(`bob-${partyId}`, { bootstrapNodes: aliceAddrs }));
 				await bobNode.start();
 
 				// Carol (initiator 2)
-				const carolConfig: CadreNodeConfig = {
-					controlNetwork: {
-						partyId: `carol-${partyId}`,
-						bootstrapNodes: aliceNode.getMultiaddrs(),
-					},
-					profile: 'transaction',
-					strandFilter: { mode: 'all' },
-					storage: { provider: () => new MemoryRawStorage() },
-					network: {
-						transports: wsTransports(),
-						listenAddrs: ['/ip4/127.0.0.1/tcp/0/ws'],
-					},
-					hibernation: { enabled: false },
-				};
-				carolNode = new CadreNode(carolConfig);
+				carolNode = new CadreNode(createTestNodeConfig(`carol-${partyId}`, { bootstrapNodes: aliceAddrs }));
 				await carolNode.start();
 
 				// Alice initializes solicitation
@@ -685,10 +587,7 @@ describe('E2E Strand Formation', () => {
 
 				const aliceStrand = await aliceNode.addStrand({ strandRow, sAppConfig: SAPP_CONFIG_A });
 				const bobStrand = await bobNode.addStrand({ strandRow, sAppConfig: SAPP_CONFIG_A });
-
-				// Carol uses the same strandId
-				const carolStrandRow: StrandRow = { Id: strandId, MemberPrivateKey: null, Type: 'o' };
-				const carolStrand = await carolNode.addStrand({ strandRow: carolStrandRow, sAppConfig: SAPP_CONFIG_A });
+				const carolStrand = await carolNode.addStrand({ strandRow, sAppConfig: SAPP_CONFIG_A });
 
 				expect(aliceStrand.status).toBe('active');
 				expect(bobStrand.status).toBe('active');
