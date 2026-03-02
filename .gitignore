@@ -4,3 +4,8 @@ tmp/
 .yarnrc.yml
 .DS_Store
 .yarn
+*.tsbuildinfo
+
+# Expo prebuild artifacts (managed workflow — EAS generates these)
+packages/reference-app-rn/android/
+packages/reference-app-rn/ios/

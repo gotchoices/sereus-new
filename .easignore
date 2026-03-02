@@ -1,0 +1,40 @@
+# EAS Build ignore file
+# Reduce upload size by excluding files not needed for the native build
+
+# Node modules (EAS runs yarn install)
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Development artifacts
+.DS_Store
+tmp/
+
+# Test files
+packages/integration-tests/
+packages/*/src/__tests__/
+packages/*/__tests__/
+
+# Documentation
+docs/
+
+# Tickets
+tickets/
+tess/
+
+# Git internals
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Local prebuild artifacts (EAS runs prebuild itself for managed workflow)
+packages/reference-app-rn/android/
+packages/reference-app-rn/ios/
+
+# Other packages' source (only need cadre-core for workspace:^ dep)
+packages/cadre-cli/src/
+packages/cadre-provider/src/
