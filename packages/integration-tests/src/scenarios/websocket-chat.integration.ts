@@ -16,8 +16,9 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { MemoryRawStorage } from '@optimystic/db-p2p';
-import { CadreNode } from '@serfab/cadre-core';
-import type { CadreNodeConfig, StrandRow, StrandInstance } from '@serfab/cadre-core';
+import { CadreNode, signSchema } from '@serfab/cadre-core';
+import type { CadreNodeConfig, StrandRow, StrandInstance, SAppConfig } from '@serfab/cadre-core';
+import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
 import { waitUntil, sleep } from '../harness/wait-utils.js';
 
 // ── Chat schema (mirrors reference-app-rn/src/chat-strand.ts) ──────────────
@@ -37,11 +38,14 @@ table Message (
 );
 `;
 
-const CHAT_SAPP_CONFIG = {
-  id: 'sereus-chat-simple',
+const chatAuthorPrivateKey = generatePrivateKey('ed25519', 'base64url') as string;
+const chatAuthorPublicKey = getPublicKey(chatAuthorPrivateKey, 'ed25519', 'base64url', 'base64url') as string;
+
+const CHAT_SAPP_CONFIG: SAppConfig = {
+  id: chatAuthorPublicKey,
   version: '0.1.0',
   schema: CHAT_SCHEMA,
-  signature: '',
+  signature: signSchema(CHAT_SCHEMA, '0.1.0', chatAuthorPrivateKey),
   latencyHint: 'interactive' as const,
 };
 
