@@ -154,8 +154,11 @@ No signature verification, no invite flow, no authorization constraints. This ke
 
 ### Polyfills
 
+The app uses a custom entry point (`index.js`) that imports global polyfills before `expo-router/entry` loads any library code. This is critical because libp2p and its dependencies reference Web APIs at import time.
+
 | Polyfill | Target | Source |
 |----------|--------|--------|
+| `polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` globals | Custom shim loaded via `index.js` before any library code; required because Hermes lacks these Web APIs and libp2p references them at import time |
 | `polyfills/node-os.js` | `os`, `node:os` | Custom shim for libp2p (networkInterfaces, platform, type, hostname) |
 | `readable-stream` | `stream`, `node:stream` | npm, via Metro `extraNodeModules` |
 | `buffer` | `buffer`, `node:buffer` | npm, via Metro `extraNodeModules` |
@@ -172,6 +175,7 @@ The app lives at `packages/reference-app-rn` as a workspace member. Yarn's works
 
 ```
 packages/reference-app-rn/
+  index.js                    # Custom entry: loads polyfills before expo-router/entry
   app.json                    # Expo config (SDK 53, custom dev client)
   package.json                # workspace:^ deps on cadre-core, db-p2p, etc.
   tsconfig.json
@@ -187,6 +191,9 @@ packages/reference-app-rn/
     chat-operations.ts        # Quereus operations: insert message, query messages
     use-chat.ts               # React hook: message list, send, connection status
     use-cadre.ts              # React hook: cadre lifecycle, seed application
+  polyfills/
+    event.js                  # Event, CustomEvent, EventTarget globals for Hermes
+    node-os.js                # Minimal os module shim for libp2p
   schemas/
     chat-simple.qsql          # Simplified chat schema (or inline string)
 ```

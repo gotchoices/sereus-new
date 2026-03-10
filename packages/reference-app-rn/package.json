@@ -2,7 +2,7 @@
   "name": "@serfab/reference-app-rn",
   "version": "0.0.1",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "scripts": {
     "eas-build-pre-install": "bash scripts/eas-build-pre-install.sh",
     "start": "expo start --dev-client",
