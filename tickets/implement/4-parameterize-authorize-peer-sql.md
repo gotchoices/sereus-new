@@ -22,8 +22,8 @@ Replaced interpolated key value with `?` placeholder. The `with context` values 
 Replaced all 6 interpolated values (3 in `with context`, 3 in `values`) with `?` placeholders. Removed the intermediate `memberKeyValue` ternary — `null` is passed directly via the parameter array.
 
 ## TODO
-- [x] Refactor `authorizePeer()` to use parameterized INSERT with `?` placeholders
-- [x] Refactor `insertAuthorityKey()` to use parameterized INSERT
-- [x] Refactor `insertStrand()` to use parameterized INSERT
-- [x] Build passes
-- [x] Existing tests pass (1 pre-existing unrelated failure in websocket-chat schema signature)
+- [ ] Refactor `authorizePeer()` to use parameterized INSERT with `?` placeholders
+- [ ] Refactor `insertAuthorityKey()` to use parameterized INSERT
+- [ ] Refactor `insertStrand()` to use parameterized INSERT
+- [ ] Build passes
+- [ ] Existing tests pass (1 pre-existing unrelated failure in websocket-chat schema signature)

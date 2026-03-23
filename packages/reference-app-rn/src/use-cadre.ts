@@ -12,6 +12,7 @@ import {
   startPhoneNode,
   stopPhoneNode,
   getPhoneNode,
+  dialPeer as dialPeerImpl,
   type PhoneNodeOptions,
 } from './cadre-phone';
 import { createChatStrand } from './chat-strand';
@@ -37,6 +38,8 @@ export interface UseCadreResult {
   stop: () => Promise<void>;
   /** Apply a base64url-encoded seed string */
   applySeed: (encoded: string) => Promise<void>;
+  /** Dial a peer by multiaddr while already connected */
+  dialPeer: (addr: string) => Promise<void>;
   /** Create a new chat strand and return its instance */
   createStrand: (strandId: string) => Promise<StrandInstance>;
 }
@@ -129,6 +132,10 @@ export function useCadre(): UseCadreResult {
     }
   }, []);
 
+  const dialPeer = useCallback(async (addr: string) => {
+    await dialPeerImpl(addr);
+  }, []);
+
   const createStrand = useCallback(async (strandId: string) => {
     const current = nodeRef.current;
     if (!current) throw new Error('Node not started');
@@ -137,6 +144,6 @@ export function useCadre(): UseCadreResult {
     return instance;
   }, [refreshStrands]);
 
-  return { status, node, peerId, strands, error, start, stop, applySeed, createStrand };
+  return { status, node, peerId, strands, error, start, stop, applySeed, dialPeer, createStrand };
 }
 

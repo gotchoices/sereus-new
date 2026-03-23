@@ -15,6 +15,7 @@ import type {
   StrandInstance,
   StrandConfig,
 } from '@serfab/cadre-core';
+import { multiaddr } from '@multiformats/multiaddr';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { MMKV } from 'react-native-mmkv';
@@ -105,6 +106,19 @@ export async function applySeed(seed: ControlNetworkSeed): Promise<ApplySeedResu
 export function decodeSeed(encoded: string): ControlNetworkSeed {
   if (!node) throw new Error('Phone node not started');
   return node.decodeSeed(encoded);
+}
+
+// ── Peer helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Dial a peer by multiaddr on the running control network node.
+ * Use this to add a drone (or another peer) after starting without bootstrap.
+ */
+export async function dialPeer(addr: string): Promise<void> {
+	if (!node) throw new Error('Phone node not started');
+	const libp2p = node.getControlNode();
+	if (!libp2p) throw new Error('Control network not available');
+	await libp2p.dial(multiaddr(addr));
 }
 
 // ── Strand helpers ───────────────────────────────────────────────────────────

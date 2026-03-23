@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const [partyId, setPartyId] = useState('');
   const [bootstrapAddr, setBootstrapAddr] = useState('');
   const [seedInput, setSeedInput] = useState('');
+  const [peerAddr, setPeerAddr] = useState('');
 
   // ── Connect / Disconnect ───────────────────────────────────────────────
 
@@ -57,6 +58,20 @@ export default function SettingsScreen() {
       Alert.alert('Seed applied', 'Peer cache updated');
     } catch (err) {
       Alert.alert('Seed failed', String(err));
+    }
+  };
+
+  // ── Add Peer ──────────────────────────────────────────────────────────
+
+  const handleDialPeer = async () => {
+    const addr = peerAddr.trim();
+    if (!addr) return;
+    try {
+      await cadre.dialPeer(addr);
+      setPeerAddr('');
+      Alert.alert('Peer connected', 'Dialed successfully');
+    } catch (err) {
+      Alert.alert('Dial failed', String(err));
     }
   };
 
@@ -96,6 +111,14 @@ export default function SettingsScreen() {
           </>
         )}
       </Section>
+
+      {/* Add Peer */}
+      {connected && (
+        <Section title="Add Peer">
+          <LabelledInput label="Multiaddr" value={peerAddr} onChangeText={setPeerAddr} placeholder="/ip4/…/tcp/…/ws/p2p/…" />
+          <Btn label="Dial Peer" onPress={handleDialPeer} disabled={!peerAddr.trim()} />
+        </Section>
+      )}
 
       {/* Seed */}
       {connected && (

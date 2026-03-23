@@ -20,15 +20,10 @@ You are focused on the Sereus monorepo, but have access to ../quereus and ../opt
 - Think cross-platform (browser, node, RN, etc.)
 - .editorconfig contains formatting (tabs for code)
 
-## Tasks
-
-- If the user mentions tasks (e.g. work task...), read tasks/AGENTS.md to know what to do
-
-
-Start with docs\cadre-architecture.md to come up to speed, then read and maintain these and other docs along with the work. 
-
 ## Tickets (tess)
 
 This project uses [tess](tess/) for AI-driven ticket management.
 Read and follow the ticket workflow rules in tess/agent-rules/tickets.md.
 Tickets are in the [tickets/](tickets/) directory.
+
+Start with docs\cadre-architecture.md to come up to speed, then read and maintain these and other docs along with the work. 

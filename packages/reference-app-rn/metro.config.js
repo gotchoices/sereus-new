@@ -18,6 +18,8 @@ config.watchFolders = [
   quereusRoot,
 ];
 
+config.resolver.unstable_enableSymlinks = true;
+
 config.resolver.nodeModulesPaths = [
   ...(config.resolver.nodeModulesPaths ?? []),
   path.resolve(__dirname, 'node_modules'),
