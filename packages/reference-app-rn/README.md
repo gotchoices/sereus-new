@@ -161,7 +161,7 @@ reference-app-rn/
 │   ├── use-chat.ts         #   React hook: message polling & send
 │   ├── chat-strand.ts      #   Strand creation with embedded chat schema
 │   └── chat-operations.ts  #   SQL helpers (insert/query members & messages)
-├── polyfills/              # Hermes runtime polyfills (Intl, EventTarget, etc.)
+├── polyfills/              # Hermes runtime polyfills (see "Hermes Polyfills" section below)
 ├── drone.cadre.yaml        # Drone server config for local development
 ├── metro.config.js         # Bundler config (workspace symlinks + Node.js polyfills)
 └── app.json                # Expo app manifest
@@ -176,6 +176,40 @@ reference-app-rn/
 **Transaction vs storage profile** — Transaction nodes (phones) participate in consensus but don't persist long-term; storage nodes (drones) archive everything and stay online.
 
 **Seed** — A bootstrap payload containing peer addresses for joining an existing cadre. Paste a base64url seed in Settings to skip manual address entry.
+
+## Hermes Polyfills
+
+React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fast but missing many Web/Node.js APIs that libp2p, Optimystic, and their dependencies expect. This app ships a set of polyfills in `polyfills/` that **must be imported before any library code** — see `index.js`.
+
+### How it works
+
+1. **`index.js`** imports polyfills in order, then hands off to Expo Router
+2. **`metro.config.js`** maps Node.js built-in modules (`node:crypto`, `node:os`) to local shim files via `extraNodeModules`
+
+### Polyfill inventory
+
+| File | What it polyfills | Required by |
+|------|-------------------|-------------|
+| `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto |
+| `hermes.js` | `crypto.subtle.digest()` | multiformats/hashes/sha2 (browser variant) |
+| `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache, coordinator) |
+| `hermes.js` | `Promise.withResolvers()` (ES2024) | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice |
+| `hermes.js` | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, it-pushable, p-retry |
+| `hermes.js` | Timer `.ref()` / `.unref()` wrappers | @optimystic/db-p2p, undici, libp2p internals |
+| `event.js` | `EventTarget`, `Event`, `CustomEvent` | libp2p, @libp2p/interface |
+| `intl-pluralrules.js` | `Intl.PluralRules` (English-only) | moat-maker (error messages) |
+| `node-crypto.js` | `createHash()` (sha256, sha512) | multiformats/hashes/sha2 (Node variant) |
+| `node-os.js` | `networkInterfaces()`, `platform()`, etc. | @libp2p/utils (network detection) |
+
+### Adding new polyfills
+
+When adding a new dependency, watch for runtime errors like `Property 'X' doesn't exist` or `TypeError: X is not a function` — these typically mean Hermes is missing an API. The fix is:
+
+1. **Global API** (e.g., `structuredClone`, `Promise.withResolvers`): add to `polyfills/hermes.js`
+2. **Node.js built-in module** (e.g., `crypto`, `os`): create a shim file in `polyfills/` and map it in `metro.config.js` under `extraNodeModules`
+3. **Web API class** (e.g., `EventTarget`): add to `polyfills/event.js` or a new file, import from `index.js`
+
+Always guard with `typeof` checks so the polyfill is skipped on platforms that have native support.
 
 ## Drone Configuration
 
@@ -201,3 +235,7 @@ See the [cadre-cli README](../cadre-cli/README.md) for production deployment opt
 **No messages appearing** — Ensure both nodes share the same Party ID. Check the Metro console for strand errors. Messages poll every 2 seconds, so there's a brief delay.
 
 **Metro bundler errors** — Run `yarn install` from the monorepo root to ensure workspace symlinks are intact. The Metro config watches `sereus/`, `optimystic/`, and `quereus/` workspaces.
+
+**"Property 'structuredClone' doesn't exist"** — Hermes doesn't ship `structuredClone`, which Optimystic uses for defensive deep cloning. The `polyfills/hermes.js` shim provides a JSON-based fallback. If you see this error, make sure `index.js` imports `./polyfills/hermes` before any library code, then restart Metro with `--reset-cache`.
+
+**"stabilize tick failed: TypeError: Cannot read properties of undefined (reading 'digest')"** — The `multiformats` package ships a browser variant of its SHA-2 hasher that calls `crypto.subtle.digest()`, which Hermes doesn't support. The `polyfills/hermes.js` shim provides a `crypto.subtle.digest` backed by `@noble/hashes`. If you see this error, restart Metro with `--reset-cache`.

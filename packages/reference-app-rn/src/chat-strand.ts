@@ -36,8 +36,6 @@ export function getChatSAppConfig(): SAppConfig {
     id: CHAT_SAPP_ID,
     version: CHAT_SAPP_VERSION,
     schema: CHAT_SCHEMA,
-    // No signature verification for the reference app
-    signature: '',
     latencyHint: 'interactive',
   };
 }

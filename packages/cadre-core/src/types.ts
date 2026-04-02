@@ -194,7 +194,7 @@ export interface SAppInfo {
   id: string;
   version: string;
   schema: string;
-  signature: string;
+  signature?: string;
 }
 
 /**
@@ -247,8 +247,8 @@ export interface SAppConfig {
   version: string;
   /** The declarative schema DDL */
   schema: string;
-  /** Author's signature over the schema for verification */
-  signature: string;
+  /** Author's signature over the schema for verification (omit to skip verification) */
+  signature?: string;
   /** Latency hint for hibernation behavior (optional, defaults to config) */
   latencyHint?: LatencyHint;
 }

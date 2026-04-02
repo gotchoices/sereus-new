@@ -6,10 +6,12 @@
 
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { CadreProvider } from '../src/cadre-context';
 
 export default function RootLayout() {
   return (
-    <>
+    <CadreProvider>
       <StatusBar style="light" />
       <Tabs
         screenOptions={{
@@ -22,14 +24,26 @@ export default function RootLayout() {
       >
         <Tabs.Screen
           name="index"
-          options={{ title: 'Chat', tabBarLabel: 'Chat' }}
+          options={{
+            title: 'Chat',
+            tabBarLabel: 'Chat',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="chatbubble-outline" size={size} color={color} />
+            ),
+          }}
         />
         <Tabs.Screen
           name="settings"
-          options={{ title: 'Settings', tabBarLabel: 'Settings' }}
+          options={{
+            title: 'Settings',
+            tabBarLabel: 'Settings',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="settings-outline" size={size} color={color} />
+            ),
+          }}
         />
       </Tabs>
-    </>
+    </CadreProvider>
   );
 }
 

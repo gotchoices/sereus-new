@@ -86,25 +86,20 @@ export async function insertMessage(
   // Quereus DATETIME expects 'YYYY-MM-DD HH:MM:SS', not ISO 8601 with 'T' / 'Z'.
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
 
-  // Auto-incrementing Id via subquery; other values use parameterized bindings
+  const maxRow = await db.get('select max(Id) as MaxId from App.Message');
+  const nextId = ((maxRow?.MaxId as number | null) ?? 0) + 1;
+
   await db.exec(
     `insert into App.Message (Id, MemberId, Content, Timestamp)
-     values ((select coalesce(max(Id), 0) + 1 from App.Message), ?, ?, ?)`,
-    [memberId, content, now],
-  );
-
-  // Return the inserted message
-  const row = await db.get(
-    `select Id, MemberId, Content, Timestamp from App.Message
-     where MemberId = ? order by Id desc limit 1`,
-    [memberId],
+     values (?, ?, ?, ?)`,
+    [nextId, memberId, content, now],
   );
 
   return {
-    Id: row!.Id as number,
-    MemberId: row!.MemberId as string,
-    Content: row!.Content as string,
-    Timestamp: row!.Timestamp as string,
+    Id: nextId,
+    MemberId: memberId,
+    Content: content,
+    Timestamp: now,
   };
 }
 

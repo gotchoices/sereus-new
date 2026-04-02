@@ -80,15 +80,23 @@ describe('schema-verification', () => {
       expect(() => assertSchemaSignature(config)).toThrow('invalid signature');
     });
 
-    it('should throw SchemaVerificationError for missing signature', () => {
+    it('should skip verification when signature is omitted', () => {
       const config: SAppConfig = {
         id: authorPublicKey,
         version: testVersion,
         schema: testSchema,
-        signature: ''
       };
-      expect(() => assertSchemaSignature(config)).toThrow(SchemaVerificationError);
-      expect(() => assertSchemaSignature(config)).toThrow('missing signature');
+      expect(() => assertSchemaSignature(config)).not.toThrow();
+    });
+
+    it('should skip verification when signature is empty string', () => {
+      const config: SAppConfig = {
+        id: authorPublicKey,
+        version: testVersion,
+        schema: testSchema,
+        signature: '',
+      };
+      expect(() => assertSchemaSignature(config)).not.toThrow();
     });
 
     it('should throw SchemaVerificationError for missing author key', () => {

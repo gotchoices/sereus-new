@@ -2,9 +2,9 @@
  * Settings screen — connect to cadre, apply seed, create strand.
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
-  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useCadre } from '../src/use-cadre';
+import { useCadre } from '../src/cadre-context';
 
 /** Generate a simple random UUID (good enough for demo). */
 function uuid(): string {
@@ -29,6 +29,11 @@ export default function SettingsScreen() {
   const [bootstrapAddr, setBootstrapAddr] = useState('');
   const [seedInput, setSeedInput] = useState('');
   const [peerAddr, setPeerAddr] = useState('');
+  const [modal, setModal] = useState<{ title: string; message: string } | null>(null);
+
+  const showAlert = useCallback((title: string, message: string) => {
+    setModal({ title, message });
+  }, []);
 
   // ── Connect / Disconnect ───────────────────────────────────────────────
 
@@ -39,7 +44,7 @@ export default function SettingsScreen() {
     try {
       await cadre.start({ partyId: pid, bootstrapAddrs: addrs });
     } catch (err) {
-      Alert.alert('Connection failed', String(err));
+      showAlert('Connection failed', String(err));
     }
   };
 
@@ -55,9 +60,9 @@ export default function SettingsScreen() {
     try {
       await cadre.applySeed(seed);
       setSeedInput('');
-      Alert.alert('Seed applied', 'Peer cache updated');
+      showAlert('Seed applied', 'Peer cache updated');
     } catch (err) {
-      Alert.alert('Seed failed', String(err));
+      showAlert('Seed failed', String(err));
     }
   };
 
@@ -69,9 +74,9 @@ export default function SettingsScreen() {
     try {
       await cadre.dialPeer(addr);
       setPeerAddr('');
-      Alert.alert('Peer connected', 'Dialed successfully');
+      showAlert('Peer connected', 'Dialed successfully');
     } catch (err) {
-      Alert.alert('Dial failed', String(err));
+      showAlert('Dial failed', String(err));
     }
   };
 
@@ -81,9 +86,9 @@ export default function SettingsScreen() {
     try {
       const id = uuid();
       await cadre.createStrand(id);
-      Alert.alert('Strand created', `ID: ${id.slice(0, 8)}…`);
+      showAlert('Strand created', `ID: ${id.slice(0, 8)}…`);
     } catch (err) {
-      Alert.alert('Strand creation failed', String(err));
+      showAlert('Strand creation failed', String(err));
     }
   };
 
@@ -139,6 +144,19 @@ export default function SettingsScreen() {
       )}
 
       {cadre.error && <Text style={styles.error}>{cadre.error}</Text>}
+
+      {/* Selectable-text alert modal */}
+      <Modal visible={modal !== null} transparent animationType="fade" onRequestClose={() => setModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>{modal?.title}</Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.modalMessage} selectable>{modal?.message}</Text>
+            </ScrollView>
+            <Btn label="OK" onPress={() => setModal(null)} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -195,5 +213,10 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.4 },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   error: { color: '#f44336', textAlign: 'center', marginTop: 12 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { backgroundColor: '#1e1e2e', borderRadius: 12, padding: 20, width: '85%', maxHeight: '60%' },
+  modalTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 12 },
+  modalScroll: { maxHeight: 200, marginBottom: 8 },
+  modalMessage: { color: '#ccc', fontSize: 14, lineHeight: 20 },
 });
 

@@ -82,7 +82,7 @@ export function useChat(opts: UseChatOptions): UseChatResult {
 
   const refresh = useCallback(async () => {
     const s = strandRef.current;
-    if (!s || s.status !== 'active') return;
+    if (!s?.database) return;
 
     try {
       const [msgs, mems] = await Promise.all([
@@ -103,7 +103,7 @@ export function useChat(opts: UseChatOptions): UseChatResult {
   // ── Polling loop ───────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!strand || strand.status !== 'active') {
+    if (!strand?.database) {
       setLoading(false);
       return;
     }
@@ -113,7 +113,7 @@ export function useChat(opts: UseChatOptions): UseChatResult {
 
     const timer = setInterval(() => void refresh(), pollIntervalMs);
     return () => clearInterval(timer);
-  }, [strand, strand?.status, pollIntervalMs, refresh]);
+  }, [strand, strand?.database, pollIntervalMs, refresh]);
 
   // ── Send ───────────────────────────────────────────────────────────────
 
@@ -124,8 +124,9 @@ export function useChat(opts: UseChatOptions): UseChatResult {
     if (!mid) throw new Error('No member ID');
 
     const msg = await insertMessage(s, mid, content);
-    // Optimistic update — prepend immediately, next poll will reconcile
+    // Optimistic update — append immediately, next poll will reconcile
     setMessages(prev => [...prev, msg]);
+    setError(null);
   }, []);
 
   return { messages, members, loading, error, send, refresh };

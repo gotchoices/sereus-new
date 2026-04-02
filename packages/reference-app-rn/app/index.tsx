@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useCadre } from '../src/use-cadre';
+import { useCadre } from '../src/cadre-context';
 import { useChat } from '../src/use-chat';
 import type { ChatMessage } from '../src/chat-operations';
 
@@ -39,6 +39,7 @@ export default function ChatScreen() {
       listRef.current?.scrollToEnd({ animated: true });
     } catch (err) {
       console.warn('Send failed:', err);
+      chat.refresh().catch(() => {});
     }
   };
 
@@ -69,6 +70,13 @@ export default function ChatScreen() {
               : cadre.error ?? 'Not connected — go to Settings'}
         </Text>
       </View>
+
+      {/* Error banner */}
+      {chat.error && (
+        <View style={styles.errorBar}>
+          <Text style={styles.errorText}>{chat.error}</Text>
+        </View>
+      )}
 
       {/* Message list */}
       <FlatList
@@ -131,6 +139,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f1a' },
   statusBar: { paddingVertical: 6, paddingHorizontal: 12 },
   statusText: { color: '#fff', fontSize: 12, textAlign: 'center' },
+  errorBar: { backgroundColor: '#f44336', paddingVertical: 4, paddingHorizontal: 12 },
+  errorText: { color: '#fff', fontSize: 12, textAlign: 'center' },
   list: { padding: 12, paddingBottom: 4 },
   bubble: { maxWidth: '80%', padding: 10, borderRadius: 12, marginBottom: 8 },
   bubbleOwn: { alignSelf: 'flex-end', backgroundColor: '#6c63ff' },

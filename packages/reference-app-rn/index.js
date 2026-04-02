@@ -1,4 +1,5 @@
 // Polyfills must run before any library code.
+import './polyfills/hermes';
 import './polyfills/intl-pluralrules';
 import './polyfills/event';
 

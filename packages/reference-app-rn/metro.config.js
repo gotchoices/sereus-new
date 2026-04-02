@@ -34,9 +34,11 @@ config.resolver.extraNodeModules = {
   'node:os': path.resolve(__dirname, 'polyfills/node-os.js'),
   'node:stream': require.resolve('readable-stream'),
   'node:buffer': require.resolve('buffer'),
+  'node:crypto': path.resolve(__dirname, 'polyfills/node-crypto.js'),
   os: path.resolve(__dirname, 'polyfills/node-os.js'),
   stream: require.resolve('readable-stream'),
   buffer: require.resolve('buffer'),
+  crypto: path.resolve(__dirname, 'polyfills/node-crypto.js'),
 };
 
 module.exports = config;

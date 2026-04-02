@@ -46,7 +46,7 @@ export interface UseCadreResult {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useCadre(): UseCadreResult {
+export function useCadreInternal(): UseCadreResult {
   const [status, setStatus] = useState<CadreStatus>(() =>
     getPhoneNode()?.isRunning ? 'connected' : 'idle',
   );
