@@ -154,16 +154,53 @@ No signature verification, no invite flow, no authorization constraints. This ke
 
 ### Polyfills
 
-The app uses a custom entry point (`index.js`) that imports global polyfills before `expo-router/entry` loads any library code. This is critical because libp2p and its dependencies reference Web APIs at import time.
+The app uses a custom entry point (`index.js`) that imports global polyfills before `expo-router/entry` loads any library code. This is critical because libp2p and its dependencies reference Web APIs at import time. The import order matters:
 
-| Polyfill | Target | Source |
-|----------|--------|--------|
-| `polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` globals | Custom shim loaded via `index.js` before any library code; required because Hermes lacks these Web APIs and libp2p references them at import time |
-| `polyfills/node-os.js` | `os`, `node:os` | Custom shim for libp2p (networkInterfaces, platform, type, hostname) |
-| `readable-stream` | `stream`, `node:stream` | npm, via Metro `extraNodeModules` |
-| `buffer` | `buffer`, `node:buffer` | npm, via Metro `extraNodeModules` |
-| TextEncoder | Global | Built-in to Hermes |
-| TextDecoder | Global | Built-in to Expo SDK 52+ (UTF-8 only) |
+```js
+import './polyfills/hermes';          // Runtime globals (crypto, structuredClone, etc.)
+import './polyfills/intl-pluralrules'; // Intl.PluralRules for moat-maker
+import './polyfills/event';            // Event, CustomEvent, EventTarget for libp2p
+import 'expo-router/entry';           // App code starts here
+```
+
+#### Global polyfills (`polyfills/hermes.js`)
+
+These patch `globalThis` to provide APIs that Hermes does not yet support:
+
+| API | Required by | Notes |
+|-----|-------------|-------|
+| `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves | RN 0.76+ New Architecture provides this natively; the polyfill is a Math.random fallback with a console warning |
+| `crypto.subtle.digest()` | multiformats/hashes/sha2-browser | Async SHA-256/SHA-512 via @noble/hashes |
+| `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) | JSON round-trip implementation |
+| `Promise.withResolvers()` | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error | ES2024 API |
+| `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry | DOM spec addition |
+| Timer `.ref()` / `.unref()` | @optimystic/db-p2p, undici, libp2p internals | Wraps Hermes numeric timer IDs in objects; also patches `clearTimeout`/`clearInterval` to unwrap |
+
+#### Other global polyfills
+
+| File | Target | Required by | Notes |
+|------|--------|-------------|-------|
+| `polyfills/intl-pluralrules.js` | `Intl.PluralRules` | moat-maker (error messages) | English-only ordinal/cardinal shim |
+| `polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` | libp2p, @libp2p/interface | Full EventTarget with listener management |
+
+#### Metro module aliases (Node.js built-in shims)
+
+These are configured in `metro.config.js` via `extraNodeModules` and map both `node:X` and bare `X` imports:
+
+| Module | Target | Source | Required by |
+|--------|--------|--------|-------------|
+| `os` / `node:os` | `polyfills/node-os.js` | Custom shim (networkInterfaces, platform, type, hostname) | @libp2p/utils |
+| `crypto` / `node:crypto` | `polyfills/node-crypto.js` | Custom shim — `createHash()` for SHA-256/SHA-512 via @noble/hashes | multiformats/hashes/sha2 |
+| `stream` / `node:stream` | `readable-stream` (npm) | Metro `extraNodeModules` | libp2p stream handling |
+| `buffer` / `node:buffer` | `buffer` (npm) | Metro `extraNodeModules` | libp2p, multiformats |
+
+#### Built-in (no polyfill needed)
+
+| API | Source |
+|-----|--------|
+| `TextEncoder` | Built-in to Hermes |
+| `TextDecoder` | Built-in to Expo SDK 52+ (UTF-8 only) |
+| `BigInt` | Built-in to Hermes since RN 0.70 |
 
 ### Bundle Smoke Test
 
@@ -192,8 +229,11 @@ packages/reference-app-rn/
     use-chat.ts               # React hook: message list, send, connection status
     use-cadre.ts              # React hook: cadre lifecycle, seed application
   polyfills/
+    hermes.js                 # Runtime globals: crypto, structuredClone, Promise.withResolvers, etc.
+    intl-pluralrules.js       # Intl.PluralRules for moat-maker
     event.js                  # Event, CustomEvent, EventTarget globals for Hermes
     node-os.js                # Minimal os module shim for libp2p
+    node-crypto.js            # createHash() shim via @noble/hashes
   schemas/
     chat-simple.qsql          # Simplified chat schema (or inline string)
 ```
@@ -214,7 +254,7 @@ packages/reference-app-rn/
 
 ### Metro Configuration
 
-Metro needs to resolve workspace symlinks and the `react-native` export condition:
+Metro needs to resolve workspace symlinks, sibling repo packages, and Node.js built-in modules:
 
 ```js
 // metro.config.js
@@ -223,13 +263,31 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Resolve workspace root for symlinked packages
+// Resolve workspace roots for symlinked packages
 const workspaceRoot = path.resolve(__dirname, '../..');
-config.watchFolders = [workspaceRoot];
+const optimysticRoot = path.resolve(__dirname, '../../../optimystic');
+const quereusRoot = path.resolve(__dirname, '../../../quereus');
+
+config.watchFolders = [workspaceRoot, optimysticRoot, quereusRoot];
+config.resolver.unstable_enableSymlinks = true;
 config.resolver.nodeModulesPaths = [
   path.resolve(__dirname, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(optimysticRoot, 'node_modules'),
+  path.resolve(quereusRoot, 'node_modules'),
 ];
+
+// Map Node.js built-ins to polyfills/npm packages
+config.resolver.extraNodeModules = {
+  'node:os': path.resolve(__dirname, 'polyfills/node-os.js'),
+  'node:stream': require.resolve('readable-stream'),
+  'node:buffer': require.resolve('buffer'),
+  'node:crypto': path.resolve(__dirname, 'polyfills/node-crypto.js'),
+  os: path.resolve(__dirname, 'polyfills/node-os.js'),
+  stream: require.resolve('readable-stream'),
+  buffer: require.resolve('buffer'),
+  crypto: path.resolve(__dirname, 'polyfills/node-crypto.js'),
+};
 
 module.exports = config;
 ```
