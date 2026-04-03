@@ -1,0 +1,23 @@
+# Test fixture drone configuration.
+# Uses in-memory storage for isolated, repeatable test runs.
+#
+# This file documents the fixture's drone settings.  The start.mjs
+# entry point configures CadreNode programmatically with these values.
+
+controlNetwork:
+  partyId: "reference-chat-party"
+  bootstrapNodes: []
+
+profile: storage
+strandFilter: all
+
+storage:
+  type: memory
+
+network:
+  listenAddrs:
+    - "/ip4/127.0.0.1/tcp/4002/ws"
+  enableRelay: true
+
+hibernation:
+  enabled: false
