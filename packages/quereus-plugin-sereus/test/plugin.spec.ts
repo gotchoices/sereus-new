@@ -1,0 +1,292 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Database } from '@quereus/quereus';
+import { parseConfig } from '../src/plugin.js';
+import { connectToStrand } from '../src/connect.js';
+
+// Mock only createLibp2pNode while preserving all other exports from db-p2p
+vi.mock('@optimystic/db-p2p', async (importOriginal) => {
+	const mod = await importOriginal<typeof import('@optimystic/db-p2p')>();
+	return {
+		...mod,
+		createLibp2pNode: vi.fn(async () => {
+			const mockNode = {
+				peerId: { toString: () => 'mock-peer-id' },
+				stop: vi.fn(async () => {}),
+				coordinatedRepo: createMockRepo(),
+				getMultiaddrs: () => [],
+				getConnections: () => [],
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			};
+			return mockNode;
+		}),
+	};
+});
+
+function createMockRepo() {
+	return {
+		get: vi.fn(),
+		pend: vi.fn(),
+		commit: vi.fn(),
+		cancel: vi.fn(),
+	};
+}
+
+function createMockNode() {
+	return {
+		peerId: { toString: () => 'mock-peer-id' },
+		stop: vi.fn(async () => {}),
+		getMultiaddrs: () => [],
+		getConnections: () => [],
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+	} as any;
+}
+
+describe('parseConfig', () => {
+	it('should parse minimal config with strand_id', () => {
+		const result = parseConfig({ strand_id: 'abc-123' });
+		expect(result.strandId).toBe('abc-123');
+		expect(result.bootstrapNodes).toEqual([]);
+		expect(result.schema).toBeUndefined();
+		expect(result.sAppId).toBe('unknown');
+		expect(result.sAppVersion).toBe('1.0.0');
+		expect(result.port).toBe(0);
+		expect(result.enableCache).toBe(true);
+		expect(result.fretProfile).toBe('edge');
+	});
+
+	it('should throw when strand_id is missing', () => {
+		expect(() => parseConfig({})).toThrow('strand_id is required');
+	});
+
+	it('should throw when strand_id is empty', () => {
+		expect(() => parseConfig({ strand_id: '' })).toThrow('strand_id is required');
+	});
+
+	it('should parse bootstrap_nodes as comma-separated list', () => {
+		const result = parseConfig({
+			strand_id: 'abc',
+			bootstrap_nodes: '/ip4/1.2.3.4/tcp/9100/p2p/A, /ip4/5.6.7.8/tcp/9100/p2p/B',
+		});
+		expect(result.bootstrapNodes).toEqual([
+			'/ip4/1.2.3.4/tcp/9100/p2p/A',
+			'/ip4/5.6.7.8/tcp/9100/p2p/B',
+		]);
+	});
+
+	it('should handle empty bootstrap_nodes', () => {
+		const result = parseConfig({ strand_id: 'abc', bootstrap_nodes: '' });
+		expect(result.bootstrapNodes).toEqual([]);
+	});
+
+	it('should parse schema string', () => {
+		const result = parseConfig({
+			strand_id: 'abc',
+			schema: 'table Msg (Id integer primary key, Body text)',
+		});
+		expect(result.schema).toBe('table Msg (Id integer primary key, Body text)');
+	});
+
+	it('should parse sapp_id and sapp_version', () => {
+		const result = parseConfig({
+			strand_id: 'abc',
+			sapp_id: 'my-app-key',
+			sapp_version: '2.0.0',
+		});
+		expect(result.sAppId).toBe('my-app-key');
+		expect(result.sAppVersion).toBe('2.0.0');
+	});
+
+	it('should parse port as number', () => {
+		const result = parseConfig({ strand_id: 'abc', port: 9100 });
+		expect(result.port).toBe(9100);
+	});
+
+	it('should parse enable_cache as boolean', () => {
+		expect(parseConfig({ strand_id: 'abc', enable_cache: false }).enableCache).toBe(false);
+		expect(parseConfig({ strand_id: 'abc', enable_cache: 0 }).enableCache).toBe(false);
+		expect(parseConfig({ strand_id: 'abc', enable_cache: true }).enableCache).toBe(true);
+		expect(parseConfig({ strand_id: 'abc', enable_cache: 1 }).enableCache).toBe(true);
+	});
+
+	it('should parse fret_profile', () => {
+		expect(parseConfig({ strand_id: 'abc', fret_profile: 'core' }).fretProfile).toBe('core');
+		expect(parseConfig({ strand_id: 'abc', fret_profile: 'edge' }).fretProfile).toBe('edge');
+		expect(parseConfig({ strand_id: 'abc', fret_profile: 'unknown' }).fretProfile).toBe('edge');
+	});
+});
+
+describe('connectToStrand', () => {
+	let db: Database;
+
+	beforeEach(async () => {
+		db = new Database();
+		const { createLibp2pNode } = await import('@optimystic/db-p2p');
+		vi.mocked(createLibp2pNode).mockClear();
+	});
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it('should register crypto functions', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-1',
+			transactor: 'test',
+		});
+
+		// Verify crypto functions are registered by calling digest
+		const rows: any[] = [];
+		for await (const row of db.eval("select digest('hello', 'sha256', 'utf8') as h")) {
+			rows.push(row);
+		}
+		expect(rows).toHaveLength(1);
+		expect(rows[0].h).toBeTruthy();
+
+		await result.shutdown();
+	});
+
+	it('should register StampId function', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-2',
+			transactor: 'test',
+		});
+
+		// StampId() returns null outside a transaction context, but the function should exist
+		const rows: any[] = [];
+		for await (const row of db.eval('select StampId() as sid')) {
+			rows.push(row);
+		}
+		expect(rows).toHaveLength(1);
+
+		await result.shutdown();
+	});
+
+	it('should apply schema when provided', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-3',
+			transactor: 'test',
+			schema: 'table Message (Id integer primary key, Content text not null)',
+		});
+
+		// The App.Message table should exist and be queryable
+		const rows: any[] = [];
+		for await (const row of db.eval('select * from App.Message')) {
+			rows.push(row);
+		}
+		expect(rows).toHaveLength(0);
+
+		await result.shutdown();
+	});
+
+	it('should not create App schema when no schema provided', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-4',
+			transactor: 'test',
+		});
+
+		// Selecting from App.* should fail since no schema was applied
+		await expect(async () => {
+			for await (const _row of db.eval('select * from App.Message')) {
+				// should not reach
+			}
+		}).rejects.toThrow();
+
+		await result.shutdown();
+	});
+
+	it('should use injected libp2p node when provided', async () => {
+		const mockNode = createMockNode();
+		const mockRepo = createMockRepo();
+
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-5',
+			transactor: 'test',
+			libp2pNode: mockNode,
+			coordinatedRepo: mockRepo as any,
+		});
+
+		// createLibp2pNode should NOT have been called
+		const { createLibp2pNode } = await import('@optimystic/db-p2p');
+		expect(createLibp2pNode).not.toHaveBeenCalled();
+
+		await result.shutdown();
+	});
+
+	it('should throw when libp2pNode is provided without coordinatedRepo', async () => {
+		const mockNode = createMockNode();
+
+		await expect(connectToStrand(db, {
+			strandId: 'test-strand-6',
+			libp2pNode: mockNode,
+		})).rejects.toThrow('coordinatedRepo is required');
+	});
+
+	it('should return valid SereusPluginResult shape', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-7',
+			transactor: 'test',
+		});
+
+		expect(result.vtables).toEqual([]);
+		expect(result.functions).toEqual([]);
+		expect(result.collations).toEqual([]);
+		expect(typeof result.shutdown).toBe('function');
+
+		await result.shutdown();
+	});
+
+	it('should set default vtab to optimystic', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-8',
+			transactor: 'test',
+			schema: 'table TestTable (Id integer primary key, Name text)',
+		});
+
+		// If default vtab is set correctly, tables created via `declare schema`
+		// (which omit USING) are backed by the optimystic module.
+		const rows: any[] = [];
+		for await (const row of db.eval('select * from App.TestTable')) {
+			rows.push(row);
+		}
+		expect(rows).toHaveLength(0);
+
+		await result.shutdown();
+	});
+
+	it('should skip node creation for test transactor', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-skip',
+			transactor: 'test',
+		});
+
+		const { createLibp2pNode } = await import('@optimystic/db-p2p');
+		expect(createLibp2pNode).not.toHaveBeenCalled();
+
+		await result.shutdown();
+	});
+
+	it('should create node for network transactor', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-net',
+		});
+
+		const { createLibp2pNode } = await import('@optimystic/db-p2p');
+		expect(createLibp2pNode).toHaveBeenCalledOnce();
+
+		await result.shutdown();
+	});
+
+	it('should stop created node on shutdown', async () => {
+		const result = await connectToStrand(db, {
+			strandId: 'test-strand-9',
+		});
+
+		await result.shutdown();
+
+		const { createLibp2pNode } = await import('@optimystic/db-p2p');
+		const mockNode = await vi.mocked(createLibp2pNode).mock.results[0].value;
+		expect(mockNode.stop).toHaveBeenCalled();
+	});
+});
