@@ -9,11 +9,11 @@
  *   1. Closed strand formation + bidirectional messaging
  *   2. Party C exclusion (token reuse rejection)
  *   3. Open strand join + bidirectional messaging
- *   4. Cross-party concurrent writes
- *   5. Disconnect/reconnect sync
+ *   4. Cross-party interleaved writes
+ *   5. Multi-round bidirectional exchange
  */
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { MemoryRawStorage } from '@optimystic/db-p2p';
