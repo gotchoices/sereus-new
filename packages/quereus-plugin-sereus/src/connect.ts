@@ -75,59 +75,68 @@ export async function connectToStrand(
 	// 4. Create or use injected libp2p node (skip for non-network transactors)
 	let createdNode: Libp2p | null = null;
 
-	if (transactor === 'network' || options.libp2pNode) {
-		let node: Libp2p;
-		let coordinatedRepo: IRepo;
+	try {
+		if (transactor === 'network' || options.libp2pNode) {
+			let node: Libp2p;
+			let coordinatedRepo: IRepo;
 
-		if (options.libp2pNode) {
-			node = options.libp2pNode;
-			if (!options.coordinatedRepo) {
-				throw new Error('coordinatedRepo is required when libp2pNode is provided');
+			if (options.libp2pNode) {
+				node = options.libp2pNode;
+				if (!options.coordinatedRepo) {
+					throw new Error('coordinatedRepo is required when libp2pNode is provided');
+				}
+				coordinatedRepo = options.coordinatedRepo;
+				log('Using injected libp2p node');
+			} else {
+				// Dynamically import to keep the module cross-platform friendly
+				const { createLibp2pNode } = await import('@optimystic/db-p2p');
+				const created = await createLibp2pNode({
+					port,
+					bootstrapNodes,
+					networkName,
+					fretProfile,
+				});
+				createdNode = created;
+				node = created;
+				coordinatedRepo = (created as Libp2pNodeWithRepo).coordinatedRepo;
+				if (!coordinatedRepo) {
+					throw new Error('coordinatedRepo not available on created libp2p node');
+				}
+				log('Created libp2p node (port: %d, fretProfile: %s)', port, fretProfile);
 			}
-			coordinatedRepo = options.coordinatedRepo;
-			log('Using injected libp2p node');
-		} else {
-			// Dynamically import to keep the module cross-platform friendly
-			const { createLibp2pNode } = await import('@optimystic/db-p2p');
-			const created = await createLibp2pNode({
-				port,
-				bootstrapNodes,
-				networkName,
-				fretProfile,
-			});
-			node = created;
-			coordinatedRepo = (created as Libp2pNodeWithRepo).coordinatedRepo;
-			if (!coordinatedRepo) {
-				throw new Error('coordinatedRepo not available on created libp2p node');
-			}
-			createdNode = created;
-			log('Created libp2p node (port: %d, fretProfile: %s)', port, fretProfile);
+
+			// 5. Register the node with the collection factory
+			collectionFactory.registerLibp2pNode(networkName, node, coordinatedRepo);
+			log('Registered libp2p node with collection factory');
 		}
 
-		// 5. Register the node with the collection factory
-		collectionFactory.registerLibp2pNode(networkName, node, coordinatedRepo);
-		log('Registered libp2p node with collection factory');
-	}
+		// 6. Set optimystic as default vtab so `declare schema` tables use it
+		db.setDefaultVtabName('optimystic');
+		db.setDefaultVtabArgs({
+			networkName,
+			transactor,
+			keyNetwork: 'libp2p',
+		});
+		log('Set default vtab to optimystic (networkName=%s, transactor=%s)', networkName, transactor);
 
-	// 6. Set optimystic as default vtab so `declare schema` tables use it
-	db.setDefaultVtabName('optimystic');
-	db.setDefaultVtabArgs({
-		networkName,
-		transactor,
-		keyNetwork: 'libp2p',
-	});
-	log('Set default vtab to optimystic (networkName=%s, transactor=%s)', networkName, transactor);
-
-	// 7. Apply sApp schema if provided
-	if (schema) {
-		log('Applying sApp schema for strand %s', strandId);
-		await db.exec(`
-			declare schema App {
-				${schema}
-			}
-			apply schema App;
-		`);
-		log('sApp schema applied');
+		// 7. Apply sApp schema if provided
+		if (schema) {
+			log('Applying sApp schema for strand %s', strandId);
+			await db.exec(`
+				declare schema App {
+					${schema}
+				}
+				apply schema App;
+			`);
+			log('sApp schema applied');
+		}
+	} catch (err) {
+		// Clean up resources if setup fails after partial initialization
+		await collectionFactory.shutdown();
+		if (createdNode) {
+			await createdNode.stop();
+		}
+		throw err;
 	}
 
 	// 8. Return result with shutdown handler
