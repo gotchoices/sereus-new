@@ -169,9 +169,11 @@ These patch `globalThis` to provide APIs that Hermes does not yet support:
 
 | API | Required by | Notes |
 |-----|-------------|-------|
-| `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves | RN 0.76+ New Architecture provides this natively; the polyfill is a Math.random fallback with a console warning |
+| `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves | via `react-native-get-random-values` (native CSPRNG); Math.random last-resort fallback with console.error |
 | `crypto.subtle.digest()` | multiformats/hashes/sha2-browser | Async SHA-256/SHA-512 via @noble/hashes |
-| `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) | JSON round-trip implementation |
+| `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) | via `@ungap/structured-clone` (spec-compliant); handles Date, Map, Set, circular refs |
+| `Symbol.asyncIterator` | `for await...of` on custom iterables | One-liner guard; some Hermes versions omit this |
+| `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries | via `web-streams-polyfill` |
 | `Promise.withResolvers()` | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error | ES2024 API |
 | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry | DOM spec addition |
 | Timer `.ref()` / `.unref()` | @optimystic/db-p2p, undici, libp2p internals | Wraps Hermes numeric timer IDs in objects; also patches `clearTimeout`/`clearInterval` to unwrap |
@@ -182,6 +184,24 @@ These patch `globalThis` to provide APIs that Hermes does not yet support:
 |------|--------|-------------|-------|
 | `polyfills/intl-pluralrules.js` | `Intl.PluralRules` | moat-maker (error messages) | English-only ordinal/cardinal shim |
 | `polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` | libp2p, @libp2p/interface | Full EventTarget with listener management |
+
+#### Built-in APIs (no polyfill needed)
+
+These APIs are natively available in the target Hermes/Expo versions used by this app. Do not add polyfills for them — it wastes bundle size and can cause subtle conflicts.
+
+| API | Available since | Notes |
+|-----|----------------|-------|
+| `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | No polyfill needed; `fast-text-encoding` is unnecessary |
+| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package |
+| `BigInt` | Hermes since RN 0.70 | |
+| `crypto.getRandomValues` | RN 0.76+ with New Architecture | `react-native-get-random-values` still recommended as safety net |
+
+#### Polyfill quality principles
+
+- Prefer battle-tested npm packages over hand-rolled shims (e.g., `@ungap/structured-clone` over `JSON.parse(JSON.stringify(...))`)
+- Prefer spec-compliant implementations — shortcuts like JSON round-trips silently drop data types
+- Always guard with `typeof` checks so polyfills are skipped on platforms with native support
+- Native modules (like `react-native-get-random-values`) require a dev client rebuild — document this when adding them
 
 #### Metro module aliases (Node.js built-in shims)
 
@@ -194,13 +214,15 @@ These are configured in `metro.config.js` via `extraNodeModules` and map both `n
 | `stream` / `node:stream` | `readable-stream` (npm) | Metro `extraNodeModules` | libp2p stream handling |
 | `buffer` / `node:buffer` | `buffer` (npm) | Metro `extraNodeModules` | libp2p, multiformats |
 
-#### Built-in (no polyfill needed)
+#### Commonly needed beyond core
 
-| API | Source |
-|-----|--------|
-| `TextEncoder` | Built-in to Hermes |
-| `TextDecoder` | Built-in to Expo SDK 52+ (UTF-8 only) |
-| `BigInt` | Built-in to Hermes since RN 0.70 |
+The polyfills above cover the libp2p/Optimystic stack. Apps building additional features may need:
+
+| API | Package | When needed |
+|-----|---------|-------------|
+| Web Streams (`ReadableStream`, etc.) | `web-streams-polyfill` | Vercel AI SDK, streaming HTTP responses, any `ReadableStream`-based API |
+| `Symbol.asyncIterator` | (inline, see hermes.js) | Custom async iterables, some streaming libraries |
+| `URL` / `URLSearchParams` | `react-native-url-polyfill` | If using URL constructor in app code (Hermes has partial support) |
 
 ### Bundle Smoke Test
 

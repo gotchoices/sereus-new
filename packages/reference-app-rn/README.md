@@ -193,6 +193,8 @@ React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fa
 | `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto |
 | `hermes.js` | `crypto.subtle.digest()` | multiformats/hashes/sha2 (browser variant) |
 | `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache, coordinator) |
+| `hermes.js` | `Symbol.asyncIterator` | `for await...of` on custom iterables |
+| `hermes.js` | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries |
 | `hermes.js` | `Promise.withResolvers()` (ES2024) | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice |
 | `hermes.js` | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, it-pushable, p-retry |
 | `hermes.js` | Timer `.ref()` / `.unref()` wrappers | @optimystic/db-p2p, undici, libp2p internals |
@@ -210,6 +212,34 @@ When adding a new dependency, watch for runtime errors like `Property 'X' doesn'
 3. **Web API class** (e.g., `EventTarget`): add to `polyfills/event.js` or a new file, import from `index.js`
 
 Always guard with `typeof` checks so the polyfill is skipped on platforms that have native support.
+
+### Built-in APIs (no polyfill needed)
+
+These APIs are natively available in the target Hermes/Expo versions used by this app. Do not add polyfills for them — it wastes bundle size and can cause subtle conflicts.
+
+| API | Available since | Notes |
+|-----|----------------|-------|
+| `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | No polyfill needed; `fast-text-encoding` is unnecessary |
+| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package |
+| `BigInt` | Hermes since RN 0.70 | |
+| `crypto.getRandomValues` | RN 0.76+ with New Architecture | `react-native-get-random-values` still recommended as safety net |
+
+### Polyfill quality principles
+
+- Prefer battle-tested npm packages over hand-rolled shims (e.g., `@ungap/structured-clone` over `JSON.parse(JSON.stringify(...))`)
+- Prefer spec-compliant implementations — shortcuts like JSON round-trips silently drop data types
+- Always guard with `typeof` checks so polyfills are skipped on platforms with native support
+- Native modules (like `react-native-get-random-values`) require a dev client rebuild — document this when adding them
+
+### Commonly needed beyond core
+
+The polyfills above cover the libp2p/Optimystic stack. Apps building additional features may need:
+
+| API | Package | When needed |
+|-----|---------|-------------|
+| Web Streams (`ReadableStream`, etc.) | `web-streams-polyfill` | Vercel AI SDK, streaming HTTP responses, any `ReadableStream`-based API |
+| `Symbol.asyncIterator` | (inline, see hermes.js) | Custom async iterables, some streaming libraries |
+| `URL` / `URLSearchParams` | `react-native-url-polyfill` | If using URL constructor in app code (Hermes has partial support) |
 
 ## Drone Configuration
 
@@ -236,6 +266,6 @@ See the [cadre-cli README](../cadre-cli/README.md) for production deployment opt
 
 **Metro bundler errors** — Run `yarn install` from the monorepo root to ensure workspace symlinks are intact. The Metro config watches `sereus/`, `optimystic/`, and `quereus/` workspaces.
 
-**"Property 'structuredClone' doesn't exist"** — Hermes doesn't ship `structuredClone`, which Optimystic uses for defensive deep cloning. The `polyfills/hermes.js` shim provides a JSON-based fallback. If you see this error, make sure `index.js` imports `./polyfills/hermes` before any library code, then restart Metro with `--reset-cache`.
+**"Property 'structuredClone' doesn't exist"** — Hermes doesn't ship `structuredClone`, which Optimystic uses for defensive deep cloning. The `polyfills/hermes.js` shim provides a spec-compliant polyfill via `@ungap/structured-clone` (handles Date, Map, Set, circular refs). If you see this error, make sure `index.js` imports `./polyfills/hermes` before any library code, then restart Metro with `--reset-cache`.
 
 **"stabilize tick failed: TypeError: Cannot read properties of undefined (reading 'digest')"** — The `multiformats` package ships a browser variant of its SHA-2 hasher that calls `crypto.subtle.digest()`, which Hermes doesn't support. The `polyfills/hermes.js` shim provides a `crypto.subtle.digest` backed by `@noble/hashes`. If you see this error, restart Metro with `--reset-cache`.
