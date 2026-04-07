@@ -21,6 +21,7 @@
     "@optimystic/db-p2p-storage-rn": "^0.9.3",
     "@quereus/quereus": "^1.3.1",
     "@serfab/cadre-core": "workspace:^",
+    "@ungap/structured-clone": "^1.3.0",
     "buffer": "^6.0.3",
     "expo": "~53.0.0",
     "expo-constants": "~17.1.8",
@@ -30,10 +31,12 @@
     "expo-status-bar": "~2.2.0",
     "react": "19.0.0",
     "react-native": "0.79.6",
+    "react-native-get-random-values": "^1.11.0",
     "react-native-mmkv": "^3.2.0",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.0",
-    "readable-stream": "^4.7.0"
+    "readable-stream": "^4.7.0",
+    "web-streams-polyfill": "^4.1.0"
   },
   "devDependencies": {
     "@types/babel__core": "^7",

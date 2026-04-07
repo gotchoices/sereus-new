@@ -4,6 +4,11 @@
 // React Native 0.76+ with New Architecture should provide crypto.getRandomValues
 // natively. These polyfills are fallbacks for environments where it is still missing.
 
+// Native CSPRNG — must be the very first import so globalThis.crypto.getRandomValues
+// is available before any library code. No-op if the native API already exists.
+// NOTE: requires native rebuild (EAS Build or local native build).
+require('react-native-get-random-values');
+
 // ── crypto.getRandomValues ──────────────────────────────────────────────────
 // Required by: @noble/hashes (via @libp2p/crypto, @noble/curves)
 
@@ -41,9 +46,10 @@ if (typeof globalThis.crypto.getRandomValues !== 'function') {
 		}
 		return array;
 	};
-	console.warn(
-		'[hermes polyfill] Using Math.random() fallback for crypto.getRandomValues. '
-		+ 'Rebuild the dev client for secure native randomness.',
+	console.error(
+		'[hermes polyfill] INSECURE — Using Math.random() fallback for crypto.getRandomValues. '
+		+ 'This is only acceptable for development without a native build. '
+		+ 'Run an EAS Build or local native build to get a real CSPRNG.',
 	);
 }
 
@@ -52,10 +58,28 @@ if (typeof globalThis.crypto.getRandomValues !== 'function') {
 // Required by: @optimystic/db-core (transform tracker, cache-source, coordinator)
 
 if (typeof globalThis.structuredClone !== 'function') {
+	const _structuredClone = require('@ungap/structured-clone').default;
 	globalThis.structuredClone = function structuredClone(value) {
-		if (value === undefined) return undefined;
-		return JSON.parse(JSON.stringify(value));
+		return _structuredClone(value);
 	};
+}
+
+// ── Symbol.asyncIterator ───────────────────────────────────────────────────
+// Some Hermes versions omit this, breaking `for await...of` on custom iterables.
+
+if (typeof Symbol.asyncIterator === 'undefined') {
+	Symbol.asyncIterator = Symbol('Symbol.asyncIterator');
+}
+
+// ── Web Streams API ────────────────────────────────────────────────────────
+// Required by: Vercel AI SDK, streaming-oriented libraries
+// Not yet supported by Hermes.
+
+if (typeof globalThis.ReadableStream === 'undefined') {
+	const webStreams = require('web-streams-polyfill');
+	globalThis.ReadableStream = webStreams.ReadableStream;
+	globalThis.WritableStream = webStreams.WritableStream;
+	globalThis.TransformStream = webStreams.TransformStream;
 }
 
 // ── Promise.withResolvers ───────────────────────────────────────────────────
