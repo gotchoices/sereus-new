@@ -233,12 +233,10 @@ These APIs are natively available in the target Hermes/Expo versions used by thi
 
 ### Commonly needed beyond core
 
-The polyfills above cover the libp2p/Optimystic stack. Apps building additional features may need:
+The polyfills above cover the libp2p/Optimystic/AI stack. Apps building additional features may need:
 
 | API | Package | When needed |
 |-----|---------|-------------|
-| Web Streams (`ReadableStream`, etc.) | `web-streams-polyfill` | Vercel AI SDK, streaming HTTP responses, any `ReadableStream`-based API |
-| `Symbol.asyncIterator` | (inline, see hermes.js) | Custom async iterables, some streaming libraries |
 | `URL` / `URLSearchParams` | `react-native-url-polyfill` | If using URL constructor in app code (Hermes has partial support) |
 
 ## Drone Configuration
