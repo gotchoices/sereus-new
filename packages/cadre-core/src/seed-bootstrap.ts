@@ -13,16 +13,7 @@ import { peerIdFromString } from '@libp2p/peer-id';
 interface LibP2PStream extends AsyncIterable<Uint8Array> {
   send(data: Uint8Array): boolean;
   close(): Promise<void>;
-  closeWrite?(): Promise<void>;
-}
-
-/**
- * Incoming stream data from libp2p handle callback.
- * Defined locally for cross-version compatibility.
- */
-interface IncomingStreamData {
-  stream: LibP2PStream;
-  connection: Connection;
+  abort(err: Error): void;
 }
 import type {
   ControlNetworkSeed,
@@ -330,10 +321,9 @@ export class SeedBootstrapService {
       stream.send(lengthBytes);
       stream.send(messageBytes);
 
-      // Signal that we're done writing so the receiver sees EOF
-      if (stream.closeWrite) {
-        await stream.closeWrite();
-      }
+      // In libp2p v3.x, close() closes the write end only (signals EOF),
+      // while the read end remains open for receiving the ack.
+      await stream.close();
 
       // Read the acknowledgment (stream is AsyncIterable in libp2p 3.x)
       const chunks: Uint8Array[] = [];
@@ -357,8 +347,9 @@ export class SeedBootstrapService {
       log('Seed delivery response: accepted=%s', ack.accepted);
       return ack;
 
-    } finally {
-      await stream.close();
+    } catch (err) {
+      stream.abort(err instanceof Error ? err : new Error(String(err)));
+      throw err;
     }
   }
 
@@ -451,9 +442,9 @@ export class SeedBootstrapService {
   private registerProtocolHandler(): void {
     if (!this.libp2pNode) return;
 
-    this.libp2pNode.handle(SEED_PROTOCOL, async (data: unknown) => {
-      const { stream, connection } = data as IncomingStreamData;
-      const remotePeerId = connection.remotePeer.toString();
+    this.libp2pNode.handle(SEED_PROTOCOL, async (rawStream: unknown, rawConnection: unknown) => {
+      const stream = rawStream as LibP2PStream;
+      const remotePeerId = (rawConnection as Connection).remotePeer.toString();
       log('Incoming seed delivery from: %s', remotePeerId);
 
       try {

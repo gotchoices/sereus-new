@@ -8,10 +8,10 @@
  * - Multi-node cadre expansion
  * - Negative validation cases (tampered seed, expired invite)
  *
- * Note: deliverSeed (protocol-level /sereus/seed/1.0.0 delivery) is not
- * exercised here due to a cross-network libp2p stream negotiation issue
- * (tracked separately). These tests use applySeed + dial, which is the
- * same end-to-end behavior minus the framing protocol.
+ * Note: deliverSeed (protocol-level /sereus/seed/1.0.0 delivery) is tested
+ * separately in deliver-seed-cross-network.integration.ts. These tests use
+ * applySeed + dial, which is the same end-to-end behavior minus the framing
+ * protocol.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

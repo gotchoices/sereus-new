@@ -362,4 +362,36 @@ describe('deliverSeed cross-network stream negotiation', () => {
 		expect(ack.accepted).toBe(true);
 		expect(receivedPartyId).toBe(authority.partyId);
 	});
+
+	// =========================================================================
+	// E2E: SeedBootstrapService.deliverSeed() → SeedBootstrapService handler
+	// =========================================================================
+	it('e2e: deliverSeed round-trips through service handler on both sides', async () => {
+		// Sender party (authority that creates + delivers seed)
+		const senderParty = await network.createParty({ name: 'auth-e2e-sender' });
+		const senderService = createSeedService(senderParty);
+		await registerAuthorityPeer(senderService, senderParty);
+
+		// Receiver party (has its own SeedBootstrapService with registered handler)
+		const receiverParty = await network.createParty({ name: 'auth-e2e-receiver' });
+		const receiverService = createSeedService(receiverParty);
+		await registerAuthorityPeer(receiverService, receiverParty);
+
+		// Authorize receiver's peer on sender side so the seed includes it
+		const receiverAddr = receiverParty.authorityNode.multiaddrs[0];
+		await senderService.authorizePeer({
+			peerId: receiverParty.authorityNode.peerId,
+			multiaddrs: [receiverAddr],
+		});
+
+		// Create seed on sender
+		const seed = await senderService.createSeed();
+		expect(seed.peers.length).toBeGreaterThanOrEqual(2);
+
+		// Use the actual deliverSeed method (exercises both fixed bugs)
+		const ack = await senderService.deliverSeed(receiverAddr, seed);
+
+		expect(ack.accepted).toBe(true);
+		expect(ack.reason).toBeUndefined();
+	});
 });
