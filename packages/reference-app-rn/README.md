@@ -190,13 +190,13 @@ React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fa
 
 | File | What it polyfills | Required by |
 |------|-------------------|-------------|
-| `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto |
+| `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves |
 | `hermes.js` | `crypto.subtle.digest()` | multiformats/hashes/sha2 (browser variant) |
-| `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache, coordinator) |
+| `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) |
 | `hermes.js` | `Symbol.asyncIterator` | `for await...of` on custom iterables |
 | `hermes.js` | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries |
-| `hermes.js` | `Promise.withResolvers()` (ES2024) | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice |
-| `hermes.js` | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, it-pushable, p-retry |
+| `hermes.js` | `Promise.withResolvers()` (ES2024) | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error |
+| `hermes.js` | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry |
 | `hermes.js` | Timer `.ref()` / `.unref()` wrappers | @optimystic/db-p2p, undici, libp2p internals |
 | `event.js` | `EventTarget`, `Event`, `CustomEvent` | libp2p, @libp2p/interface |
 | `intl-pluralrules.js` | `Intl.PluralRules` (English-only) | moat-maker (error messages) |
