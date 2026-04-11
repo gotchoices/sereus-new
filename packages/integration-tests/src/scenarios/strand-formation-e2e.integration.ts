@@ -593,7 +593,7 @@ describe('E2E Strand Formation', () => {
 				expect(bobStrand.status).toBe('active');
 				expect(carolStrand.status).toBe('active');
 
-				// Connect strand-level libp2p: Bob and Carol both connect to Alice
+				// Connect strand-level libp2p: full mesh (Alice↔Bob, Alice↔Carol, Bob↔Carol)
 				const aliceStrandAddrs = aliceStrand.libp2pNode!.getMultiaddrs();
 				await bobStrand.libp2pNode!.dial(aliceStrandAddrs[0]!);
 				await carolStrand.libp2pNode!.dial(aliceStrandAddrs[0]!);
@@ -605,6 +605,23 @@ describe('E2E Strand Formation', () => {
 				await waitUntil(
 					() => carolStrand.libp2pNode!.getConnections().length > 0,
 					{ timeoutMs: 10_000, description: 'Carol strand connects to Alice' },
+				);
+				// Wait for Alice to see both inbound connections
+				await waitUntil(
+					() => aliceStrand.libp2pNode!.getConnections().length >= 2,
+					{ timeoutMs: 10_000, description: 'Alice strand sees connections from Bob and Carol' },
+				);
+
+				// Connect Bob↔Carol so cluster consensus can reach all peers
+				const bobStrandAddrs = bobStrand.libp2pNode!.getMultiaddrs();
+				await carolStrand.libp2pNode!.dial(bobStrandAddrs[0]!);
+				await waitUntil(
+					() => bobStrand.libp2pNode!.getConnections().length >= 2,
+					{ timeoutMs: 10_000, description: 'Bob strand sees connection from Carol' },
+				);
+				await waitUntil(
+					() => carolStrand.libp2pNode!.getConnections().length >= 2,
+					{ timeoutMs: 10_000, description: 'Carol strand sees connection from Bob' },
 				);
 
 				// Insert data from Alice
