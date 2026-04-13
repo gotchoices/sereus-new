@@ -163,6 +163,25 @@ import './polyfills/event';            // Event, CustomEvent, EventTarget for li
 import 'expo-router/entry';           // App code starts here
 ```
 
+#### Required polyfill dependencies
+
+The following dependencies **must** be listed as direct dependencies in your app's `package.json` — relying on transitive resolution is fragile and will break when upstream packages change their dependency trees:
+
+```json
+{
+  "@noble/hashes": "^2.0.0",
+  "@ungap/structured-clone": "^1.3.0",
+  "buffer": "^6.0.3",
+  "react-native-get-random-values": "^1.11.0",
+  "readable-stream": "^4.7.0",
+  "web-streams-polyfill": "^4.1.0"
+}
+```
+
+Keep this block in sync with [`packages/reference-app-rn/package.json`](../packages/reference-app-rn/package.json).
+
+`@noble/hashes` deserves special attention: it provides the SHA-256/SHA-512 implementation used by both `polyfills/hermes.js` (lazy `require('@noble/hashes/sha2')` inside `crypto.subtle.digest`) and `polyfills/node-crypto.js` (`import { sha256 } from '@noble/hashes/sha2'`). It currently resolves transitively via libp2p, but the lockfile can carry multiple major versions simultaneously — the polyfills use the v2 import path, so the direct dep must be pinned `^2.0.0`.
+
 #### Global polyfills (`polyfills/hermes.js`)
 
 These patch `globalThis` to provide APIs that Hermes does not yet support:
@@ -176,14 +195,16 @@ These patch `globalThis` to provide APIs that Hermes does not yet support:
 | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries | via `web-streams-polyfill` |
 | `Promise.withResolvers()` | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error | ES2024 API |
 | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry | DOM spec addition |
-| Timer `.ref()` / `.unref()` | @optimystic/db-p2p, undici, libp2p internals | Wraps Hermes numeric timer IDs in objects; also patches `clearTimeout`/`clearInterval` to unwrap |
+| Timer `.ref()` / `.unref()` | @optimystic/db-p2p, undici, libp2p internals | Wraps Hermes numeric timer IDs in objects; also patches `clearTimeout`/`clearInterval` to unwrap (see `hermes.js` `// ── Timer .ref() / .unref() ──` section) |
 
 #### Other global polyfills
 
 | File | Target | Required by | Notes |
 |------|--------|-------------|-------|
-| `polyfills/intl-pluralrules.js` | `Intl.PluralRules` | moat-maker (error messages) | English-only ordinal/cardinal shim |
-| `polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` | libp2p, @libp2p/interface | Full EventTarget with listener management |
+| `packages/reference-app-rn/polyfills/intl-pluralrules.js` | `Intl.PluralRules` | moat-maker (error messages) | English-only ordinal/cardinal shim |
+| `packages/reference-app-rn/polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` | libp2p, @libp2p/interface | Full EventTarget with listener management |
+
+**EventTarget alternatives:** The inline `polyfills/event.js` is a minimal implementation sufficient for libp2p's usage. The [`event-target-polyfill`](https://www.npmjs.com/package/event-target-polyfill) npm package is a more spec-complete alternative that supports `capture`, `once`, and `signal` options on `addEventListener`. Either approach works. If using the npm package, add `"event-target-polyfill"` to `package.json` and replace `import './polyfills/event'` in `index.js` with `import 'event-target-polyfill'` — the local `polyfills/event.js` file can then be removed entirely. Whichever approach is chosen **must** be reflected in `package.json` — omitting the dependency is the class of mistake that produces `Unable to resolve module event-target-polyfill` Metro failures.
 
 #### Built-in APIs (no polyfill needed)
 
@@ -191,10 +212,12 @@ These APIs are natively available in the target Hermes/Expo versions used by thi
 
 | API | Available since | Notes |
 |-----|----------------|-------|
-| `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | No polyfill needed; `fast-text-encoding` is unnecessary |
+| `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | See warning below |
 | `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package |
 | `BigInt` | Hermes since RN 0.70 | |
 | `crypto.getRandomValues` | RN 0.76+ with New Architecture | `react-native-get-random-values` still recommended as safety net |
+
+> **Do not add `fast-text-encoding`.** Hermes has native `TextEncoder` in all Expo SDK 49+ versions. Adding the polyfill wastes bundle size (~4 KB) and can cause subtle double-encoding bugs when the polyfill's `TextEncoder` replaces the native one with slightly different `Uint8Array` subclass behavior. If your app currently depends on it, remove it.
 
 #### Polyfill quality principles
 
@@ -209,8 +232,8 @@ These are configured in `metro.config.js` via `extraNodeModules` and map both `n
 
 | Module | Target | Source | Required by |
 |--------|--------|--------|-------------|
-| `os` / `node:os` | `polyfills/node-os.js` | Custom shim (networkInterfaces, platform, type, hostname) | @libp2p/utils |
-| `crypto` / `node:crypto` | `polyfills/node-crypto.js` | Custom shim — `createHash()` for SHA-256/SHA-512 via @noble/hashes | multiformats/hashes/sha2 |
+| `os` / `node:os` | `packages/reference-app-rn/polyfills/node-os.js` | Custom shim (networkInterfaces, platform, type, hostname) | @libp2p/utils |
+| `crypto` / `node:crypto` | `packages/reference-app-rn/polyfills/node-crypto.js` | Custom shim — `createHash()` for SHA-256/SHA-512 via @noble/hashes | multiformats/hashes/sha2 |
 | `stream` / `node:stream` | `readable-stream` (npm) | Metro `extraNodeModules` | libp2p stream handling |
 | `buffer` / `node:buffer` | `buffer` (npm) | Metro `extraNodeModules` | libp2p, multiformats |
 
