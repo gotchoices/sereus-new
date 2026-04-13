@@ -37,6 +37,7 @@ describe('StrandWatcher Filters', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
       await watcher.start();
+      await watcher.forcePoll();
 
       expect(addedStrands).toHaveLength(3);
 
@@ -60,6 +61,7 @@ describe('StrandWatcher Filters', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'none' }, 60000);
       await watcher.start();
+      await watcher.forcePoll();
 
       expect(addedStrands).toHaveLength(0);
 
@@ -89,6 +91,7 @@ describe('StrandWatcher Filters', () => {
         60000
       );
       await watcher.start();
+      await watcher.forcePoll();
 
       expect(addedStrands).toHaveLength(1);
       expect(addedStrands[0]!.Id).toBe('target-strand');
@@ -116,6 +119,7 @@ describe('StrandWatcher Filters', () => {
         60000
       );
       await watcher.start();
+      await watcher.forcePoll();
 
       expect(addedStrands).toHaveLength(0);
 
@@ -153,6 +157,7 @@ describe('StrandWatcher Filters', () => {
         sAppIdLookup
       );
       await watcher.start();
+      await watcher.forcePoll();
 
       // Should only pass strands matching 'target-app'
       expect(addedStrands).toHaveLength(2);
@@ -184,6 +189,7 @@ describe('StrandWatcher Filters', () => {
         sAppIdLookup
       );
       await watcher.start();
+      await watcher.forcePoll();
 
       // Unknown strands pass through (deferred filtering)
       expect(addedStrands).toHaveLength(1);
@@ -209,6 +215,7 @@ describe('StrandWatcher Filters', () => {
         // No sAppIdLookup provided
       );
       await watcher.start();
+      await watcher.forcePoll();
 
       // All strands pass through when no lookup
       expect(addedStrands).toHaveLength(2);

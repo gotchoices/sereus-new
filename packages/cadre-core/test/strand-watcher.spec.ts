@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StrandWatcher, type StrandQueryable, type StrandWatcherCallbacks } from '../src/strand-watcher.js';
 import type { StrandRow } from '../src/types.js';
 
@@ -49,7 +49,11 @@ describe('StrandWatcher', () => {
   });
 
   describe('start/stop', () => {
-    it('should poll strands on start', async () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should not poll synchronously during start', async () => {
       const strands = [createStrand('strand-1'), createStrand('strand-2')];
       const queryable = createMockQueryable(() => strands);
 
@@ -61,6 +65,26 @@ describe('StrandWatcher', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
       await watcher.start();
+
+      expect(addedStrands).toHaveLength(0);
+      expect(watcher.getKnownStrands().size).toBe(0);
+
+      await watcher.stop();
+    });
+
+    it('should detect strands after deferred first poll', async () => {
+      const strands = [createStrand('strand-1'), createStrand('strand-2')];
+      const queryable = createMockQueryable(() => strands);
+
+      const addedStrands: StrandRow[] = [];
+      const callbacks: StrandWatcherCallbacks = {
+        onStrandAdded: async (strand) => { addedStrands.push(strand); },
+        onStrandRemoved: async () => {}
+      };
+
+      const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
+      await watcher.start();
+      await watcher.forcePoll();
 
       expect(addedStrands).toHaveLength(2);
       expect(watcher.getKnownStrands().size).toBe(2);
@@ -79,10 +103,28 @@ describe('StrandWatcher', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
       await watcher.start();
+      await watcher.forcePoll();
       expect(watcher.getKnownStrands().size).toBe(1);
 
       await watcher.stop();
       expect(watcher.getKnownStrands().size).toBe(0);
+    });
+
+    it('should cancel deferred poll when stop is called before it fires', async () => {
+      let pollCount = 0;
+      const queryable: StrandQueryable = {
+        queryStrands: async () => { pollCount++; return []; }
+      };
+      const callbacks: StrandWatcherCallbacks = {
+        onStrandAdded: async () => {},
+        onStrandRemoved: async () => {}
+      };
+
+      const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
+      await watcher.start();
+      await watcher.stop();
+
+      expect(pollCount).toBe(0);
     });
   });
 
@@ -123,6 +165,7 @@ describe('StrandWatcher', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
       await watcher.start();
+      await watcher.forcePoll();
 
       // Remove the strand
       strands = [];
@@ -146,6 +189,7 @@ describe('StrandWatcher', () => {
 
       const watcher = new StrandWatcher(queryable, callbacks, { mode: 'all' }, 60000);
       await watcher.start();
+      await watcher.forcePoll();
       expect(addCount).toBe(1);
 
       // Poll again - should not trigger another add

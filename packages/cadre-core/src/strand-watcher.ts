@@ -50,6 +50,7 @@ export class StrandWatcher {
 
   private knownStrands: Map<string, StrandRow> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private initialPollTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
 
   constructor(
@@ -149,13 +150,17 @@ export class StrandWatcher {
     log('Starting StrandWatcher');
     this.running = true;
 
-    // Do an initial poll immediately
-    await this.poll();
-
     // Set up periodic polling
     this.pollTimer = setInterval(() => {
       void this.poll();
     }, this.pollInterval);
+
+    // Defer the first poll so start() doesn't block the caller.
+    // Strands added via addStrand() typically arrive after start() completes.
+    this.initialPollTimer = setTimeout(() => {
+      this.initialPollTimer = null;
+      void this.poll();
+    }, 100);
 
     log('StrandWatcher started');
   }
@@ -170,6 +175,11 @@ export class StrandWatcher {
 
     log('Stopping StrandWatcher');
     this.running = false;
+
+    if (this.initialPollTimer) {
+      clearTimeout(this.initialPollTimer);
+      this.initialPollTimer = null;
+    }
 
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
