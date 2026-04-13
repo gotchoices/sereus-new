@@ -84,12 +84,12 @@ graph TD
 
 Cadre nodes operate in one of two profiles, distinguished by their storage role:
 
-| Profile | Storage Role | Typical Deployment | Ring Participation |
-|---------|--------------|--------------------|--------------------|
-| **Transaction** | Ring Zulu only | Mobile devices, intermittent connectivity | Transaction verification, caching |
-| **Storage** | Ring Zulu + Storage Rings | Servers, NAS, always-on nodes | Full block storage with capacity quotas |
+| Profile | Arachnode | Typical Deployment | Ring Participation |
+|---------|-----------|--------------------|--------------------|
+| **Transaction** | Disabled | Mobile devices, intermittent connectivity | Transaction verification via FRET only |
+| **Storage** | Enabled (Ring Zulu + Storage Rings) | Servers, NAS, always-on nodes | Full block storage with capacity quotas |
 
-Both profiles participate equally in transaction consensus. The distinction is whether the node commits to long-term archival storage in Arachnode's concentric ring system.
+Transaction-profile nodes skip Arachnode initialization entirely (no StorageMonitor, RingSelector, or RestorationCoordinator) for a lighter cold start. Storage-profile nodes initialize the full Arachnode subsystem including Ring Zulu and concentric storage rings.
 
 ### Strand Filtering
 
@@ -104,7 +104,7 @@ Mobile nodes typically run as part of a specific application and should not part
 
 This allows a mobile app to embed a cadre node that only participates in the app's strand while the user's server nodes handle the full portfolio.
 
-- **Ring Zulu (Transaction)**: All nodes participate — transaction verification, ephemeral caching, forward to storage rings
+- **Ring Zulu (Transaction)**: Storage-profile nodes participate — transaction verification, ephemeral caching, forward to storage rings
 - **Ring 3** (8 partitions) → **Ring 2** (4 partitions) → **Ring 1** (2 partitions) → **Ring 0** (full keyspace): Concentric storage rings. Storage-profile nodes join the appropriate ring based on capacity.
 
 ## Enrollment and Bootstrap

@@ -356,7 +356,7 @@ export interface StrandFormationDisclosure {
  * Arachnode ring participation stub - will be implemented when arachnode is built
  */
 export interface ArachnodeConfig {
-  /** Enable Ring Zulu (transaction ring) - all nodes participate */
+  /** Enable Arachnode subsystem (Ring Zulu + storage rings). Storage-profile only. */
   enableRingZulu: boolean;
   /** Storage ring participation (storage profile only) */
   storageRing?: {

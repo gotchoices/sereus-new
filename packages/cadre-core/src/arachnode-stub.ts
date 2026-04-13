@@ -49,7 +49,6 @@ export class ArachnodeStub {
     if (this.running) return;
     this.running = true;
 
-    // All nodes participate in Ring Zulu
     if (this.config.enableRingZulu) {
       log('Joining Ring Zulu (transaction ring)');
       // Stub: In real implementation, would register with transaction verification network
