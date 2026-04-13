@@ -201,9 +201,7 @@ export class StrandInstanceManager {
           sizeTolerance: 0.5
         },
         arachnode: {
-          enableRingZulu: true
-          // Storage ring participation stub - will be added when arachnode is built
-          // storageRing: config.profile === 'storage' ? { ring: 0 } : undefined
+          enableRingZulu: config.profile === 'storage'
         },
         ...(config.privateKey && { privateKey: config.privateKey }),
         ...(config.network?.transports && { transports: config.network.transports }),

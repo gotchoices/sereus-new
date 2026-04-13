@@ -278,7 +278,7 @@ export class CadreNode implements SAppIdLookup {
       relay: enableRelay,
       clusterSize: 3,
       clusterPolicy: { allowDownsize: true, sizeTolerance: 0.5 },
-      arachnode: { enableRingZulu: true },
+      arachnode: { enableRingZulu: this.config.profile === 'storage' },
       ...(privateKey && { privateKey }),
       ...(network?.transports && { transports: network.transports }),
       ...(network?.listenAddrs && { listenAddrs: network.listenAddrs })
