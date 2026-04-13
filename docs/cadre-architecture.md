@@ -810,7 +810,7 @@ React Native (Hermes engine) requires polyfills for several Web/Node.js APIs tha
 - Billing integration: usage metering, Stripe-ready hooks, quota enforcement
 - Orchestration: Docker orchestrator, mock orchestrator, pluggable interface
 
-### Testing (117 tests passing)
+### Testing (127 tests passing)
 
 - Unit tests: CadreNode, StrandWatcher, StrandInstanceManager, EnrollmentService, StrandSolicitationService, SchemaVerification, types
 - Integration tests: Seed bootstrap, strand formation protocol
