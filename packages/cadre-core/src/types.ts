@@ -1,4 +1,4 @@
-import type { Libp2p, PeerId } from '@libp2p/interface';
+import type { Libp2p, PeerId, PrivateKey } from '@libp2p/interface';
 import type { IRawStorage, Libp2pTransports } from '@optimystic/db-p2p';
 import type { StrandDatabase } from './strand-database.js';
 
@@ -151,7 +151,7 @@ export interface ControlNetworkConfig {
  */
 export interface CadreNodeConfig {
   /** If provided, use this keypair for the node identity */
-  privateKey?: Uint8Array;
+  privateKey?: PrivateKey;
 
   /** Control network connection settings */
   controlNetwork: ControlNetworkConfig;

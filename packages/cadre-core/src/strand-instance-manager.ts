@@ -1,5 +1,5 @@
 import debug from 'debug';
-import type { Libp2p } from '@libp2p/interface';
+import type { Libp2p, PrivateKey } from '@libp2p/interface';
 import { createLibp2pNode, type IRawStorage } from '@optimystic/db-p2p';
 import type { IRepo } from '@optimystic/db-core';
 import { StrandDatabase } from './strand-database.js';
@@ -38,6 +38,7 @@ export interface StartStrandConfig {
   network?: NetworkConfig;
   profile: NodeProfile;
   defaultLatencyHint: LatencyHint;
+  privateKey?: PrivateKey;
 }
 
 /**
@@ -204,6 +205,7 @@ export class StrandInstanceManager {
           // Storage ring participation stub - will be added when arachnode is built
           // storageRing: config.profile === 'storage' ? { ring: 0 } : undefined
         },
+        ...(config.privateKey && { privateKey: config.privateKey }),
         ...(config.network?.transports && { transports: config.network.transports }),
         ...(config.network?.listenAddrs && { listenAddrs: config.network.listenAddrs })
       }) as Libp2pNodeWithRepo;

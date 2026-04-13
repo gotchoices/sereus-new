@@ -140,6 +140,16 @@ declare schema Chat {
 
 No signature verification, no invite flow, no authorization constraints. This keeps the reference app focused on the P2P plumbing rather than application-level crypto.
 
+## Peer Identity Persistence
+
+The phone node maintains a stable PeerId across app restarts:
+
+1. **First launch** — an Ed25519 keypair is generated via `@libp2p/crypto/keys` and stored in MMKV as protobuf bytes under the key `sereus:peer-private-key`.
+2. **Subsequent launches** — the key is loaded from MMKV and passed as `CadreNodeConfig.privateKey`, producing the same PeerId every time.
+3. **Single identity** — the same key is used for both the control network and all strand networks, matching the one-key-per-device architecture.
+
+MMKV is not secure storage (it is not backed by Keychain on iOS or Keystore on Android). Migration to platform-secure storage is a future hardening step.
+
 ## cadre-core React Native Compatibility
 
 ### Validated (2026-02-23)

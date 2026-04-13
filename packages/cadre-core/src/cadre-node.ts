@@ -279,17 +279,10 @@ export class CadreNode implements SAppIdLookup {
       clusterSize: 3,
       clusterPolicy: { allowDownsize: true, sizeTolerance: 0.5 },
       arachnode: { enableRingZulu: true },
+      ...(privateKey && { privateKey }),
       ...(network?.transports && { transports: network.transports }),
       ...(network?.listenAddrs && { listenAddrs: network.listenAddrs })
     };
-
-    // If private key provided, we need to load it
-    // Note: createLibp2pNode doesn't support privateKey directly yet
-    // For now we create the node without it
-    if (privateKey) {
-      log('Private key provided - loading identity');
-      // This would need to be integrated into createLibp2pNode
-    }
 
     return await createLibp2pNode(nodeOptions);
   }
@@ -378,7 +371,8 @@ export class CadreNode implements SAppIdLookup {
         storage: this.config.storage,
         network: this.config.network,
         profile: this.config.profile,
-        defaultLatencyHint: this.config.hibernation?.defaultLatencyHint ?? 'interactive'
+        defaultLatencyHint: this.config.hibernation?.defaultLatencyHint ?? 'interactive',
+        privateKey: this.config.privateKey
       });
 
       // Register with hibernation manager
@@ -509,7 +503,8 @@ export class CadreNode implements SAppIdLookup {
       storage: this.config.storage,
       network: this.config.network,
       profile: this.config.profile,
-      defaultLatencyHint: this.config.hibernation?.defaultLatencyHint ?? 'interactive'
+      defaultLatencyHint: this.config.hibernation?.defaultLatencyHint ?? 'interactive',
+      privateKey: this.config.privateKey
     });
 
     // Register with hibernation manager

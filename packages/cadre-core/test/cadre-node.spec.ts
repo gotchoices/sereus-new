@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { generatePrivateKey, getPublicKey } from '@optimystic/quereus-plugin-crypto';
+import { generateKeyPair } from '@libp2p/crypto/keys';
 import { CadreNode } from '../src/cadre-node.js';
 import { signSchema } from '../src/schema-verification.js';
 import type { CadreNodeConfig, StrandRow, StrandConfig, SAppConfig } from '../src/types.js';
@@ -219,6 +220,38 @@ describe('CadreNode', () => {
       const enrollment = node.getEnrollmentService();
       expect(enrollment).toBeDefined();
     });
+  });
+
+  describe('peer identity persistence', () => {
+    it('should produce deterministic peerId when privateKey is provided', async () => {
+      const key = await generateKeyPair('Ed25519');
+
+      const node1 = new CadreNode(createConfig({ privateKey: key }));
+      await node1.start();
+      const peerId1 = node1.peerId!.toString();
+      await node1.stop();
+
+      const node2 = new CadreNode(createConfig({ privateKey: key }));
+      await node2.start();
+      const peerId2 = node2.peerId!.toString();
+      await node2.stop();
+
+      expect(peerId1).toBe(peerId2);
+    }, 60_000);
+
+    it('should produce different peerIds without privateKey', async () => {
+      const node1 = new CadreNode(createConfig());
+      await node1.start();
+      const peerId1 = node1.peerId!.toString();
+      await node1.stop();
+
+      const node2 = new CadreNode(createConfig());
+      await node2.start();
+      const peerId2 = node2.peerId!.toString();
+      await node2.stop();
+
+      expect(peerId1).not.toBe(peerId2);
+    }, 60_000);
   });
 });
 

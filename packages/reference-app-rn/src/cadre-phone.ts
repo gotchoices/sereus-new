@@ -18,6 +18,8 @@ import type {
 import { multiaddr } from '@multiformats/multiaddr';
 import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+import { generateKeyPair, privateKeyToProtobuf, privateKeyFromProtobuf } from '@libp2p/crypto/keys';
+import type { PrivateKey } from '@libp2p/interface';
 import { MMKV } from 'react-native-mmkv';
 import { MMKVRawStorage } from '@optimystic/db-p2p-storage-rn';
 
@@ -31,6 +33,23 @@ const mmkv = new MMKV({ id: 'sereus-chat' });
 
 function createStorage(strandId: string) {
   return new MMKVRawStorage({ mmkv, prefix: `sereus:${strandId}:` });
+}
+
+// ── Peer identity ───────────────────────────────────────────────────────────
+// Persist a single Ed25519 keypair so the phone keeps the same PeerId across
+// restarts. MMKV is not secure storage (not Keychain/Keystore) — acceptable
+// for v1; secure storage is tracked separately.
+
+const PEER_KEY_STORAGE_KEY = 'sereus:peer-private-key';
+
+async function loadOrCreatePhoneKey(): Promise<PrivateKey> {
+	const stored = mmkv.getBuffer(PEER_KEY_STORAGE_KEY);
+	if (stored) {
+		return privateKeyFromProtobuf(stored);
+	}
+	const key = await generateKeyPair('Ed25519');
+	mmkv.set(PEER_KEY_STORAGE_KEY, Buffer.from(privateKeyToProtobuf(key)));
+	return key;
 }
 
 // ── Singleton ────────────────────────────────────────────────────────────────
@@ -58,7 +77,10 @@ export function getPhoneNode(): CadreNode | null {
 export async function startPhoneNode(opts: PhoneNodeOptions): Promise<CadreNode> {
   if (node?.isRunning) return node;
 
+  const privateKey = await loadOrCreatePhoneKey();
+
   const config: CadreNodeConfig = {
+    privateKey,
     controlNetwork: {
       partyId: opts.partyId,
       bootstrapNodes: opts.bootstrapAddrs,
