@@ -25,6 +25,7 @@ interface Libp2pNodeWithRepo extends Libp2p {
 }
 
 const log = debug('sereus:cadre:strand-manager');
+const timing = debug('sereus:cadre:timing');
 
 /**
  * Configuration for starting a strand instance
@@ -138,6 +139,7 @@ export class StrandInstanceManager {
     }
 
     log('Starting strand instance: %s (sApp: %s v%s)', strandId, sAppConfig.id, sAppConfig.version);
+    const tTotal = performance.now();
 
     // Verify schema signature before proceeding
     assertSchemaSignature(sAppConfig);
@@ -184,6 +186,7 @@ export class StrandInstanceManager {
       // otherwise default to true for storage profile nodes
       const enableRelay = config.network?.enableRelay ?? (config.profile === 'storage');
 
+      let t0 = performance.now();
       const node = await createLibp2pNode({
         port: 0, // Random port
         bootstrapNodes: [], // Will be populated from strand cohort
@@ -204,10 +207,12 @@ export class StrandInstanceManager {
         ...(config.network?.transports && { transports: config.network.transports }),
         ...(config.network?.listenAddrs && { listenAddrs: config.network.listenAddrs })
       }) as Libp2pNodeWithRepo;
+      timing('[startStrand:%s] createLibp2pNode: %dms', strandId, Math.round(performance.now() - t0));
 
       instance.libp2pNode = node;
 
       // Create and initialize the StrandDatabase
+      t0 = performance.now();
       const strandDb = new StrandDatabase({
         strandId,
         sAppConfig,
@@ -215,11 +220,13 @@ export class StrandInstanceManager {
         coordinatedRepo: node.coordinatedRepo
       });
       await strandDb.initialize();
+      timing('[startStrand:%s] strandDatabase.initialize: %dms', strandId, Math.round(performance.now() - t0));
       instance.database = strandDb;
 
       instance.status = 'active';
       instance.lastActivity = new Date();
 
+      timing('[startStrand:%s] total: %dms', strandId, Math.round(performance.now() - tTotal));
       log('Strand %s started successfully with sApp %s', strandId, sAppConfig.id);
       return instance;
 

@@ -33,6 +33,7 @@ import {
 } from './strand-solicitation.js';
 
 const log = debug('sereus:cadre:node');
+const timing = debug('sereus:cadre:timing');
 
 type EventHandler<T> = (data: T) => void;
 
@@ -142,8 +143,12 @@ export class CadreNode implements SAppIdLookup {
     log('Starting CadreNode for party: %s', this.config.controlNetwork.partyId);
 
     try {
+      const tTotal = performance.now();
+
       // Create the control network libp2p node
+      let t0 = performance.now();
       this.controlNode = await this.createControlNode();
+      timing('[start] createControlNode: %dms', Math.round(performance.now() - t0));
       log('Control node started with ID: %s', this.controlNode.peerId.toString());
 
       // Extract coordinatedRepo from the node (attached by createLibp2pNode)
@@ -153,6 +158,7 @@ export class CadreNode implements SAppIdLookup {
       }
 
       // Initialize the control database with the libp2p node
+      t0 = performance.now();
       this.controlDatabase = new ControlDatabase({
         partyId: this.config.controlNetwork.partyId,
         libp2pNode: this.controlNode,
@@ -160,6 +166,7 @@ export class CadreNode implements SAppIdLookup {
         schemaPath: this.config.controlNetwork.schemaPath,
       });
       await this.controlDatabase.initialize();
+      timing('[start] controlDatabase.initialize: %dms', Math.round(performance.now() - t0));
       log('Control database initialized');
 
       // Create strand queryable using the control database
@@ -177,13 +184,16 @@ export class CadreNode implements SAppIdLookup {
         this // CadreNode implements SAppIdLookup
       );
 
+      t0 = performance.now();
       await this.strandWatcher.start();
+      timing('[start] strandWatcher.start: %dms', Math.round(performance.now() - t0));
 
       // Start hibernation manager
       this.hibernationManager.start();
 
       this.running = true;
       this.emit('control:connected', undefined);
+      timing('[start] total: %dms', Math.round(performance.now() - tTotal));
       log('CadreNode started successfully');
 
       // Schedule self-registration in background

@@ -9,6 +9,7 @@ import type { IRepo } from '@optimystic/db-core';
 import type { StrandRow } from './types.js';
 
 const log = debug('sereus:cadre:control-db');
+const timing = debug('sereus:cadre:timing');
 
 /**
  * Embedded control schema for cross-platform compatibility.
@@ -197,10 +198,13 @@ export class ControlDatabase {
     this.db = new Database();
 
     // Register crypto plugin (provides digest, sign, verify functions)
+    let t0 = performance.now();
     await registerPlugin(this.db, cryptoPlugin);
+    timing('[controlDb] cryptoPlugin: %dms', Math.round(performance.now() - t0));
     log('Registered crypto plugin');
 
     // Register optimystic plugin with network transactor as default
+    t0 = performance.now();
     const networkName = `control-${this.config.partyId}`;
     const pluginResult = optimysticPlugin(this.db, {
       default_transactor: 'network',
@@ -216,19 +220,24 @@ export class ControlDatabase {
     for (const func of pluginResult.functions as Array<{ schema: unknown }>) {
       this.db.registerFunction(func.schema as any);
     }
+    timing('[controlDb] optimysticPlugin: %dms', Math.round(performance.now() - t0));
 
     this.collectionFactory = pluginResult.collectionFactory;
 
     // Inject the libp2p node into the collection factory
+    t0 = performance.now();
     this.collectionFactory.registerLibp2pNode(
       networkName,
       this.config.libp2pNode,
       this.config.coordinatedRepo
     );
+    timing('[controlDb] registerLibp2pNode: %dms', Math.round(performance.now() - t0));
     log('Registered libp2p node with collection factory');
 
     // Load and execute the schema
+    t0 = performance.now();
     await this.loadSchema();
+    timing('[controlDb] loadSchema: %dms', Math.round(performance.now() - t0));
 
     this.initialized = true;
     log('ControlDatabase initialized successfully');

@@ -7,6 +7,7 @@ import type { IRepo } from '@optimystic/db-core';
 import type { SAppConfig } from './types.js';
 
 const log = debug('sereus:cadre:strand-db');
+const timing = debug('sereus:cadre:timing');
 
 /**
  * Minimal interface for the CollectionFactory returned by the optimystic plugin.
@@ -67,13 +68,17 @@ export class StrandDatabase {
 
     // Create database instance
     this.db = new Database();
+    const sid = this.config.strandId;
 
     // Register crypto plugin (provides digest, sign, verify functions)
+    let t0 = performance.now();
     await registerPlugin(this.db, cryptoPlugin);
+    timing('[strandDb:%s] cryptoPlugin: %dms', sid, Math.round(performance.now() - t0));
     log('Registered crypto plugin');
 
     // Register optimystic plugin with network transactor as default
-    const networkName = `strand-${this.config.strandId}`;
+    t0 = performance.now();
+    const networkName = `strand-${sid}`;
     const pluginResult = optimysticPlugin(this.db, {
       default_transactor: 'network',
       default_key_network: 'libp2p',
@@ -88,33 +93,40 @@ export class StrandDatabase {
     for (const func of pluginResult.functions as Array<{ schema: unknown }>) {
       this.db.registerFunction(func.schema as any);
     }
+    timing('[strandDb:%s] optimysticPlugin: %dms', sid, Math.round(performance.now() - t0));
 
     this.collectionFactory = pluginResult.collectionFactory;
 
     // Inject the libp2p node into the collection factory
+    t0 = performance.now();
     this.collectionFactory.registerLibp2pNode(
       networkName,
       this.config.libp2pNode,
       this.config.coordinatedRepo
     );
+    timing('[strandDb:%s] registerLibp2pNode: %dms', sid, Math.round(performance.now() - t0));
     log('Registered libp2p node with collection factory');
 
     // Set optimystic as the default virtual table module so that
     // `declare schema` tables (which omit USING) are backed by optimystic
     // instead of the built-in memory module.
+    t0 = performance.now();
     this.db.setDefaultVtabName('optimystic');
     this.db.setDefaultVtabArgs({
       networkName,
       transactor: 'network',
       keyNetwork: 'libp2p',
     });
+    timing('[strandDb:%s] setDefaultVtab: %dms', sid, Math.round(performance.now() - t0));
     log('Set default vtab to optimystic (networkName=%s)', networkName);
 
     // Execute the sApp schema DDL
+    t0 = performance.now();
     await this.executeSchema();
+    timing('[strandDb:%s] executeSchema: %dms', sid, Math.round(performance.now() - t0));
 
     this.initialized = true;
-    log('StrandDatabase for strand %s initialized successfully', this.config.strandId);
+    log('StrandDatabase for strand %s initialized successfully', sid);
   }
 
   private async executeSchema(): Promise<void> {
