@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import debug from 'debug';
+import { privateKeyFromRaw } from '@libp2p/crypto/keys';
+import type { PrivateKey } from '@libp2p/interface';
 import type { StrandFilter } from '@serfab/cadre-core';
 import { CliConfigFile, ResolvedConfig, ENV_MAPPINGS } from './types.js';
 
@@ -120,11 +122,11 @@ export async function resolveConfig(configPath: string): Promise<ResolvedConfig>
   fileConfig = applyEnvironmentOverrides(fileConfig);
 
   // Load private key if specified
-  let privateKey: Uint8Array | undefined;
+  let privateKey: PrivateKey | undefined;
   if (fileConfig.identity?.keyFile) {
-    privateKey = await loadPrivateKey(fileConfig.identity.keyFile);
+    privateKey = privateKeyFromRaw(await loadPrivateKey(fileConfig.identity.keyFile));
   } else if (fileConfig.identity?.privateKeyHex) {
-    privateKey = Buffer.from(fileConfig.identity.privateKeyHex, 'hex');
+    privateKey = privateKeyFromRaw(Buffer.from(fileConfig.identity.privateKeyHex, 'hex'));
   }
 
   return {

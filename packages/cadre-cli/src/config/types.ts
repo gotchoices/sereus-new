@@ -1,3 +1,4 @@
+import type { PrivateKey } from '@libp2p/interface';
 import type { NodeProfile, LatencyHint, StrandFilter } from '@serfab/cadre-core';
 
 /**
@@ -81,7 +82,7 @@ export const ENV_MAPPINGS = {
  * Resolved configuration after loading and applying environment overrides
  */
 export interface ResolvedConfig {
-  privateKey?: Uint8Array;
+  privateKey?: PrivateKey;
   controlNetwork: {
     partyId: string;
     bootstrapNodes: string[];
