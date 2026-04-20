@@ -24,6 +24,11 @@ import { MMKV } from 'react-native-mmkv';
 import { MMKVRawStorage } from '@optimystic/db-p2p-storage-rn';
 
 // ── MMKV instance shared across the app ──────────────────────────────────────
+// NOTE: this app is pinned to react-native-mmkv ^3.x where `MMKV` is a value
+// class.  v4 (Nitro Modules) makes `MMKV` a type-only export and the runtime
+// API becomes `createMMKV({...})`.  When upgrading, change the import to
+// `import { createMMKV, type MMKV } from 'react-native-mmkv'` and replace
+// `new MMKV({...})` below with `createMMKV({...})`.
 
 const mmkv = new MMKV({ id: 'sereus-chat' });
 

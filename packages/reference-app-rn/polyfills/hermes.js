@@ -53,6 +53,65 @@ if (typeof globalThis.crypto.getRandomValues !== 'function') {
 	);
 }
 
+// ── TextDecoder (UTF-8 only) ───────────────────────────────────────────────
+// Expo SDK 52+ Hermes provides TextDecoder natively — this block is a no-op
+// there.  Bare RN 0.85 Hermes ships TextEncoder but NOT TextDecoder; the
+// `uint8arrays` package (pulled in by libp2p / multiformats / yamux) does
+// `const decoder = new TextDecoder('utf8')` at module scope, so without this
+// polyfill yamux's default export resolves to `undefined` and CadreNode.start
+// fails with "Cannot read property 'Yamux' of undefined".
+//
+// Kept UTF-8-only to avoid pulling in a full text-encoding polyfill; throws a
+// clear RangeError if anything asks for another encoding.
+if (typeof globalThis.TextDecoder === 'undefined') {
+	class TextDecoderPolyfill {
+		constructor(label = 'utf-8') {
+			const enc = String(label).toLowerCase().replace('_', '-');
+			if (enc !== 'utf-8' && enc !== 'utf8') {
+				throw new RangeError(`TextDecoder polyfill only supports UTF-8 (got "${label}")`);
+			}
+			this.encoding = 'utf-8';
+			this.fatal = false;
+			this.ignoreBOM = false;
+		}
+		decode(input) {
+			if (input == null) return '';
+			const bytes = input instanceof Uint8Array
+				? input
+				: ArrayBuffer.isView(input)
+					? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
+					: new Uint8Array(input);
+			if (bytes.length === 0) return '';
+			let i = 0;
+			let str = '';
+			if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) i = 3;
+			while (i < bytes.length) {
+				const b = bytes[i++];
+				if (b < 0x80) {
+					str += String.fromCharCode(b);
+				} else if (b < 0xC0) {
+					str += '\uFFFD';
+				} else if (b < 0xE0) {
+					str += String.fromCharCode(((b & 0x1F) << 6) | (bytes[i++] & 0x3F));
+				} else if (b < 0xF0) {
+					str += String.fromCharCode(
+						((b & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | (bytes[i++] & 0x3F),
+					);
+				} else {
+					let cp = ((b & 0x07) << 18)
+						| ((bytes[i++] & 0x3F) << 12)
+						| ((bytes[i++] & 0x3F) << 6)
+						| (bytes[i++] & 0x3F);
+					cp -= 0x10000;
+					str += String.fromCharCode(0xD800 + (cp >> 10), 0xDC00 + (cp & 0x3FF));
+				}
+			}
+			return str;
+		}
+	}
+	globalThis.TextDecoder = TextDecoderPolyfill;
+}
+
 // ── structuredClone ─────────────────────────────────────────────────────────
 // Not yet supported by Hermes.
 // Required by: @optimystic/db-core (transform tracker, cache-source, coordinator)

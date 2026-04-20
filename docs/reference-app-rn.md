@@ -158,7 +158,7 @@ MMKV is not secure storage (it is not backed by Keychain on iOS or Keystore on A
 
 **cadre-core** now declares a `react-native` export condition in its `package.json`. Source audit confirmed two Node-only dynamic imports — `require('path')` in `getStrandStoragePath` and `require('fs/promises')` in `ControlDatabase.loadSchema` — both runtime-guarded behind `process.versions?.node` checks and restricted to Node-only code paths.
 
-**Quereus** has no Node-only imports. BigInt is supported in Hermes since RN 0.70. Only `TextEncoder` is used (built-in to Hermes); `TextDecoder` is not required by Quereus. However, `@optimystic/db-p2p` uses `TextDecoder` in its cluster, protocol, and repo services — this is covered by Expo SDK 52+'s built-in `TextDecoder` global (UTF-8 only).
+**Quereus** has no Node-only imports. BigInt is supported in Hermes since RN 0.70. Only `TextEncoder` is used (built-in to Hermes); `TextDecoder` is not required by Quereus. However, `@optimystic/db-p2p` (and `uint8arrays`, which it pulls in transitively via libp2p/yamux/multiformats) uses `TextDecoder` at module scope — this is covered by Expo SDK 52+'s built-in `TextDecoder` global (UTF-8 only). On **bare RN** Hermes (non-Expo) `TextDecoder` is NOT present as of RN 0.85, so `polyfills/hermes.js` ships a UTF-8-only fallback that becomes a no-op once the runtime provides it.
 
 **Metro bundle** succeeds with 2790 modules (cadre-core, Quereus, db-p2p, libp2p, and all transitive deps). The only warnings are cosmetic: `multiformats` subpath export fallbacks that resolve correctly via file-based resolution.
 
@@ -223,7 +223,7 @@ These APIs are natively available in the target Hermes/Expo versions used by thi
 | API | Available since | Notes |
 |-----|----------------|-------|
 | `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | See warning below |
-| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package |
+| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | Bare RN (non-Expo) Hermes through at least 0.85 does NOT ship this — `polyfills/hermes.js` has a UTF-8-only fallback. For non-UTF-8 encodings, use the `text-encoding` package. |
 | `BigInt` | Hermes since RN 0.70 | |
 | `crypto.getRandomValues` | RN 0.76+ with New Architecture | `react-native-get-random-values` still recommended as safety net |
 
@@ -342,8 +342,26 @@ config.resolver.extraNodeModules = {
   crypto: path.resolve(__dirname, 'polyfills/node-crypto.js'),
 };
 
+// Apply @libp2p/crypto's own `browser` map via resolveRequest — the package
+// ships `.browser.js` variants (Ed25519/secp256k1/RSA/ECDH keys, webcrypto,
+// hmac, aes-gcm) that use @noble/curves + WebCrypto instead of Node's crypto.
+// With `unstable_enablePackageExports: true` Metro resolves via `exports` and
+// does not reliably apply the `browser` rewrite on its own.  See
+// `packages/reference-app-rn/metro.config.js` for the implementation.
+
 module.exports = config;
 ```
+
+> **Why the browser rewrite matters.** `@libp2p/crypto` has parallel
+> `*.browser.js` variants for every module that would otherwise call
+> `crypto.generateKeyPairSync`, `createPrivateKey`, `sign`, or `verify` from
+> Node.js's built-in `crypto`.  Our `polyfills/node-crypto.js` intentionally
+> only implements `createHash` (SHA-256/SHA-512 via `@noble/hashes`), so
+> without the rewrite the first call to `generateKeyPair('Ed25519')` (phone
+> peer identity, enrollment, strand solicitation) fails with
+> `undefined cannot be used as a constructor`.  The rewrite is applied in
+> Metro's `resolveRequest` hook — see `packages/reference-app-rn/metro.config.js`
+> and `sereus-health/apps/mobile/metro.config.js` (same pattern).
 
 ## Two-Node Startup Sequence
 

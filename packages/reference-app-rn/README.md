@@ -184,7 +184,7 @@ React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fa
 ### How it works
 
 1. **`index.js`** imports polyfills in order, then hands off to Expo Router
-2. **`metro.config.js`** maps Node.js built-in modules (`node:crypto`, `node:os`) to local shim files via `extraNodeModules`
+2. **`metro.config.js`** maps Node.js built-in modules (`node:crypto`, `node:os`) to local shim files via `extraNodeModules`, and rewrites `@libp2p/crypto`'s Node files to their `.browser.js` variants (see *libp2p/crypto Node → browser rewrite* below)
 
 ### Polyfill inventory
 
@@ -192,6 +192,7 @@ React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fa
 |------|-------------------|-------------|
 | `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves |
 | `hermes.js` | `crypto.subtle.digest()` | multiformats/hashes/sha2 (browser variant) |
+| `hermes.js` | `TextDecoder` (UTF-8 only) | uint8arrays/util/bases (module-scope `new TextDecoder('utf8')` pulled in by libp2p/yamux/multiformats). No-op on Expo SDK 52+ Hermes; required on bare RN. |
 | `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) |
 | `hermes.js` | `Symbol.asyncIterator` | `for await...of` on custom iterables |
 | `hermes.js` | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries |
@@ -213,6 +214,14 @@ When adding a new dependency, watch for runtime errors like `Property 'X' doesn'
 
 Always guard with `typeof` checks so the polyfill is skipped on platforms that have native support.
 
+### libp2p/crypto Node → browser rewrite
+
+`@libp2p/crypto` ships parallel `.browser.js` variants for the modules that use Node's `crypto` at key generation / signing time (`keys/ed25519`, `keys/secp256k1`, `keys/rsa`, `keys/ecdh`, `webcrypto/webcrypto`, `hmac`, `ciphers/aes-gcm`). The browser variants use `@noble/curves` + WebCrypto and work under Hermes; the Node variants call `crypto.generateKeyPairSync`, `createPrivateKey`, `sign`, `verify` — none of which our `polyfills/node-crypto.js` implements.
+
+The package declares the mapping in its `browser` field, but with `unstable_enablePackageExports: true` (Expo SDK 52+ default, and @libp2p/crypto ships an `exports` map) Metro resolves via `exports` and the `browser` rewrite is not reliably applied. Without the rewrite, the first call to `generateKeyPair('Ed25519')` throws `undefined cannot be used as a constructor` (the Node variant's `crypto.generateKeyPairSync` is undefined in the shim).
+
+`metro.config.js` reads the package's own `browser` map at config load time and applies it via `resolver.resolveRequest` — so any future upstream additions to that map are picked up automatically. The same pattern is mirrored in `sereus-health/apps/mobile/metro.config.js`.
+
 ### Built-in APIs (no polyfill needed)
 
 These APIs are natively available in the target Hermes/Expo versions used by this app. Do not add polyfills for them — it wastes bundle size and can cause subtle conflicts.
@@ -220,7 +229,7 @@ These APIs are natively available in the target Hermes/Expo versions used by thi
 | API | Available since | Notes |
 |-----|----------------|-------|
 | `TextEncoder` | Hermes (all versions used by Expo SDK 49+) | No polyfill needed; `fast-text-encoding` is unnecessary |
-| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package |
+| `TextDecoder` | Expo SDK 52+ (UTF-8 only) | If you need non-UTF-8 encodings, use `text-encoding` package. **Bare RN** (non-Expo) Hermes through at least 0.85 does NOT ship `TextDecoder`; `polyfills/hermes.js` includes a UTF-8-only fallback (guarded by `typeof` so it's a no-op under Expo) |
 | `BigInt` | Hermes since RN 0.70 | |
 | `crypto.getRandomValues` | RN 0.76+ with New Architecture | `react-native-get-random-values` still recommended as safety net |
 
