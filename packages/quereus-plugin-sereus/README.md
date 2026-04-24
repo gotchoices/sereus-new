@@ -1,6 +1,6 @@
 # @serfab/quereus-plugin-sereus
 
-A [Quereus](https://github.com/nicktobey/quereus) plugin that connects to a [Sereus](../../docs/cadre-architecture.md) strand for SQL access. Composes the [@optimystic/quereus-plugin-crypto](https://github.com/nicktobey/optimystic/tree/main/packages/quereus-plugin-crypto) and [@optimystic/quereus-plugin-optimystic](https://github.com/nicktobey/optimystic/tree/main/packages/quereus-plugin-optimystic) plugins, manages libp2p networking, and optionally applies a sApp schema.
+A [Quereus](https://github.com/nicktobey/quereus) plugin that connects to a [Sereus](../../docs/architecture.md) strand for SQL access. Composes the [@optimystic/quereus-plugin-crypto](https://github.com/nicktobey/optimystic/tree/main/packages/quereus-plugin-crypto) and [@optimystic/quereus-plugin-optimystic](https://github.com/nicktobey/optimystic/tree/main/packages/quereus-plugin-optimystic) plugins, manages libp2p networking, and optionally applies a sApp schema.
 
 ## Features
 

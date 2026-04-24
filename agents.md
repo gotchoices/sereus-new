@@ -26,4 +26,4 @@ This project uses [tess](tess/) for AI-driven ticket management.
 Read and follow the ticket workflow rules in tess/agent-rules/tickets.md.
 Tickets are in the [tickets/](tickets/) directory.
 
-Start with docs\cadre-architecture.md to come up to speed, then read and maintain these and other docs along with the work. 
+Start with docs\architecture.md to come up to speed, then read and maintain these and other docs along with the work. 

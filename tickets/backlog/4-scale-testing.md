@@ -1,6 +1,6 @@
 priority: 2
 description: Design scale tests with many party/drone pairs for strand formation and replication
-dependencies: packages/cadre-core, packages/integration-tests, test orchestrator from multi-party task
+prereq: packages/cadre-core, packages/integration-tests, test orchestrator from multi-party task
 ----
 Stress-test strand formation, replication fan-out, and convergence under load by spawning many phone/drone pairs.
 

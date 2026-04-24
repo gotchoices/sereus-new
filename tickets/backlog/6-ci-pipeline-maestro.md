@@ -1,6 +1,6 @@
 priority: 3
 description: GitHub Actions CI pipeline with EAS Build + Maestro Cloud UI tests
-dependencies: 4-first-eas-build (must succeed first), packages/reference-app-rn, packages/cadre-cli
+prereq: first-eas-build (must succeed first), packages/reference-app-rn, packages/cadre-cli
 files: .github/workflows/ci.yml, packages/reference-app-rn/maestro/, docs/reference-app-rn.md
 ----
 

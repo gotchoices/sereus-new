@@ -1,12 +1,12 @@
 priority: 3
 description: Maestro E2E flows for seed application, messaging, and bidirectional sync
-dependencies: 3-drone-test-fixture, 3-ci-pipeline-maestro (basic flows), packages/reference-app-rn
+prereq: drone-test-fixture, ci-pipeline-maestro (basic flows), packages/reference-app-rn
 files: packages/reference-app-rn/maestro/
 ----
 
 ## Context
 
-The CI pipeline task (`3-ci-pipeline-maestro.md`) creates basic smoke flows (app launches, navigate settings, configure drone) that don't need a live drone. This task builds on that with full E2E flows that exercise real cadre connectivity through the UI, powered by the drone test fixture and its HTTP sidecar.
+The CI pipeline task (`ci-pipeline-maestro.md`) creates basic smoke flows (app launches, navigate settings, configure drone) that don't need a live drone. This task builds on that with full E2E flows that exercise real cadre connectivity through the UI, powered by the drone test fixture and its HTTP sidecar.
 
 These flows require the drone fixture to be running and accessible. Maestro's `runScript` command calls the sidecar HTTP API for programmatic drone-side actions.
 

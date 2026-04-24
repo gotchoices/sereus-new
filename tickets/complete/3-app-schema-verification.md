@@ -7,7 +7,7 @@ files:
   - packages/cadre-core/test/schema-verification.spec.ts
   - packages/cadre-core/test/strand-instance-manager.spec.ts
   - packages/cadre-core/test/cadre-node.spec.ts
-  - docs/cadre-architecture.md
+  - docs/architecture.md
 ----
 
 ## What was built
@@ -35,7 +35,7 @@ Ed25519 signature verification of sApp schemas, gating strand join in `StrandIns
 - `schemaDigest` uses deterministic `JSON.stringify({ schema, version })` — consistent field order for string-only values
 - Explicit checks for missing `signature` and missing `id` give better error messages than falling through to "invalid signature"
 - `SchemaVerificationError` carries `sAppId` and `version` for diagnostics
-- Docs updated: `cadre-architecture.md` Implementation Status now lists schema verification and correct test count (117)
+- Docs updated: `architecture.md` Implementation Status now lists schema verification and correct test count (117)
 
 ## Usage
 

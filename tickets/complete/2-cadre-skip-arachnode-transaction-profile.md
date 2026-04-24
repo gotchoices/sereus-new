@@ -5,7 +5,7 @@ files:
   - packages/cadre-core/src/strand-instance-manager.ts (lines 203-205)
   - packages/cadre-core/src/types.ts (line 360 — JSDoc updated)
   - packages/cadre-core/src/arachnode-stub.ts (stale comment removed)
-  - docs/cadre-architecture.md (Node Profiles section updated)
+  - docs/architecture.md (Node Profiles section updated)
 ----
 
 ## What was built
@@ -19,7 +19,7 @@ The downstream `createLibp2pNodeBase` in optimystic gates all Arachnode initiali
 
 ## Review findings (addressed)
 
-- **Doc inconsistency fixed**: `cadre-architecture.md` Node Profiles table and Ring Zulu description updated to reflect that Arachnode is disabled for transaction-profile nodes.
+- **Doc inconsistency fixed**: `architecture.md` Node Profiles table and Ring Zulu description updated to reflect that Arachnode is disabled for transaction-profile nodes.
 - **JSDoc updated**: `ArachnodeConfig.enableRingZulu` comment changed from "all nodes participate" to "Storage-profile only."
 - **Stale comment removed**: "All nodes participate in Ring Zulu" removed from `arachnode-stub.ts`.
 

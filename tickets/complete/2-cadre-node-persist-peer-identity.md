@@ -29,6 +29,6 @@ All 127 tests pass. Type check passes with zero errors.
 
 ## Review notes
 
-- MMKV is not secure storage — acceptable for v1; migration to Keychain/Keystore tracked in `tickets/plan/2-mobile-optimizations.md`.
+- MMKV is not secure storage — acceptable for v1; migration to Keychain/Keystore tracked in `tickets/plan/mobile-optimizations.md`.
 - Single identity shared across control + strand networks is by design (one-key-per-device architecture).
 - `CreatePeerResult.privateKey` stays `Uint8Array` (out of scope).

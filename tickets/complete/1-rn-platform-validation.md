@@ -1,6 +1,6 @@
 priority: 5
 description: RN platform validation — cadre-core exports, Metro bundle, and compatibility docs
-dependencies: packages/cadre-core, packages/reference-app-rn, docs/reference-app-rn.md
+prereq: packages/cadre-core, packages/reference-app-rn, docs/reference-app-rn.md
 ----
 
 ## What Was Built
@@ -34,7 +34,7 @@ Validated and documented that cadre-core, Quereus, and the MMKV storage layer ar
 
 - `yarn test` in `packages/cadre-core` — 117 tests pass, build clean
 - `yarn test:bundle` in `packages/reference-app-rn` — validates the full dependency graph resolves without errors
-- MMKV device round-trip testing deferred to the `4-first-eas-build` task
+- MMKV device round-trip testing deferred to the `first-eas-build` task
 
 ## Review Notes
 

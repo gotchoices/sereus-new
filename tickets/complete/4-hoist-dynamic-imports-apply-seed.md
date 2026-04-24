@@ -1,6 +1,6 @@
 priority: 2
 description: Replace inline dynamic imports in applySeed() with top-level imports or dependency injection
-dependencies: packages/cadre-core/src/seed-bootstrap.ts
+prereq: packages/cadre-core/src/seed-bootstrap.ts
 ----
 
 ## Resolution

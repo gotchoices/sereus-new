@@ -1,6 +1,6 @@
 priority: 2
 description: Design relay network and bootstrap node deployment for NAT traversal
-dependencies: ops/docker/libp2p-infra, @libp2p/circuit-relay-v2, cadre-core network config
+prereq: ops/docker/libp2p-infra, @libp2p/circuit-relay-v2, cadre-core network config
 ----
 NAT'd nodes (phones) need relay servers to be reachable. The cadre system also needs stable bootstrap nodes as initial entry points for control networks.
 

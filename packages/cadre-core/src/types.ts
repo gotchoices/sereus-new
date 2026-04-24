@@ -388,7 +388,7 @@ export interface CadreNodeEvents {
 }
 
 // ============================================================================
-// Seed Bootstrap API Types (from cadre-architecture.md)
+// Seed Bootstrap API Types (from architecture.md)
 // ============================================================================
 
 /**

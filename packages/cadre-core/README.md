@@ -182,7 +182,7 @@ The main entry point for cadre participation.
 
 ## Related Documentation
 
-- **[Cadre Architecture](../../docs/cadre-architecture.md)** - Deep dive into the cadre system design
+- **[Cadre Architecture](../../docs/architecture.md)** - Deep dive into the cadre system design
 - **[Strand Management](../../docs/strands.md)** - How strands connect multiple cadres
 - **[Schema Guide](../../docs/schema-guide.md)** - Optimystic schema definitions
 

@@ -1,6 +1,6 @@
 priority: 1
 description: Implement storage quota enforcement for storage-profile nodes (blocked on Arachnode)
-dependencies: Arachnode storage system (not yet built), packages/cadre-core, packages/cadre-provider billing
+prereq: Arachnode storage system (not yet built), packages/cadre-core, packages/cadre-provider billing
 ----
 Blocked on the Arachnode storage ring system not being built yet.
 

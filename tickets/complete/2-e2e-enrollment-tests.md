@@ -37,7 +37,7 @@ Two bugs in `seed-bootstrap.ts` were fixed during implementation:
 - Code is clean, DRY, and well-structured with shared test helpers
 - Tests are independent (each creates own parties/services), good isolation
 - Both positive and negative paths well covered
-- Documentation in `docs/cadre-architecture.md` matches implementation
+- Documentation in `docs/architecture.md` matches implementation
 - Pre-existing `queryPeers()` dead code (`authorityKeys` set populated but unused) noted but not in scope
 - `deliverSeed` protocol-level delivery not tested due to libp2p v3 stream negotiation issue — tracked in `tickets/fix/3-deliverSeed-libp2p-v3-stream-compat.md`
 

@@ -1,14 +1,14 @@
 description: Updated polyfill documentation to reflect code upgrades and added quality guidance
-dependencies: 3-polyfill-code-upgrades (complete)
+prereq: polyfill-code-upgrades (complete)
 files:
   - packages/reference-app-rn/README.md
   - docs/reference-app-rn.md
-  - docs/cadre-architecture.md
+  - docs/architecture.md
 ----
 
 ## What was built
 
-Updated polyfill documentation in both `packages/reference-app-rn/README.md` and `docs/reference-app-rn.md` to reflect the polyfill code upgrades from ticket 3-polyfill-code-upgrades, and added guidance sections to prevent future divergence.
+Updated polyfill documentation in both `packages/reference-app-rn/README.md` and `docs/reference-app-rn.md` to reflect the polyfill code upgrades from ticket polyfill-code-upgrades, and added guidance sections to prevent future divergence.
 
 ### Changes
 
@@ -17,7 +17,7 @@ Updated polyfill documentation in both `packages/reference-app-rn/README.md` and
 - **Polyfill quality principles** — New section on preferring npm packages, spec compliance, typeof guards, native module rebuild notes
 - **Commonly needed beyond core** — Table of polyfills apps may need beyond the core stack (URL/URLSearchParams)
 - **Troubleshooting** — Updated structuredClone entry to reference @ungap/structured-clone
-- **cadre-architecture.md** — Cross-reference verified; generic wording, no changes needed
+- **architecture.md** — Cross-reference verified; generic wording, no changes needed
 
 ### Review fixes
 
@@ -34,7 +34,7 @@ During review, fixed 4 minor "Required by" inconsistencies in README.md to match
 | `packages/reference-app-rn/README.md` | Package-level quick reference for polyfills |
 | `docs/reference-app-rn.md` | Architecture docs with detailed polyfill notes |
 | `packages/reference-app-rn/polyfills/hermes.js` | Actual polyfill code (source of truth) |
-| `docs/cadre-architecture.md` | Cross-reference to polyfill docs (line ~749) |
+| `docs/architecture.md` | Cross-reference to polyfill docs (line ~749) |
 
 ## Testing
 
@@ -43,4 +43,4 @@ During review, fixed 4 minor "Required by" inconsistencies in README.md to match
 - Polyfill inventory tables in both files verified consistent with each other and with `polyfills/hermes.js`
 - Built-in API version claims verified (TextEncoder, TextDecoder, BigInt, crypto.getRandomValues)
 - Markdown table formatting verified
-- cadre-architecture.md `#polyfills` anchor link verified
+- architecture.md `#polyfills` anchor link verified

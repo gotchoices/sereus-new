@@ -4,7 +4,7 @@ files:
   - packages/cadre-core/src/types.ts
   - packages/cadre-core/src/seed-bootstrap.ts
   - packages/cadre-core/test/seed-bootstrap.spec.ts
-  - docs/cadre-architecture.md
+  - docs/architecture.md
 ----
 
 ## What was built
@@ -16,7 +16,7 @@ Fixed a security vulnerability where any valid ed25519 key could forge seeds. Pr
 - **`SeedPeer.publicKey?: string`** — optional field on authority peers carrying their ed25519 public key (base64url)
 - **`queryPeers()`** — authority peer entries include `publicKey: this.authorityPublicKey`
 - **`applySeed()`** — added `seed.peers.some(p => p.isAuthority && p.publicKey === seed.signerKey)` check after signature validation; rejects seeds signed by non-authority keys
-- **docs/cadre-architecture.md** — updated SeedPeer interface and Validation section
+- **docs/architecture.md** — updated SeedPeer interface and Validation section
 
 ## Testing
 

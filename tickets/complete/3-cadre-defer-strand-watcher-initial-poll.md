@@ -4,7 +4,7 @@ files:
   - packages/cadre-core/src/strand-watcher.ts
   - packages/cadre-core/test/strand-watcher.spec.ts
   - packages/cadre-core/test/strand-watcher-filters.spec.ts
-  - docs/cadre-architecture.md
+  - docs/architecture.md
 ----
 
 ## What was built
@@ -32,4 +32,4 @@ Key changes:
 - No resource leaks: both timers are cleared in `stop()`, `initialPollTimer` is also self-nulled after firing
 - Race safety: `running` flag guard in `poll()` prevents execution if `stop()` raced with the deferred timer
 - `start()` is still `async` for API compatibility even though it no longer awaits internally
-- Updated test count in cadre-architecture.md from 117 to 127
+- Updated test count in architecture.md from 117 to 127

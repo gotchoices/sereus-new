@@ -1,6 +1,6 @@
 priority: 4
 description: Trigger first EAS Build (Android), verify dev client, document troubleshooting
-dependencies: packages/reference-app-rn, eas.json, Expo account with EAS access
+prereq: packages/reference-app-rn, eas.json, Expo account with EAS access
 files: packages/reference-app-rn/eas.json, packages/reference-app-rn/package.json, docs/reference-app-rn.md
 ----
 

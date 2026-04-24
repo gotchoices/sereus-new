@@ -1,6 +1,6 @@
 priority: 1
 description: Implement Ring Zulu participation and storage ring opt-in (blocked on Arachnode)
-dependencies: Arachnode storage system (not yet built), packages/cadre-core profile configuration
+prereq: Arachnode storage system (not yet built), packages/cadre-core profile configuration
 ----
 Blocked on the Arachnode storage ring system not being built yet.
 

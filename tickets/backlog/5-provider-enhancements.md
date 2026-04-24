@@ -1,6 +1,6 @@
 priority: 1
 description: Optional provider enhancements: Kubernetes operator, auto-scaling, multi-region
-dependencies: packages/cadre-provider, ops/docker
+prereq: packages/cadre-provider, ops/docker
 ----
 The provider service (`@serfab/cadre-provider`) has core functionality complete. These are optional enhancements for production-scale deployments.
 
