@@ -4,7 +4,7 @@ import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
 import optimysticPlugin from '@optimystic/quereus-plugin-optimystic/plugin';
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
-import type { SAppConfig } from './types.js';
+import type { SAppConfig, StrandMode } from './types.js';
 
 const log = debug('sereus:cadre:strand-db');
 const timing = debug('sereus:cadre:timing');
@@ -35,6 +35,12 @@ export interface StrandDatabaseConfig {
   libp2pNode: Libp2p;
   /** Coordinated repo from the libp2p node */
   coordinatedRepo: IRepo;
+  /**
+   * Lifecycle mode. `'bootstrap'` selects a purely local transactor so the strand
+   * can initialize (e.g. apply schema DDL) without network round trips on a solo
+   * node. `'networked'` (the default) uses the network transactor.
+   */
+  mode?: StrandMode;
 }
 
 /**
@@ -76,15 +82,22 @@ export class StrandDatabase {
     timing('[strandDb:%s] cryptoPlugin: %dms', sid, Math.round(performance.now() - t0));
     log('Registered crypto plugin');
 
-    // Register optimystic plugin with network transactor as default
+    // Register optimystic plugin. In `bootstrap` mode we route through the
+    // local transactor so a solo node can initialize (schema apply etc.)
+    // without network round trips. In `networked` mode the network transactor
+    // is used. Mode is fixed for the lifetime of this Database instance; the
+    // caller must restart the strand to transition modes.
     t0 = performance.now();
     const networkName = `strand-${sid}`;
+    const mode: StrandMode = this.config.mode ?? 'networked';
+    const defaultTransactor = mode === 'bootstrap' ? 'local' : 'network';
     const pluginResult = optimysticPlugin(this.db, {
-      default_transactor: 'network',
+      default_transactor: defaultTransactor,
       default_key_network: 'libp2p',
       default_network_name: networkName,
       enable_cache: true,
     }) as OptimysticPluginResult;
+    log('Optimystic plugin registered for strand %s (mode=%s, transactor=%s)', sid, mode, defaultTransactor);
 
     // Register vtables and functions manually since we need access to collectionFactory
     for (const vtable of pluginResult.vtables as Array<{ name: string; module: unknown; auxData: unknown }>) {
@@ -114,11 +127,11 @@ export class StrandDatabase {
     this.db.setDefaultVtabName('optimystic');
     this.db.setDefaultVtabArgs({
       networkName,
-      transactor: 'network',
+      transactor: defaultTransactor,
       keyNetwork: 'libp2p',
     });
     timing('[strandDb:%s] setDefaultVtab: %dms', sid, Math.round(performance.now() - t0));
-    log('Set default vtab to optimystic (networkName=%s)', networkName);
+    log('Set default vtab to optimystic (networkName=%s, transactor=%s)', networkName, defaultTransactor);
 
     // Execute the sApp schema DDL
     t0 = performance.now();

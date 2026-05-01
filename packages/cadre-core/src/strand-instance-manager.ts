@@ -13,7 +13,8 @@ import type {
   NodeProfile,
   SAppConfig,
   SAppInfo,
-  RawStorageProvider
+  RawStorageProvider,
+  StrandMode
 } from './types.js';
 
 /**
@@ -39,6 +40,11 @@ export interface StartStrandConfig {
   profile: NodeProfile;
   defaultLatencyHint: LatencyHint;
   privateKey?: PrivateKey;
+  /**
+   * Lifecycle mode for this strand; selects the default transactor used by the
+   * StrandDatabase. Defaults to `'networked'` when omitted.
+   */
+  mode?: StrandMode;
 }
 
 /**
@@ -217,7 +223,8 @@ export class StrandInstanceManager {
         strandId,
         sAppConfig,
         libp2pNode: node,
-        coordinatedRepo: node.coordinatedRepo
+        coordinatedRepo: node.coordinatedRepo,
+        mode: config.mode ?? 'networked'
       });
       await strandDb.initialize();
       timing('[startStrand:%s] strandDatabase.initialize: %dms', strandId, Math.round(performance.now() - t0));

@@ -491,11 +491,11 @@ export class CadreNode implements SAppIdLookup {
       throw new Error('CadreNode not running');
     }
 
-    const { strandRow, sAppConfig } = config;
+    const { strandRow, sAppConfig, mode } = config;
 
     // Store sApp config for this strand
     this.sAppConfigs.set(strandRow.Id, sAppConfig);
-    log('Registered sAppConfig for strand %s (sApp: %s)', strandRow.Id, sAppConfig.id);
+    log('Registered sAppConfig for strand %s (sApp: %s, mode: %s)', strandRow.Id, sAppConfig.id, mode ?? 'networked');
 
     const instance = await this.strandManager.startStrand({
       strandRow,
@@ -504,7 +504,8 @@ export class CadreNode implements SAppIdLookup {
       network: this.config.network,
       profile: this.config.profile,
       defaultLatencyHint: this.config.hibernation?.defaultLatencyHint ?? 'interactive',
-      privateKey: this.config.privateKey
+      privateKey: this.config.privateKey,
+      mode
     });
 
     // Register with hibernation manager
