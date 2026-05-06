@@ -427,6 +427,17 @@ flowchart LR
     DEL["DELETE FROM Strand (...)"] -->|watch event| SW2["Strand Watcher"] --> STOP["Stop Instance"]
 ```
 
+### Strand Mode: Bootstrap vs Networked
+
+Each strand instance is started in one of two modes (`StrandMode`), which selects the default transactor wired into the optimystic plugin:
+
+| Mode | Default Transactor | When Used |
+|------|--------------------|-----------|
+| `networked` (default) | `network` — issues transactions through the strand's libp2p cohort | Multi-peer participation; the normal strand lifecycle |
+| `bootstrap` | `local` — executes transactions against host-local raw storage with no peer round trips | Solo-node startup (e.g. first-launch, single-device cadre) where the cohort isn't reachable yet but the strand still needs to apply schema and accept DML |
+
+In `bootstrap` mode the same `IRawStorage` instance handed to `createLibp2pNode` is also passed to the optimystic plugin via `rawStorageFactory`, so DML executed through the local transactor lands on the host's persistent backend (e.g. file system on Node, MMKV on React Native) instead of an in-memory store. Sharing the single instance — rather than constructing a second `IRawStorage` over the same id/prefix — keeps the libp2p and database read paths consistent and avoids cache divergence. The mode is fixed for the lifetime of a `StrandDatabase`; transitioning requires restarting the strand.
+
 ### Strand Formation
 
 When forming a new strand with another party, the bootstrap protocol (`strand-proto`) negotiates provisioning. The `StrandFormationManager` bridges `cadre-core` interfaces with `strand-proto`'s `SessionManager`:
