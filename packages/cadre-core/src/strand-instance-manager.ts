@@ -217,14 +217,19 @@ export class StrandInstanceManager {
 
       instance.libp2pNode = node;
 
-      // Create and initialize the StrandDatabase
+      // Create and initialize the StrandDatabase. In bootstrap mode the same
+      // strandStorage instance also backs the optimystic local transactor so
+      // DML lands on the host's persistent storage (e.g. MMKV on RN). Sharing
+      // the instance — not creating a second one over the same id+prefix —
+      // avoids cache divergence between the libp2p and database paths.
       t0 = performance.now();
       const strandDb = new StrandDatabase({
         strandId,
         sAppConfig,
         libp2pNode: node,
         coordinatedRepo: node.coordinatedRepo,
-        mode: config.mode ?? 'networked'
+        mode: config.mode ?? 'networked',
+        rawStorage: strandStorage
       });
       await strandDb.initialize();
       timing('[startStrand:%s] strandDatabase.initialize: %dms', strandId, Math.round(performance.now() - t0));

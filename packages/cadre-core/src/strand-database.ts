@@ -4,6 +4,7 @@ import cryptoPlugin from '@optimystic/quereus-plugin-crypto/plugin';
 import optimysticPlugin from '@optimystic/quereus-plugin-optimystic/plugin';
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
+import type { IRawStorage } from '@optimystic/db-p2p';
 import type { SAppConfig, StrandMode } from './types.js';
 
 const log = debug('sereus:cadre:strand-db');
@@ -41,6 +42,14 @@ export interface StrandDatabaseConfig {
    * node. `'networked'` (the default) uses the network transactor.
    */
   mode?: StrandMode;
+  /**
+   * Raw storage backing the strand. When mode is `'bootstrap'` this is also used
+   * by the optimystic plugin's local transactor so DML lands on the host's
+   * persistent storage instead of in-memory. Must be the same instance the
+   * libp2p node was created with — sharing the instance avoids cache divergence
+   * across the two consumers.
+   */
+  rawStorage?: IRawStorage;
 }
 
 /**
@@ -91,13 +100,28 @@ export class StrandDatabase {
     const networkName = `strand-${sid}`;
     const mode: StrandMode = this.config.mode ?? 'networked';
     const defaultTransactor = mode === 'bootstrap' ? 'local' : 'network';
-    const pluginResult = optimysticPlugin(this.db, {
+    // In bootstrap mode the local transactor IS the data path. Hand the plugin
+    // the strand's raw storage (same instance the libp2p node uses) so writes
+    // persist to the host backend instead of in-memory storage.
+    const rawStorage = this.config.rawStorage;
+    const pluginConfig: Record<string, unknown> = {
       default_transactor: defaultTransactor,
       default_key_network: 'libp2p',
       default_network_name: networkName,
       enable_cache: true,
-    }) as OptimysticPluginResult;
-    log('Optimystic plugin registered for strand %s (mode=%s, transactor=%s)', sid, mode, defaultTransactor);
+    };
+    if (mode === 'bootstrap' && rawStorage) {
+      pluginConfig.rawStorageFactory = () => rawStorage;
+    }
+    // The plugin's published signature is `Record<string, SqlValue>` but it
+    // also reads `rawStorageFactory` (a function reference) from the same map.
+    // Cast through unknown rather than widen the public type.
+    const pluginResult = optimysticPlugin(
+      this.db,
+      pluginConfig as unknown as Parameters<typeof optimysticPlugin>[1]
+    ) as OptimysticPluginResult;
+    log('Optimystic plugin registered for strand %s (mode=%s, transactor=%s, persistentStorage=%s)',
+      sid, mode, defaultTransactor, mode === 'bootstrap' && !!rawStorage);
 
     // Register vtables and functions manually since we need access to collectionFactory
     for (const vtable of pluginResult.vtables as Array<{ name: string; module: unknown; auxData: unknown }>) {
