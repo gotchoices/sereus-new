@@ -1,6 +1,6 @@
 {
 	"name": "@serfab/quereus-plugin-sereus",
-	"version": "0.4.3",
+	"version": "0.5.0",
 	"type": "module",
 	"description": "Quereus plugin that connects to a Sereus strand for SQL access",
 	"main": "dist/index.js",
@@ -53,11 +53,11 @@
 	},
 	"dependencies": {
 		"@libp2p/interface": "^3.1.0",
-		"@optimystic/db-core": "^0.11.3",
-		"@optimystic/db-p2p": "^0.11.3",
-		"@optimystic/quereus-plugin-crypto": "^0.11.3",
+		"@optimystic/db-core": "^0.12.0",
+		"@optimystic/db-p2p": "^0.12.0",
+		"@optimystic/quereus-plugin-crypto": "^0.12.0",
 		"@optimystic/quereus-plugin-optimystic": "^0.11.3",
-		"@quereus/quereus": "^2.4.1",
+		"@quereus/quereus": "^2.7.0",
 		"debug": "^4.4.3"
 	},
 	"quereus": {
