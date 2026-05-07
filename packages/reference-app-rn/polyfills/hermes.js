@@ -6,7 +6,9 @@
 
 // Native CSPRNG — must be the very first import so globalThis.crypto.getRandomValues
 // is available before any library code. No-op if the native API already exists.
-// NOTE: requires native rebuild (EAS Build or local native build).
+// NOTE: requires native rebuild (EAS Build or local native build).  This is a
+// hard dependency; without it any libp2p key generation or @noble/hashes call
+// is unsafe, so we deliberately do NOT provide a Math.random fallback.
 require('react-native-get-random-values');
 
 // ── crypto.getRandomValues ──────────────────────────────────────────────────
@@ -37,20 +39,6 @@ if (!globalThis.crypto.subtle) {
 			return Promise.resolve(fn(new Uint8Array(data)).buffer);
 		},
 	};
-}
-
-if (typeof globalThis.crypto.getRandomValues !== 'function') {
-	globalThis.crypto.getRandomValues = function getRandomValues(array) {
-		for (let i = 0; i < array.length; i++) {
-			array[i] = Math.floor(Math.random() * 256);
-		}
-		return array;
-	};
-	console.error(
-		'[hermes polyfill] INSECURE — Using Math.random() fallback for crypto.getRandomValues. '
-		+ 'This is only acceptable for development without a native build. '
-		+ 'Run an EAS Build or local native build to get a real CSPRNG.',
-	);
 }
 
 // ── TextDecoder (UTF-8 only) ───────────────────────────────────────────────
@@ -125,9 +113,24 @@ if (typeof globalThis.structuredClone !== 'function') {
 
 // ── Symbol.asyncIterator ───────────────────────────────────────────────────
 // Some Hermes versions omit this, breaking `for await...of` on custom iterables.
+//
+// Use the global symbol registry (Symbol.for) so independent polyfills running
+// across packages converge on the same symbol — a fresh `Symbol(...)` would
+// create a new identity each time and miss any code already using
+// `Symbol.for('Symbol.asyncIterator')`.
 
-if (typeof Symbol.asyncIterator === 'undefined') {
-	Symbol.asyncIterator = Symbol('Symbol.asyncIterator');
+if (typeof Symbol !== 'undefined' && typeof Symbol.asyncIterator === 'undefined') {
+	try {
+		Object.defineProperty(Symbol, 'asyncIterator', {
+			value: Symbol.for('Symbol.asyncIterator'),
+			configurable: false,
+			enumerable: false,
+			writable: false,
+		});
+	} catch {
+		// Best-effort fallback for runtimes that disallow defineProperty on Symbol.
+		Symbol.asyncIterator = Symbol.for('Symbol.asyncIterator');
+	}
 }
 
 // ── Web Streams API ────────────────────────────────────────────────────────

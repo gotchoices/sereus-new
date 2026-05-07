@@ -190,19 +190,20 @@ React Native uses the [Hermes](https://hermesengine.dev/) JS engine, which is fa
 
 | File | What it polyfills | Required by |
 |------|-------------------|-------------|
-| `hermes.js` | `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves |
+| `hermes.js` | `crypto.getRandomValues()` (via `react-native-get-random-values`, no Math.random fallback) | @noble/hashes, @libp2p/crypto, @noble/curves |
 | `hermes.js` | `crypto.subtle.digest()` | multiformats/hashes/sha2 (browser variant) |
 | `hermes.js` | `TextDecoder` (UTF-8 only) | uint8arrays/util/bases (module-scope `new TextDecoder('utf8')` pulled in by libp2p/yamux/multiformats). No-op on Expo SDK 52+ Hermes; required on bare RN. |
 | `hermes.js` | `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) |
-| `hermes.js` | `Symbol.asyncIterator` | `for await...of` on custom iterables |
+| `hermes.js` | `Symbol.asyncIterator` (via `Symbol.for(...)` registry) | `for await...of` on custom iterables |
 | `hermes.js` | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries |
 | `hermes.js` | `Promise.withResolvers()` (ES2024) | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error |
 | `hermes.js` | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry |
 | `hermes.js` | Timer `.ref()` / `.unref()` wrappers | @optimystic/db-p2p, undici, libp2p internals |
-| `event.js` | `EventTarget`, `Event`, `CustomEvent` | libp2p, @libp2p/interface |
+| `event.js` | `EventTarget`, `Event` (via `event-target-polyfill` npm), `CustomEvent` (inline) | libp2p, @libp2p/interface |
 | `intl-pluralrules.js` | `Intl.PluralRules` (English-only) | moat-maker (error messages) |
 | `node-crypto.js` | `createHash()` (sha256, sha512) | multiformats/hashes/sha2 (Node variant) |
 | `node-os.js` | `networkInterfaces()`, `platform()`, etc. | @libp2p/utils (network detection) |
+| `empty.js` | `net`, `tls` empty stubs | libp2p transitive imports — never reached at RN runtime, but must resolve so the bundle builds |
 
 ### Adding new polyfills
 

@@ -182,6 +182,7 @@ The following dependencies **must** be listed as direct dependencies in your app
   "@noble/hashes": "^2.0.0",
   "@ungap/structured-clone": "^1.3.0",
   "buffer": "^6.0.3",
+  "event-target-polyfill": "^0.0.4",
   "react-native-get-random-values": "^1.11.0",
   "readable-stream": "^4.7.0",
   "web-streams-polyfill": "^4.1.0"
@@ -198,10 +199,10 @@ These patch `globalThis` to provide APIs that Hermes does not yet support:
 
 | API | Required by | Notes |
 |-----|-------------|-------|
-| `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves | via `react-native-get-random-values` (native CSPRNG); Math.random last-resort fallback with console.error |
+| `crypto.getRandomValues()` | @noble/hashes, @libp2p/crypto, @noble/curves | via `react-native-get-random-values` (native CSPRNG). No Math.random fallback — without the native module any libp2p key generation is unsafe, so we want loud breakage rather than silent insecurity |
 | `crypto.subtle.digest()` | multiformats/hashes/sha2-browser | Async SHA-256/SHA-512 via @noble/hashes |
 | `structuredClone()` | @optimystic/db-core (transform tracker, cache-source, coordinator) | via `@ungap/structured-clone` (spec-compliant); handles Date, Map, Set, circular refs |
-| `Symbol.asyncIterator` | `for await...of` on custom iterables | One-liner guard; some Hermes versions omit this |
+| `Symbol.asyncIterator` | `for await...of` on custom iterables | Some Hermes versions omit this. Guarded definition uses `Symbol.for('Symbol.asyncIterator')` (registry) so independent polyfills converge on the same symbol |
 | `ReadableStream`, `WritableStream`, `TransformStream` | Vercel AI SDK, streaming libraries | via `web-streams-polyfill` |
 | `Promise.withResolvers()` | @libp2p/utils, @chainsafe/libp2p-yamux, it-queue, mortice, abort-error | ES2024 API |
 | `AbortSignal.prototype.throwIfAborted()` | libp2p, @libp2p/utils, @libp2p/circuit-relay-v2, it-pushable, p-retry | DOM spec addition |
@@ -212,9 +213,9 @@ These patch `globalThis` to provide APIs that Hermes does not yet support:
 | File | Target | Required by | Notes |
 |------|--------|-------------|-------|
 | `packages/reference-app-rn/polyfills/intl-pluralrules.js` | `Intl.PluralRules` | moat-maker (error messages) | English-only ordinal/cardinal shim |
-| `packages/reference-app-rn/polyfills/event.js` | `Event`, `CustomEvent`, `EventTarget` | libp2p, @libp2p/interface | Full EventTarget with listener management |
+| `packages/reference-app-rn/polyfills/event.js` | `EventTarget`, `Event`, `CustomEvent` | libp2p, @libp2p/interface | Imports the [`event-target-polyfill`](https://www.npmjs.com/package/event-target-polyfill) npm package (spec-complete: handles `capture`, `once`, and `signal` options on `addEventListener`), then adds a minimal `CustomEvent` shim on top — `event-target-polyfill` does not include `CustomEvent`, which libp2p's `safeDispatchEvent` uses internally |
 
-**EventTarget alternatives:** The inline `polyfills/event.js` is a minimal implementation sufficient for libp2p's usage. The [`event-target-polyfill`](https://www.npmjs.com/package/event-target-polyfill) npm package is a more spec-complete alternative that supports `capture`, `once`, and `signal` options on `addEventListener`. Either approach works. If using the npm package, add `"event-target-polyfill"` to `package.json` and replace `import './polyfills/event'` in `index.js` with `import 'event-target-polyfill'` — the local `polyfills/event.js` file can then be removed entirely. Whichever approach is chosen **must** be reflected in `package.json` — omitting the dependency is the class of mistake that produces `Unable to resolve module event-target-polyfill` Metro failures.
+> A hand-rolled inline `EventTarget` class is technically sufficient for libp2p's current usage but quietly drops `once`, `signal`, and capture semantics. We prefer the npm package so future libp2p versions (or other consumers) that rely on those options keep working without surprises. The dependency must be listed in `package.json` — omitting it produces `Unable to resolve module event-target-polyfill` Metro failures.
 
 #### Built-in APIs (no polyfill needed)
 
@@ -246,6 +247,8 @@ These are configured in `metro.config.js` via `extraNodeModules` and map both `n
 | `crypto` / `node:crypto` | `packages/reference-app-rn/polyfills/node-crypto.js` | Custom shim — `createHash()` for SHA-256/SHA-512 via @noble/hashes | multiformats/hashes/sha2 |
 | `stream` / `node:stream` | `readable-stream` (npm) | Metro `extraNodeModules` | libp2p stream handling |
 | `buffer` / `node:buffer` | `buffer` (npm) | Metro `extraNodeModules` | libp2p, multiformats |
+| `net` / `node:net` | `packages/reference-app-rn/polyfills/empty.js` | Empty stub | libp2p transitive imports — never reached at RN runtime, but needs to resolve so the bundle builds |
+| `tls` / `node:tls` | `packages/reference-app-rn/polyfills/empty.js` | Empty stub | libp2p transitive imports — never reached at RN runtime, but needs to resolve so the bundle builds |
 
 #### Commonly needed beyond core
 
