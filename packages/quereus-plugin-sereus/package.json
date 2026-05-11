@@ -42,9 +42,11 @@
 		"clean": "rimraf dist",
 		"build": "tsc -p tsconfig.build.json",
 		"test": "vitest run",
+		"test:e2e": "vitest run --project e2e",
 		"dev:test": "vitest"
 	},
 	"devDependencies": {
+		"@optimystic/db-p2p-storage-fs": "^0.13.0",
 		"@types/debug": "^4.1.12",
 		"@types/node": "^25.0.10",
 		"rimraf": "^6.1.2",

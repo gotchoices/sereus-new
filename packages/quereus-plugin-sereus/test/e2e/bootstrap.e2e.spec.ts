@@ -1,0 +1,174 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { Database } from '@quereus/quereus';
+import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
+import { connectToStrand } from '../../src/connect.js';
+import type { SereusPluginResult } from '../../src/types.js';
+
+/**
+ * End-to-end suite for bootstrap mode: real libp2p node + real FileRawStorage
+ * + real optimystic plugin local transactor. No `vi.mock` calls — the sibling
+ * unit spec's `vi.mock('@optimystic/db-p2p', ...)` is scoped to that file by
+ * Vitest, so this file inherits no fakes.
+ *
+ * The headline assertion is the persistence test: data written by one
+ * `connectToStrand({ mode: 'bootstrap', storage })` call must be readable by
+ * a second connection built over the same storage directory after the first
+ * has shut down. This closes the cold-start loop deferred to the host app in
+ * tickets/complete/1-wire-strand-storage-into-bootstrap-transactor.md.
+ */
+
+const TEST_SCHEMA = 'table Msg (Id integer primary key, Body text not null)';
+
+describe('connectToStrand (bootstrap e2e)', () => {
+	let storageDir: string;
+	let db: Database | null = null;
+	let result: SereusPluginResult | null = null;
+
+	beforeEach(async () => {
+		storageDir = path.join(os.tmpdir(), 'sereus-plugin-e2e', randomUUID());
+		await fs.mkdir(storageDir, { recursive: true });
+	});
+
+	afterEach(async () => {
+		try {
+			if (result) {
+				await result.shutdown();
+				result = null;
+			}
+		} catch (err) {
+			console.error('shutdown error in afterEach:', err);
+		}
+		try {
+			if (db) {
+				db.close();
+				db = null;
+			}
+		} catch (err) {
+			console.error('db.close error in afterEach:', err);
+		}
+		await fs.rm(storageDir, { recursive: true, force: true });
+	});
+
+	it('runs CRUD round-trip in a single bootstrap connection', async () => {
+		const strandId = randomUUID();
+		const storage = new FileRawStorage(storageDir);
+		db = new Database();
+		result = await connectToStrand(db, {
+			strandId,
+			mode: 'bootstrap',
+			storage,
+			schema: TEST_SCHEMA,
+		});
+
+		await db.exec(`insert into App.Msg(Id, Body) values (1,'a'),(2,'b'),(3,'c')`);
+
+		const countRows: Array<{ c: number }> = [];
+		for await (const row of db.eval('select count(*) as c from App.Msg')) {
+			countRows.push(row as { c: number });
+		}
+		expect(countRows[0].c).toBe(3);
+
+		await db.exec(`update App.Msg set Body='B' where Id=2`);
+		const updatedRows: Array<{ Body: string }> = [];
+		for await (const row of db.eval('select Body from App.Msg where Id=2')) {
+			updatedRows.push(row as { Body: string });
+		}
+		expect(updatedRows).toHaveLength(1);
+		expect(updatedRows[0].Body).toBe('B');
+
+		await db.exec(`delete from App.Msg where Id=1`);
+		const afterDelete: Array<{ c: number }> = [];
+		for await (const row of db.eval('select count(*) as c from App.Msg')) {
+			afterDelete.push(row as { c: number });
+		}
+		expect(afterDelete[0].c).toBe(2);
+	});
+
+	it('persists DML across reopen of the same storage path', async () => {
+		const strandId = randomUUID();
+
+		// First session: insert and shutdown.
+		{
+			const storage1 = new FileRawStorage(storageDir);
+			const db1 = new Database();
+			const r1 = await connectToStrand(db1, {
+				strandId,
+				mode: 'bootstrap',
+				storage: storage1,
+				schema: TEST_SCHEMA,
+			});
+			try {
+				await db1.exec(`insert into App.Msg(Id, Body) values (42, 'persisted')`);
+			} finally {
+				await r1.shutdown();
+				db1.close();
+			}
+		}
+
+		// Second session: fresh Database, fresh FileRawStorage over the same dir,
+		// same strandId. Schema apply should be a no-op (declarative-schema diff).
+		const storage2 = new FileRawStorage(storageDir);
+		db = new Database();
+		result = await connectToStrand(db, {
+			strandId,
+			mode: 'bootstrap',
+			storage: storage2,
+			schema: TEST_SCHEMA,
+		});
+
+		const rows: Array<{ Id: number; Body: string }> = [];
+		for await (const row of db.eval('select Id, Body from App.Msg')) {
+			rows.push(row as { Id: number; Body: string });
+		}
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual({ Id: 42, Body: 'persisted' });
+	});
+
+	it('rejects queries against App.* when schema is omitted in bootstrap mode', async () => {
+		const strandId = randomUUID();
+		const storage = new FileRawStorage(storageDir);
+		db = new Database();
+		result = await connectToStrand(db, {
+			strandId,
+			mode: 'bootstrap',
+			storage,
+		});
+
+		await expect(async () => {
+			for await (const _row of db!.eval('select * from App.Msg')) {
+				// should not reach
+			}
+		}).rejects.toThrow();
+	});
+
+	it('releases handles cleanly so the storage path can be reused in the same process', async () => {
+		const strandId = randomUUID();
+
+		// Three open/close cycles over the same storage dir, same strand. Catches
+		// leaks (file lock, libp2p socket) that only manifest on the second cycle.
+		for (let i = 0; i < 3; i++) {
+			const storage = new FileRawStorage(storageDir);
+			const cycleDb = new Database();
+			const cycleResult = await connectToStrand(cycleDb, {
+				strandId,
+				mode: 'bootstrap',
+				storage,
+				schema: TEST_SCHEMA,
+			});
+			try {
+				const rows: Array<{ c: number }> = [];
+				for await (const row of cycleDb.eval('select count(*) as c from App.Msg')) {
+					rows.push(row as { c: number });
+				}
+				expect(rows).toHaveLength(1);
+			} finally {
+				await cycleResult.shutdown();
+				cycleDb.close();
+			}
+		}
+	});
+});

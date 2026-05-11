@@ -1,5 +1,6 @@
 import type { Libp2p } from '@libp2p/interface';
 import type { IRepo } from '@optimystic/db-core';
+import type { IRawStorage } from '@optimystic/db-p2p';
 
 export interface StrandConnectionOptions {
 	/** UUID of the strand to connect to */
@@ -22,7 +23,24 @@ export interface StrandConnectionOptions {
 	libp2pNode?: Libp2p;
 	/** Required when libp2pNode is provided */
 	coordinatedRepo?: IRepo;
-	/** @internal Override transactor type (default: 'network'; use 'test' for unit tests) */
+	/**
+	 * Lifecycle mode. `'networked'` (default) uses the network transactor and
+	 * is appropriate for multi-peer participation. `'bootstrap'` switches to a
+	 * local transactor so a solo node can apply schema and accept DML with no
+	 * peer round trips; pair it with a persistent `storage` to survive restart.
+	 */
+	mode?: 'bootstrap' | 'networked';
+	/**
+	 * Persistent raw storage. When provided:
+	 *  - it is passed to `createLibp2pNode` as `storage` so the libp2p data path uses it,
+	 *  - in `bootstrap` mode it is also handed to the optimystic plugin as
+	 *    `rawStorageFactory: () => storage` so the local transactor persists DML
+	 *    on the same instance (avoids cache divergence between the two consumers).
+	 *
+	 * The plugin treats `storage` as borrowed — it is NOT closed on `shutdown()`.
+	 */
+	storage?: IRawStorage;
+	/** @internal Override transactor type. Used by unit tests with `'test'`. When set, takes precedence only if `mode` is not specified. */
 	transactor?: string;
 }
 

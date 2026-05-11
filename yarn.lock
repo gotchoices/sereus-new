@@ -5220,6 +5220,7 @@ __metadata:
     "@libp2p/interface": "npm:^3.1.0"
     "@optimystic/db-core": "npm:^0.13.0"
     "@optimystic/db-p2p": "npm:^0.13.0"
+    "@optimystic/db-p2p-storage-fs": "npm:^0.13.0"
     "@optimystic/quereus-plugin-crypto": "npm:^0.13.0"
     "@optimystic/quereus-plugin-optimystic": "npm:^0.13.0"
     "@quereus/quereus": "npm:^2.8.0"

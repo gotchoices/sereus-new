@@ -59,6 +59,30 @@ const result = await registerPlugin(db, sereusPlugin, {
 await result.shutdown();
 ```
 
+### Bootstrap mode (solo node with persistent storage)
+
+For a solo node (e.g. first-launch sApp init, single-host dev) that should
+apply schema and accept DML without peer round trips, set `mode: 'bootstrap'`
+and pass a persistent `IRawStorage`. The same storage instance is wired into
+both the libp2p data path and the optimystic plugin's local transactor, so
+writes persist across restart.
+
+```typescript
+import { FileRawStorage } from '@optimystic/db-p2p-storage-fs';
+
+const storage = new FileRawStorage('./data/my-strand');
+const strand = await connectToStrand(db, {
+  strandId: 'abc',
+  mode: 'bootstrap',
+  storage,
+  schema: 'table Msg (Id integer primary key, Body text not null)',
+});
+```
+
+The plugin treats `storage` as borrowed: `shutdown()` releases the libp2p node
+and collection factory but does **not** close the storage. Lifecycle of the
+storage is the caller's responsibility.
+
 ### With Injected Node
 
 When integrating with an existing CadreNode or other libp2p host:
@@ -89,6 +113,8 @@ The plugin will use the injected node instead of creating one, and will not stop
 | `fretProfile` | `'edge' \| 'core'` | `'edge'` | FRET profile |
 | `libp2pNode` | Libp2p | — | Inject an existing libp2p node |
 | `coordinatedRepo` | IRepo | — | Required when `libp2pNode` is provided |
+| `mode` | `'bootstrap' \| 'networked'` | `'networked'` | `'bootstrap'` routes through the local transactor (no peer round trips); `'networked'` uses the network transactor |
+| `storage` | IRawStorage | — | Persistent raw storage. Passed to `createLibp2pNode`; in `bootstrap` mode also wired into the local transactor via `rawStorageFactory`. Borrowed — not closed on `shutdown()` |
 
 ### Plugin Settings (plugin-loader / Quoomb)
 
@@ -114,7 +140,8 @@ Registered automatically from the composed plugins:
 
 ```bash
 yarn build    # Build with tsc
-yarn test     # Run tests (vitest)
+yarn test     # Run tests (unit + e2e projects)
+yarn test:e2e # Run only the e2e project (real libp2p + FileRawStorage)
 yarn dev:test # Watch mode
 ```
 

@@ -43,23 +43,49 @@ export async function connectToStrand(
 		port = 0,
 		enableCache = true,
 		fretProfile = 'edge',
-		transactor = 'network',
+		mode,
+		storage,
 	} = options;
 
+	// Resolve the transactor. `mode` is the public knob: bootstrap -> local,
+	// networked -> network. The legacy `transactor` override (used by unit
+	// tests with `'test'`) only applies when `mode` is unspecified.
+	let resolvedTransactor: string;
+	if (mode !== undefined) {
+		resolvedTransactor = mode === 'bootstrap' ? 'local' : 'network';
+	} else if (options.transactor !== undefined) {
+		resolvedTransactor = options.transactor;
+	} else {
+		resolvedTransactor = 'network';
+	}
+
 	const networkName = `strand-${strandId}`;
-	log('Connecting to strand %s (network: %s)', strandId, networkName);
+	log('Connecting to strand %s (network: %s, mode=%s, transactor=%s)',
+		strandId, networkName, mode ?? '(default)', resolvedTransactor);
 
 	// 1. Register crypto plugin (digest, sign, verify, etc.)
 	await registerPlugin(db, cryptoPlugin);
 	log('Registered crypto plugin');
 
-	// 2. Register optimystic plugin with transactor defaults
-	const pluginResult = optimysticPlugin(db, {
-		default_transactor: transactor,
+	// 2. Register optimystic plugin with transactor defaults. In bootstrap mode
+	// with persistent storage, hand the same instance to the plugin so the local
+	// transactor persists DML on the host backend (not in-memory).
+	const pluginConfig: Record<string, unknown> = {
+		default_transactor: resolvedTransactor,
 		default_key_network: 'libp2p',
 		default_network_name: networkName,
 		enable_cache: enableCache,
-	}) as OptimysticPluginResult;
+	};
+	if (resolvedTransactor === 'local' && storage) {
+		pluginConfig.rawStorageFactory = () => storage;
+	}
+	// The plugin's published signature is `Record<string, SqlValue>` but it
+	// also reads `rawStorageFactory` (a function reference) from the same map.
+	// Cast through unknown rather than widen the public type.
+	const pluginResult = optimysticPlugin(
+		db,
+		pluginConfig as unknown as Parameters<typeof optimysticPlugin>[1],
+	) as OptimysticPluginResult;
 
 	// 3. Register vtables and functions from the optimystic result
 	for (const vtable of pluginResult.vtables) {
@@ -72,11 +98,12 @@ export async function connectToStrand(
 
 	const { collectionFactory } = pluginResult;
 
-	// 4. Create or use injected libp2p node (skip for non-network transactors)
+	// 4. Create or use injected libp2p node. Skip only when this is the unit-test
+	// fake transactor — every real path (network, local bootstrap) needs a node.
 	let createdNode: Libp2p | null = null;
 
 	try {
-		if (transactor === 'network' || options.libp2pNode) {
+		if (resolvedTransactor !== 'test' || options.libp2pNode) {
 			let node: Libp2p;
 			let coordinatedRepo: IRepo;
 
@@ -95,6 +122,7 @@ export async function connectToStrand(
 					bootstrapNodes,
 					networkName,
 					fretProfile,
+					...(storage && { storage }),
 				});
 				createdNode = created;
 				node = created;
@@ -102,7 +130,8 @@ export async function connectToStrand(
 				if (!coordinatedRepo) {
 					throw new Error('coordinatedRepo not available on created libp2p node');
 				}
-				log('Created libp2p node (port: %d, fretProfile: %s)', port, fretProfile);
+				log('Created libp2p node (port: %d, fretProfile: %s, storage=%s)',
+					port, fretProfile, !!storage);
 			}
 
 			// 5. Register the node with the collection factory
@@ -114,10 +143,10 @@ export async function connectToStrand(
 		db.setDefaultVtabName('optimystic');
 		db.setDefaultVtabArgs({
 			networkName,
-			transactor,
+			transactor: resolvedTransactor,
 			keyNetwork: 'libp2p',
 		});
-		log('Set default vtab to optimystic (networkName=%s, transactor=%s)', networkName, transactor);
+		log('Set default vtab to optimystic (networkName=%s, transactor=%s)', networkName, resolvedTransactor);
 
 		// 7. Apply sApp schema if provided
 		if (schema) {
