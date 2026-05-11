@@ -1,0 +1,9 @@
+[    1000ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/favicon.ico:0
+[    1064ms] [ERROR] [reference-app-web] startNode failed: TypeError: this.expirationInterval.unref is not a function
+    at new ClusterMember (http://localhost:5174/@fs/C:/projects/optimystic/packages/db-p2p/dist/src/cluster/cluster-repo.js:70:33)
+    at clusterMember (http://localhost:5174/@fs/C:/projects/optimystic/packages/db-p2p/dist/src/cluster/cluster-repo.js:22:12)
+    at createLibp2pNodeBase (http://localhost:5174/@fs/C:/projects/optimystic/packages/db-p2p/dist/src/libp2p-node-base.js:211:19)
+    at async createLibp2pNode (http://localhost:5174/@fs/C:/projects/optimystic/packages/db-p2p/dist/src/libp2p-node-rn.js:14:12)
+    at async startNode (http://localhost:5174/src/lib/optimystic.ts:31:10)
+    at async Module.track_reactivity_loss (http://localhost:5174/node_modules/.vite/deps/chunk-XR7XYRXR.js?v=8dffe3b0:1699:15)
+    at async start (http://localhost:5174/src/lib/store.svelte.ts:18:17) @ http://localhost:5174/src/lib/store.svelte.ts:24

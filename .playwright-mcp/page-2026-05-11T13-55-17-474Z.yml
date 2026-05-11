@@ -1,0 +1,13 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Sereus Web Reference" [level=1] [ref=e5]
+    - generic [ref=e6]: Solo
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Status
+      - generic [ref=e10]: starting
+    - generic [ref=e11]:
+      - generic [ref=e12]: Peer ID
+      - code [ref=e13]: —
+  - button "Restart node" [disabled] [ref=e15]
+  - paragraph [ref=e17]: "Solo mode: no bootstrap, no listen addresses. Identity persists in IndexedDB and survives reloads."
