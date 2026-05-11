@@ -14,7 +14,7 @@
  */
 
 import { getNode, getDb, getStorage, getIdentityFirstSeenMs } from './optimystic.js';
-import type { Libp2p, Connection, PeerId } from '@libp2p/interface';
+import type { Libp2p, Connection } from '@libp2p/interface';
 
 const ERROR_BUFFER_LIMIT = 10;
 const POLL_INTERVAL_MS = 2_000;
@@ -71,6 +71,7 @@ export interface StorageInfo {
 
 export interface CryptoSanityInfo {
 	cryptoSubtle: boolean;
+	cryptoGetRandomValues: boolean;
 	eventTarget: boolean;
 	promiseWithResolvers: boolean;
 	structuredClone: boolean;
@@ -240,11 +241,13 @@ export function stopDiagnostics(): void {
 
 function detectCryptoSanity(): CryptoSanityInfo {
 	const hasGlobal = typeof globalThis !== 'undefined';
+	const cryptoRef = (
+		globalThis as { crypto?: { subtle?: unknown; getRandomValues?: unknown } }
+	).crypto;
 	return {
-		cryptoSubtle:
-			hasGlobal &&
-			typeof (globalThis as { crypto?: { subtle?: unknown } }).crypto?.subtle ===
-				'object',
+		cryptoSubtle: hasGlobal && typeof cryptoRef?.subtle === 'object',
+		cryptoGetRandomValues:
+			hasGlobal && typeof cryptoRef?.getRandomValues === 'function',
 		eventTarget: hasGlobal && typeof EventTarget !== 'undefined',
 		promiseWithResolvers:
 			hasGlobal &&
@@ -505,36 +508,30 @@ function attachNodeListenersIfNeeded(node: Libp2p | null): void {
 		nodeListenerOff = null;
 	}
 
-	const onConnectionClose = (evt: CustomEvent<Connection>) => {
-		const err = (evt.detail as Connection & { error?: Error }).error;
-		if (err) {
-			const remote = evt.detail.remotePeer?.toString?.() ?? 'unknown';
-			pushError('connection:close', `${shortPeerId(remote) ?? remote}: ${err.message}`);
-		}
-	};
-	const onSelfPeerUpdate = (_evt: Event) => {
-		// Address set changed — record nothing, the tick will pick up new
-		// listen addrs. Hook reserved for future error-bearing variants.
-	};
-	const onPeerDisconnect = (evt: CustomEvent<PeerId>) => {
-		// Disconnects without error are normal lifecycle. Surface only if a
-		// detail.error is attached (some libp2p builds emit it that way).
-		const err = (evt as CustomEvent<PeerId & { error?: Error }>).detail
-			?.error as Error | undefined;
-		if (err) {
-			const id = evt.detail?.toString?.() ?? 'unknown';
-			pushError('peer:disconnect', `${shortPeerId(id) ?? id}: ${err.message}`);
-		}
+	// libp2p's node-level `connection:close` event detail is the `Connection`
+	// itself and carries no error. The error (if any) lives on the
+	// `Connection`'s own `close` event as `StreamCloseEvent.error`. Attach a
+	// one-shot close listener to every newly opened connection so we capture
+	// non-graceful closures.
+	const onConnectionOpen = (evt: CustomEvent<Connection>) => {
+		const conn = evt.detail;
+		const remote = conn.remotePeer?.toString?.() ?? 'unknown';
+		const onClose = (closeEvt: Event) => {
+			const err = (closeEvt as Event & { error?: Error }).error;
+			if (err) {
+				pushError(
+					'connection:close',
+					`${shortPeerId(remote) ?? remote}: ${err.message}`,
+				);
+			}
+		};
+		conn.addEventListener('close', onClose, { once: true });
 	};
 
-	node.addEventListener('connection:close', onConnectionClose as EventListener);
-	node.addEventListener('self:peer:update', onSelfPeerUpdate);
-	node.addEventListener('peer:disconnect', onPeerDisconnect as EventListener);
+	node.addEventListener('connection:open', onConnectionOpen as EventListener);
 
 	nodeListenerOff = () => {
-		node.removeEventListener('connection:close', onConnectionClose as EventListener);
-		node.removeEventListener('self:peer:update', onSelfPeerUpdate);
-		node.removeEventListener('peer:disconnect', onPeerDisconnect as EventListener);
+		node.removeEventListener('connection:open', onConnectionOpen as EventListener);
 	};
 	attachedNode = node;
 }

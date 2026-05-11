@@ -256,6 +256,12 @@
 				<span class="check-icon">{state.crypto.cryptoSubtle ? '✓' : '✗'}</span>
 				<code>crypto.subtle</code>
 			</li>
+			<li class:ok={state.crypto.cryptoGetRandomValues}>
+				<span class="check-icon"
+					>{state.crypto.cryptoGetRandomValues ? '✓' : '✗'}</span
+				>
+				<code>crypto.getRandomValues</code>
+			</li>
 			<li class:ok={state.crypto.eventTarget}>
 				<span class="check-icon">{state.crypto.eventTarget ? '✓' : '✗'}</span>
 				<code>EventTarget</code>

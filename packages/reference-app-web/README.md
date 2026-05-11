@@ -45,12 +45,13 @@ breaks:
   / usage, raw approximate bytes via `IRawStorage.getApproximateBytesUsed()`,
   and a per-object-store row count (`metadata`, `revisions`, `pending`,
   `transactions`, `materialized`, `kv`).
-- **Crypto sanity** — six boolean checks for the host APIs the libp2p stack
-  reaches for: `crypto.subtle`, `EventTarget`, `Promise.withResolvers`,
-  `structuredClone`, `ReadableStream`, and the shimmed `globalThis.Buffer`.
+- **Crypto sanity** — seven boolean checks for the host APIs the libp2p
+  stack reaches for: `crypto.subtle`, `crypto.getRandomValues`,
+  `EventTarget`, `Promise.withResolvers`, `structuredClone`,
+  `ReadableStream`, and the shimmed `globalThis.Buffer`.
 - **Recent errors** — a 10-deep ring buffer fed by the start/stop catch
-  blocks, libp2p `connection:close` / `peer:disconnect` events with an
-  attached `detail.error`, and global `error` / `unhandledrejection` window
+  blocks, per-connection `close` events with `error` set (attached on each
+  `connection:open`), and global `error` / `unhandledrejection` window
   events. Use **Clear** to reset.
 
 The tick performs only cheap probes — `node.getConnections()`,
