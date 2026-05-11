@@ -145,6 +145,14 @@ yarn test:e2e # Run only the e2e project (real libp2p + FileRawStorage)
 yarn dev:test # Watch mode
 ```
 
+The `e2e` project covers two scenarios over real libp2p + `FileRawStorage`:
+
+- `test/e2e/bootstrap.e2e.spec.ts` — solo-node bootstrap mode, including
+  cold-restart persistence across the shared storage directory.
+- `test/e2e/networked.e2e.spec.ts` — two in-process peers exchanging strand
+  data through a `createLibp2pNode` mesh: cross-peer replication,
+  bidirectional convergence, and late-joiner catch-up.
+
 ## License
 
 MIT
