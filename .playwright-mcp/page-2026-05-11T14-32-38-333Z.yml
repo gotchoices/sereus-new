@@ -1,0 +1,35 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Sereus Web Reference" [level=1] [ref=e5]
+    - generic [ref=e6]: solo
+    - navigation [ref=e7]:
+      - link "Home" [ref=e8] [cursor=pointer]:
+        - /url: "#/"
+      - link "Messages" [ref=e9] [cursor=pointer]:
+        - /url: "#/messages"
+      - link "Activity" [ref=e10] [cursor=pointer]:
+        - /url: "#/log"
+      - link "Diagnostics" [ref=e11] [cursor=pointer]:
+        - /url: "#/diag"
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Status
+      - generic [ref=e15]: starting
+    - generic [ref=e16]:
+      - generic [ref=e17]: Mode
+      - generic [ref=e18]: solo
+    - generic [ref=e19]:
+      - generic [ref=e20]: Peer ID
+      - code [ref=e21]: —
+  - button "Restart node" [disabled] [ref=e23]
+  - generic [ref=e24]:
+    - heading "Network" [level=2] [ref=e25]
+    - paragraph [ref=e26]:
+      - text: Paste a bootstrap multiaddr (e.g.
+      - code [ref=e27]: /ip4/127.0.0.1/tcp/9091/ws/p2p/12D…
+      - text: ) and connect. Two browser tabs pointed at the same bootstrap converge on the same data after the next refresh tick.
+    - generic [ref=e28]: Bootstrap multiaddr(s)
+    - textbox "Bootstrap multiaddr(s)" [ref=e29]:
+      - /placeholder: /ip4/127.0.0.1/tcp/9091/ws/p2p/12D3...
+    - button "Connect" [disabled] [ref=e31]
+  - paragraph [ref=e33]: "Solo mode: no bootstrap, no listen addresses. Identity persists in IndexedDB and survives reloads. Messages stored locally via the LocalTransactor."

@@ -1,0 +1,34 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Sereus Web Reference" [level=1] [ref=e5]
+    - generic [ref=e6]: solo
+    - navigation [ref=e7]:
+      - link "Home" [ref=e8] [cursor=pointer]:
+        - /url: "#/"
+      - link "Messages" [ref=e9] [cursor=pointer]:
+        - /url: "#/messages"
+      - link "Activity" [ref=e10] [cursor=pointer]:
+        - /url: "#/log"
+      - link "Diagnostics" [ref=e11] [cursor=pointer]:
+        - /url: "#/diag"
+  - generic [ref=e68]:
+    - generic [ref=e69]:
+      - heading "Messages" [level=2] [ref=e70]
+      - generic [ref=e71]:
+        - generic [ref=e72]: mode solo
+        - generic [ref=e73]: refreshed 8:33:10 AM
+        - button "Refresh" [ref=e74] [cursor=pointer]
+    - generic [ref=e75]:
+      - textbox "Author" [ref=e76]
+      - textbox "Say something…" [ref=e77]
+      - button "Send" [ref=e78] [cursor=pointer]
+    - list [ref=e79]:
+      - listitem [ref=e80]:
+        - generic [ref=e81]:
+          - generic [ref=e82]: Alice
+          - generic [ref=e83]: 5/11/2026, 8:32:59 AM
+        - paragraph [ref=e84]: Hello from solo mode!
+        - generic [ref=e85]:
+          - button "Edit" [ref=e86] [cursor=pointer]
+          - button "Delete" [ref=e87] [cursor=pointer]
+          - code [ref=e88]: msg-1778509979720-07uwey

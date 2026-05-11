@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { start } from './lib/store.svelte.js';
+	import { nodeState, start } from './lib/store.svelte.js';
 	import {
 		routeState,
 		startRouter,
@@ -9,8 +9,11 @@
 	} from './lib/router.svelte.js';
 	import Home from './Home.svelte';
 	import Diagnostics from './Diagnostics.svelte';
+	import Messages from './Messages.svelte';
+	import Activity from './Activity.svelte';
 
 	const route = routeState();
+	const node = nodeState();
 
 	onMount(() => {
 		startRouter();
@@ -20,6 +23,8 @@
 
 	const NAV: Array<{ path: string; label: string }> = [
 		{ path: '/', label: 'Home' },
+		{ path: '/messages', label: 'Messages' },
+		{ path: '/log', label: 'Activity' },
 		{ path: '/diag', label: 'Diagnostics' },
 	];
 
@@ -32,7 +37,7 @@
 <main>
 	<header>
 		<h1>Sereus Web Reference</h1>
-		<span class="mode-badge">Solo</span>
+		<span class="mode-badge mode-{node.mode}">{node.mode}</span>
 		<nav>
 			{#each NAV as item (item.path)}
 				<a href={hrefFor(item.path)} class:active={isActive(item.path)}>
@@ -44,6 +49,10 @@
 
 	{#if route.path === '/diag'}
 		<Diagnostics />
+	{:else if route.path === '/messages'}
+		<Messages />
+	{:else if route.path === '/log'}
+		<Activity />
 	{:else}
 		<Home />
 	{/if}
@@ -80,8 +89,16 @@
 		letter-spacing: 0.05em;
 		padding: 0.125rem 0.5rem;
 		border-radius: 999px;
+	}
+
+	.mode-solo {
 		background: #ffe9b3;
 		color: #6b4d00;
+	}
+
+	.mode-distributed {
+		background: #d8f1e0;
+		color: #1f7a3b;
 	}
 
 	nav {

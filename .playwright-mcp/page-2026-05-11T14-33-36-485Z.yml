@@ -1,0 +1,29 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Sereus Web Reference" [level=1] [ref=e5]
+    - generic [ref=e6]: solo
+    - navigation [ref=e7]:
+      - link "Home" [ref=e8] [cursor=pointer]:
+        - /url: "#/"
+      - link "Messages" [ref=e9] [cursor=pointer]:
+        - /url: "#/messages"
+      - link "Activity" [ref=e10] [cursor=pointer]:
+        - /url: "#/log"
+      - link "Diagnostics" [ref=e11] [cursor=pointer]:
+        - /url: "#/diag"
+  - generic [ref=e98]:
+    - generic [ref=e99]:
+      - heading "Activity" [level=2] [ref=e100]
+      - generic [ref=e101]:
+        - generic [ref=e102]: 2 entries
+        - generic [ref=e103]: refreshed 8:33:35 AM
+        - button "Refresh" [ref=e104] [cursor=pointer]
+    - list [ref=e105]:
+      - listitem [ref=e106]:
+        - generic [ref=e107]: updated
+        - code [ref=e108]: msg-1778509979720-07uwey
+        - generic [ref=e109]: 5/11/2026, 8:33:29 AM
+      - listitem [ref=e110]:
+        - generic [ref=e111]: created
+        - code [ref=e112]: msg-1778509979720-07uwey
+        - generic [ref=e113]: 5/11/2026, 8:32:59 AM

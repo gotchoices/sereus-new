@@ -1,16 +1,41 @@
 /**
- * optimystic.ts — libp2p node configured for a browser peer in solo mode.
+ * optimystic.ts — libp2p node + transactor wiring for the browser reference.
  *
  * Mirrors the shape of `reference-app-rn/src/cadre-phone.ts` but for the
  * browser:
  *   - WebSocket + circuit-relay transports (browsers cannot listen)
  *   - IndexedDB-backed raw storage via `@optimystic/db-p2p-storage-web`
  *   - Ed25519 identity persisted across reloads in the same IDB database
- *   - No bootstrap, no listen addresses — pure solo mode for the scaffold
+ *
+ * Two operating modes:
+ *   - **solo**: no bootstrap, clusterSize 1 — used by the scaffold to prove the
+ *     stack boots in a browser.
+ *   - **distributed**: `bootstrapNodes` populated, clusterSize 3 — wraps the
+ *     node's `coordinatedRepo` in a `NetworkTransactor` so `MessageApp` writes
+ *     fan out to a real cluster (mirrors the wiring in
+ *     `optimystic/packages/reference-peer/src/cli.ts`).
  */
 
-import { createLibp2pNode, type NodeOptions } from '@optimystic/db-p2p/rn';
+import {
+	createLibp2pNode,
+	type Libp2pKeyPeerNetwork,
+	RepoClient,
+	type NodeOptions,
+} from '@optimystic/db-p2p/rn';
 import type { IRawStorage } from '@optimystic/db-p2p';
+import {
+	NetworkTransactor,
+	type ActionBlocks,
+	type BlockActionStatus,
+	type BlockGets,
+	type CommitRequest,
+	type CommitResult,
+	type GetBlockResults,
+	type IRepo,
+	type ITransactor,
+	type PendRequest,
+	type PendResult,
+} from '@optimystic/db-core';
 import {
 	IndexedDBRawStorage,
 	openOptimysticWebDb,
@@ -22,20 +47,29 @@ import { webSockets } from '@libp2p/websockets';
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import type { Libp2p } from 'libp2p';
 
+export type NodeMode = 'solo' | 'distributed';
+
 export interface StartNodeOptions {
 	/** Logical network identifier — also used as the IndexedDB database name. */
 	networkName?: string;
 	/** Bootstrap multiaddrs. Empty in solo mode. */
 	bootstrapNodes?: string[];
+	/** Desired cluster size. Defaults: solo → 1, distributed → 3. */
+	clusterSize?: number;
 }
 
 const DEFAULT_NETWORK_NAME = 'sereus-web-reference';
 const IDENTITY_FIRST_SEEN_KEY = 'identity-first-seen';
+const NETWORK_TIMEOUT_MS = 30_000;
+const ABORT_OR_CANCEL_TIMEOUT_MS = 10_000;
 
 let node: Libp2p | null = null;
 let db: OptimysticWebDBHandle | null = null;
 let storage: IRawStorage | null = null;
+let transactor: ITransactor | null = null;
+let mode: NodeMode = 'solo';
 let identityFirstSeenMs: number | null = null;
+let activeNetworkName: string = DEFAULT_NETWORK_NAME;
 
 export function getNode(): Libp2p | null {
 	return node;
@@ -47,6 +81,18 @@ export function getDb(): OptimysticWebDBHandle | null {
 
 export function getStorage(): IRawStorage | null {
 	return storage;
+}
+
+export function getTransactor(): ITransactor | null {
+	return transactor;
+}
+
+export function getMode(): NodeMode {
+	return mode;
+}
+
+export function getNetworkName(): string {
+	return activeNetworkName;
 }
 
 /**
@@ -86,6 +132,10 @@ export async function startNode(opts: StartNodeOptions = {}): Promise<Libp2p> {
 
 	const networkName = opts.networkName ?? DEFAULT_NETWORK_NAME;
 	const bootstrapNodes = opts.bootstrapNodes ?? [];
+	const isDistributed = bootstrapNodes.length > 0;
+	const clusterSize = opts.clusterSize ?? (isDistributed ? 3 : 1);
+	activeNetworkName = networkName;
+	mode = isDistributed ? 'distributed' : 'solo';
 
 	db = await openOptimysticWebDb(networkName);
 	identityFirstSeenMs = await trackIdentityFirstSeen(db, DEFAULT_PEER_KEY_NAME);
@@ -96,14 +146,94 @@ export async function startNode(opts: StartNodeOptions = {}): Promise<Libp2p> {
 		privateKey,
 		networkName,
 		bootstrapNodes,
-		clusterSize: 1,
+		clusterSize,
 		storage,
 		transports: [webSockets(), circuitRelayTransport()],
 		listenAddrs: [],
 	};
 
-	node = await createLibp2pNode(config);
-	return node;
+	const created = await createLibp2pNode(config);
+	node = created;
+
+	if (isDistributed) {
+		transactor = buildNetworkTransactor(created, networkName);
+	} else {
+		transactor = buildLocalTransactor(created);
+	}
+
+	return created;
+}
+
+/**
+ * Solo-mode transactor — mirrors `LocalTransactor` from the optimystic
+ * reference-peer CLI. Bypasses the network entirely and routes all reads /
+ * writes at the node's local `storageRepo`, which is backed by
+ * `IndexedDBRawStorage`. The `MessageApp` can be driven against this without
+ * any peers connected.
+ */
+function buildLocalTransactor(libp2p: Libp2p): ITransactor {
+	const storageRepo = (libp2p as unknown as { storageRepo?: IRepo }).storageRepo;
+	if (!storageRepo) {
+		throw new Error('storageRepo missing on libp2p node — cannot build LocalTransactor');
+	}
+	return new LocalTransactor(storageRepo);
+}
+
+class LocalTransactor implements ITransactor {
+	constructor(private readonly repo: IRepo) {}
+
+	async get(blockGets: BlockGets): Promise<GetBlockResults> {
+		return await this.repo.get(blockGets);
+	}
+
+	async getStatus(_actionRefs: ActionBlocks[]): Promise<BlockActionStatus[]> {
+		throw new Error('LocalTransactor.getStatus is not implemented');
+	}
+
+	async pend(request: PendRequest): Promise<PendResult> {
+		return await this.repo.pend(request);
+	}
+
+	async commit(request: CommitRequest): Promise<CommitResult> {
+		// CommitRequest extends RepoCommitRequest structurally (it adds headerId,
+		// tailId on top of {blockIds, actionId, rev}); the repo only reads the
+		// RepoCommitRequest fields and ignores the rest.
+		return await this.repo.commit(request);
+	}
+
+	async cancel(actionRef: ActionBlocks): Promise<void> {
+		await this.repo.cancel(actionRef);
+	}
+}
+
+function buildNetworkTransactor(libp2p: Libp2p, networkName: string): ITransactor {
+	// `createLibp2pNode` attaches the cluster-aware `coordinatedRepo` and the
+	// pre-wired `keyNetwork` to the node instance (see libp2p-node-base.ts).
+	// Using those directly mirrors `reference-peer/src/cli.ts` and keeps the
+	// browser peer's key-network state (high-water mark, FRET adapter) in
+	// lockstep with the consensus layer.
+	const exposed = libp2p as unknown as {
+		coordinatedRepo?: IRepo;
+		keyNetwork?: Libp2pKeyPeerNetwork;
+	};
+	const coordinatedRepo = exposed.coordinatedRepo;
+	const keyNetwork = exposed.keyNetwork;
+	if (!coordinatedRepo || !keyNetwork) {
+		throw new Error(
+			'coordinatedRepo / keyNetwork missing on libp2p node — cannot build NetworkTransactor',
+		);
+	}
+	const protocolPrefix = `/optimystic/${networkName}`;
+	return new NetworkTransactor({
+		timeoutMs: NETWORK_TIMEOUT_MS,
+		abortOrCancelTimeoutMs: ABORT_OR_CANCEL_TIMEOUT_MS,
+		keyNetwork,
+		getRepo: (peerId) => {
+			return peerId.toString() === libp2p.peerId.toString()
+				? coordinatedRepo
+				: RepoClient.create(peerId, keyNetwork, protocolPrefix);
+		},
+	});
 }
 
 export async function stopNode(): Promise<void> {
@@ -116,5 +246,7 @@ export async function stopNode(): Promise<void> {
 		db = null;
 	}
 	storage = null;
+	transactor = null;
 	identityFirstSeenMs = null;
+	mode = 'solo';
 }
