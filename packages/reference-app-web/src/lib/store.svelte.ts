@@ -6,6 +6,7 @@
  */
 
 import { startNode, stopNode, getNode } from './optimystic.js';
+import { pushError } from './diagnostics.svelte.js';
 
 export type NodeStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'error';
 
@@ -36,6 +37,7 @@ export async function start(): Promise<void> {
 	} catch (err) {
 		state.error = err instanceof Error ? err.message : String(err);
 		state.status = 'error';
+		pushError('startNode', err);
 		console.error('[reference-app-web] startNode failed:', err);
 	}
 }
@@ -49,6 +51,7 @@ export async function stop(): Promise<void> {
 	} catch (err) {
 		state.error = err instanceof Error ? err.message : String(err);
 		state.status = 'error';
+		pushError('stopNode', err);
 		console.error('[reference-app-web] stopNode failed:', err);
 	}
 }
